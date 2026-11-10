@@ -19,6 +19,8 @@ Errors return `{"error": "..."}` with 400, 401, 404, 409 or 500.
 | POST | `/apps/{id}/start` | | `AppView`. 409 if running, 400 with the reason if it cannot start (port in use, missing folder). |
 | POST | `/apps/{id}/stop` | | `AppView` |
 | POST | `/apps/{id}/restart` | | `AppView` |
+| POST | `/apps/{id}/tasks/run` | `{name}` (saved task) or `{command}` | `AppView` with `task`. Returns once started. 409 if a task is running. |
+| POST | `/apps/{id}/tasks/stop` | | `AppView`. Ends the task's process tree. |
 | GET | `/apps/{id}/logs/recent` | `?tail=200` | `LogLine[]` |
 | WS | `/apps/{id}/logs` | `?token=` | Buffered lines, then live `LogLine` JSON messages |
 | GET | `/apps/{id}/events` | `?limit=100` | `Event[]`, newest first |

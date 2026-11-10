@@ -34,7 +34,7 @@ Status: M0 to M3 built. Next: pilot with existing customers, then v1.1. Last upd
 
 ## 2. Writing and design rules
 
-- No emojis anywhere: UI, docs, installer, commit messages, logs.
+- No emojis in UI, docs, installer, commit messages or logs. The one exception is the root README.md, which is the marketing page.
 - No em dashes. Use periods, commas or plain hyphens.
 - No filler words ("seamless", "powerful", "unlock", "supercharge", "effortless", "robust").
 - UI copy is short and literal: "Start", "Stop", "Restart", "Open folder", "Copy URL".
@@ -216,6 +216,10 @@ Enterprises pay for accountability, not for code. A clone of the repo does not i
 | Deferred: per-app "Run as" | Needs stored passwords or gMSA and `CreateProcessAsUser`. Own design, v1.1. |
 | Deferred: auto-update | Managed fleets deploy through Intune or SCCM. A self-updating SYSTEM service needs IT approval and a signed update feed. |
 | Code signing wired, not configured | `KEEPRUN_SIGN_COMMAND` feeds Tauri's `signCommand`. Needs the certificate (open item 3). |
+| Tasks separate from the run command | Detected one-off scripts (install, build, migrate, seed) were offered as ways to run the app. They are now saved as tasks and only run on demand, from the Tasks tab or `keeprun run`. One task at a time per app, never restarted. |
+| Port changed with `keeprun-agent set-port` | One command checks the port is free, writes `config.toml` and restarts the service. UI and CLI read the same file. Installers take `KEEPRUN_PORT` (MSI) or `/PORT=` (NSIS). |
+| MSI Repair enabled | The Tauri template sets `ARPNOREPAIR`. Repair is the normal fix for a broken service registration, so the fragment clears it. |
+| Agent drops `NoDefaultCurrentDirectoryInExePath` for apps | Hardened servers set it, which stops `start.bat` in the app folder from being found. |
 
 ## 11. Open items
 

@@ -14,7 +14,10 @@ export type EventKind =
   | "exited"
   | "crashed"
   | "restarted"
-  | "failed";
+  | "failed"
+  | "task-started"
+  | "task-finished"
+  | "task-failed";
 
 export interface Stats {
   cpu_percent: number;
@@ -34,6 +37,21 @@ export interface AppSpec {
   autostart: boolean;
   restart: RestartPolicy;
   max_restarts: number;
+  tasks: TaskSpec[];
+}
+
+export interface TaskSpec {
+  name: string;
+  command: string;
+}
+
+export interface TaskRun {
+  name: string | null;
+  command: string;
+  running: boolean;
+  started_at: number;
+  finished_at: number | null;
+  exit_code: number | null;
 }
 
 export interface AppView extends AppSpec {
@@ -44,6 +62,7 @@ export interface AppView extends AppSpec {
   restarts: number;
   next_restart_at: number | null;
   stats: Stats | null;
+  task: TaskRun | null;
 }
 
 export type NewApp = Omit<AppSpec, "id">;
@@ -53,6 +72,8 @@ export interface LogLine {
   ts: number;
   stream: LogStream;
   text: string;
+  /** Output of a task rather than the app. */
+  task?: boolean;
 }
 
 export interface AppEvent {
@@ -67,12 +88,15 @@ export interface Suggestion {
   label: string;
   command: string;
   detail: string | null;
+  /** Short task name, e.g. "db:migrate". */
+  name: string;
 }
 
 export interface Detection {
   kind: "node" | "dotnet" | "python" | "custom";
   name: string;
   suggestions: Suggestion[];
+  tasks: Suggestion[];
   port: number | null;
   dotenv: Record<string, string>;
   warnings: string[];
@@ -113,6 +137,8 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
+    // Settings may have changed, e.g. a new port. Read them again on the next call.
+    conn = null;
     throw new ApiError(
       c.env === "dev"
         ? `Cannot reach the dev agent at ${c.baseUrl}. Start it with "npm run dev:agent".`
@@ -143,6 +169,9 @@ export const api = {
   start: (id: string) => call<AppView>("POST", `/apps/${enc(id)}/start`),
   stop: (id: string) => call<AppView>("POST", `/apps/${enc(id)}/stop`),
   restart: (id: string) => call<AppView>("POST", `/apps/${enc(id)}/restart`),
+  runTask: (id: string, task: { name?: string; command?: string }) =>
+    call<AppView>("POST", `/apps/${enc(id)}/tasks/run`, task),
+  stopTask: (id: string) => call<AppView>("POST", `/apps/${enc(id)}/tasks/stop`),
   events: (id: string, limit = 100) => call<AppEvent[]>("GET", `/apps/${enc(id)}/events?limit=${limit}`),
   async logSocket(id: string): Promise<WebSocket> {
     const c = await connection();
@@ -154,6 +183,8 @@ export const desktop = {
   detect: (path: string) => invoke<Detection>("detect", { path }),
   readEnvFile: (path: string) => invoke<Record<string, string>>("read_env_file", { path }),
   looksSecret: (key: string) => invoke<boolean>("looks_secret", { key }),
+  /** Change the agent port. In prod, Windows asks for administrator approval. */
+  setAgentPort: (port: number) => invoke<string>("set_agent_port", { port }),
 };
 
 export const config = {

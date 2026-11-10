@@ -16,11 +16,15 @@ add the install folder to the machine PATH and start the service.
 
 ```powershell
 # MSI. KEEPRUN_USER grants a user access to the desktop app (default: the installing user).
-msiexec /i Keeprun_0.1.0_x64_en-US.msi /qn KEEPRUN_USER=CONTOSO\jdoe
+# KEEPRUN_PORT sets the agent port (default 7171). Leave it out to keep the current port.
+msiexec /i Keeprun_0.1.0_x64_en-US.msi /qn KEEPRUN_USER=CONTOSO\jdoe KEEPRUN_PORT=7272
 
 # NSIS
-Keeprun_0.1.0_x64-setup.exe /S
+Keeprun_0.1.0_x64-setup.exe /S /PORT=7272
 ```
+
+Repair reinstalls the files and registers the service again: run the MSI again and choose
+**Repair**, use **Repair** in Apps and features, or run `msiexec /fa <file or product code> /qn`.
 
 Uninstall with `msiexec /x <file or product code> /qn` or `"%ProgramFiles%\Keeprun\uninstall.exe" /S`.
 Uninstall removes the service and the PATH entry. Apps, events, logs and the token in
@@ -77,6 +81,19 @@ stop_timeout_ms = 10000
 ```
 
 Restart the **Keeprun Agent** service after editing. See [configuration.md](configuration.md).
+
+### Change the port
+
+From an Administrator terminal:
+
+```powershell
+keeprun-agent set-port 7272
+```
+
+It checks that the port is free, saves it to `config.toml` and restarts the service. Apps that
+were running start again. The desktop app and CLI read the same file, so they follow without
+changes. In the desktop app, the same is available from the server button in the header
+(Windows asks for administrator approval).
 
 ## Code signing
 

@@ -61,6 +61,8 @@
         autostart: true,
         restart: "on-failure",
         max_restarts: 5,
+        // One-off commands (install, migrate, build) are saved, never run on start.
+        tasks: (detection?.tasks ?? []).map((t) => ({ name: t.name || t.label, command: t.command })),
       });
       if (startNow) {
         try {
@@ -147,6 +149,13 @@
           <p class="hint selectable truncate font-mono">{command}</p>
         {/if}
       </fieldset>
+
+      {#if detection.tasks.length}
+        <p class="hint !mt-0">
+          Also found {detection.tasks.length === 1 ? "1 task" : `${detection.tasks.length} tasks`}:
+          {detection.tasks.map((t) => t.name || t.label).join(", ")}. They are saved, not run. Run them from the Tasks tab.
+        </p>
+      {/if}
 
       {#if Object.keys(detection.dotenv).length}
         <label class="flex items-center gap-2 text-[13px]">

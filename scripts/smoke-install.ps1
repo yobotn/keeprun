@@ -16,6 +16,18 @@ function Check($name, [scriptblock]$test) {
 $admin = (New-Object Security.Principal.WindowsPrincipal ([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $admin) { throw 'Run this script from an Administrator terminal.' }
 if (-not $Msi -or -not (Test-Path $Msi)) { throw 'MSI not found. Run npm run build first.' }
+# From here on, report failures as FAIL lines instead of stopping. Windows PowerShell 5.1 turns
+# stderr from native commands into errors, which would end the script under 'Stop'.
+$ErrorActionPreference = 'Continue'
+
+# A previous build with the same version blocks the install (error 1638). Remove it first.
+$old = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall' |
+    ForEach-Object { Get-ItemProperty $_.PSPath } |
+    Where-Object { $_.DisplayName -eq 'Keeprun' -and $_.PSChildName -like '{*}' }
+foreach ($o in $old) {
+    Write-Host "Removing installed Keeprun $($o.DisplayVersion) ($($o.PSChildName))"
+    Start-Process msiexec -ArgumentList "/x $($o.PSChildName) /qn" -Wait | Out-Null
+}
 
 $log = Join-Path $env:TEMP 'keeprun-install.log'
 Write-Host "Installing $Msi"
@@ -27,8 +39,9 @@ if (-not $dir) { $dir = Join-Path $env:ProgramFiles 'Keeprun' }
 Check 'Files installed' { (Test-Path "$dir\keeprun-agent.exe") -and (Test-Path "$dir\keeprun.exe") -and (Test-Path "$dir\keeprun-desktop.exe") }
 Check 'Service KeeprunAgent running' { (Get-Service KeeprunAgent).Status -eq 'Running' }
 Check 'Service start type is Automatic' { (Get-Service KeeprunAgent).StartType -eq 'Automatic' }
-Check 'Token file exists' { Test-Path "$env:ProgramData\Keeprun\token" }
-Check 'Token not readable by Everyone or Users' { -not ((icacls "$env:ProgramData\Keeprun\token") -match 'Everyone|BUILTIN\\Users') }
+$token = "$env:ProgramData\Keeprun\agent.token"
+Check 'Token file exists' { Test-Path $token }
+Check 'Token not readable by Everyone or Users' { (Test-Path $token) -and -not ((icacls $token) -match 'Everyone|BUILTIN\\Users') }
 Check 'Keeprun Users group exists' { net localgroup 'Keeprun Users' *> $null; $LASTEXITCODE -eq 0 }
 Check 'Install folder on machine PATH' { ([Environment]::GetEnvironmentVariable('Path', 'Machine') -split ';') -contains $dir.TrimEnd('\') }
 
@@ -48,7 +61,18 @@ Check 'CLI add and start app' { & "$dir\keeprun.exe" add smoke-app --cwd $app --
 Start-Sleep -Seconds 2
 Check 'App is running' { (& "$dir\keeprun.exe" --json list | Out-String | ConvertFrom-Json | ForEach-Object { $_ } | Where-Object id -eq 'smoke-app').state -eq 'running' }
 Check 'App logs captured' { (& "$dir\keeprun.exe" logs smoke-app -n 20) -match 'smoke ok' }
+Check 'Task runs and reports exit code' { & "$dir\keeprun.exe" run smoke-app -- exit /b 3 *> $null; $LASTEXITCODE -eq 3 }
 Check 'CLI stop app' { & "$dir\keeprun.exe" stop smoke-app *> $null; $LASTEXITCODE -eq 0 }
+
+# Port change: the service restarts on the new port and the CLI follows the config file.
+Check 'set-port 7272' { & "$dir\keeprun-agent.exe" set-port 7272 *> $null; $LASTEXITCODE -eq 0 }
+$ok = $false
+for ($i = 0; $i -lt 20 -and -not $ok; $i++) {
+    try { $ok = (Invoke-RestMethod http://127.0.0.1:7272/health).ok } catch { Start-Sleep -Milliseconds 500 }
+}
+Check 'API answers on 7272' { $ok }
+Check 'CLI follows the new port' { & "$dir\keeprun.exe" list *> $null; $LASTEXITCODE -eq 0 }
+& "$dir\keeprun-agent.exe" set-port 7171 *> $null
 & "$dir\keeprun.exe" rm smoke-app *> $null
 
 if (-not $KeepInstalled) {

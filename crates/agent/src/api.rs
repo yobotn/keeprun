@@ -8,7 +8,7 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use keeprun_core::model::{ApiError, Event, Health, NewApp, UpdateApp};
+use keeprun_core::model::{ApiError, AppView, Event, Health, NewApp, RunTask, UpdateApp};
 use keeprun_core::{Env, Settings};
 use serde::Deserialize;
 use std::sync::Arc;
@@ -34,6 +34,8 @@ pub fn router(state: AppState) -> Router {
         .route("/apps/{id}/start", post(start_app))
         .route("/apps/{id}/stop", post(stop_app))
         .route("/apps/{id}/restart", post(restart_app))
+        .route("/apps/{id}/tasks/run", post(run_task))
+        .route("/apps/{id}/tasks/stop", post(stop_task))
         .route("/apps/{id}/logs", get(logs_ws))
         .route("/apps/{id}/logs/recent", get(recent_logs))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth));
@@ -172,6 +174,18 @@ async fn restart_app(
     st.sup.restart(&id).await.map(Json)
 }
 
+async fn run_task(
+    State(st): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<RunTask>,
+) -> ApiResult<AppView> {
+    st.sup.run_task(&id, body).map(Json)
+}
+
+async fn stop_task(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult<AppView> {
+    st.sup.stop_task(&id).map(Json)
+}
+
 #[derive(Deserialize)]
 struct TailQuery {
     tail: Option<usize>,
@@ -213,6 +227,7 @@ async fn stream_logs(
                         ts: crate::supervisor::now_ms(),
                         stream: keeprun_core::model::Stream::System,
                         text: format!("{n} lines skipped because the client was too slow."),
+                        task: false,
                     };
                     if send(&mut socket, &note).await.is_err() { return }
                 }

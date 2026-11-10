@@ -1,5 +1,8 @@
 ; Keeprun NSIS installer hooks. Installs the agent as a Windows service.
 ; Silent install for Intune / SCCM: Keeprun_x.y.z_x64-setup.exe /S
+; Optional: /PORT=7272 sets the agent API port (default 7171).
+
+!include "FileFunc.nsh"
 
 !macro NSIS_HOOK_PREINSTALL
   ; Stop a running agent so its files can be replaced on upgrade. Apps restart with it.
@@ -10,7 +13,13 @@
 !macro NSIS_HOOK_POSTINSTALL
   ; Creates or updates the service, sets recovery actions, grants the installing user
   ; access to the API token, adds the CLI to PATH and starts the service.
-  nsExec::ExecToLog '"$INSTDIR\keeprun-agent.exe" install --env prod'
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/PORT=" $R1
+  ${If} ${Errors}
+    StrCpy $R1 ""
+  ${EndIf}
+  nsExec::ExecToLog '"$INSTDIR\keeprun-agent.exe" install --env prod --port "$R1"'
   Pop $0
   ${If} $0 != 0
     MessageBox MB_ICONEXCLAMATION|MB_OK "Keeprun was installed, but the agent service could not be set up (exit code $0). Open an Administrator terminal in $INSTDIR and run: keeprun-agent.exe install" /SD IDOK

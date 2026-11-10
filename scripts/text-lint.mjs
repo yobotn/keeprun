@@ -20,10 +20,15 @@ function* walk(dir) {
   }
 }
 
+// The root README is the marketing page: emojis are allowed there, em dashes are not.
+const emojiAllowed = new Set(["README.md"]);
+
 function check(label, text) {
   const out = [];
+  const allowEmoji = emojiAllowed.has(label);
   text.split(/\r?\n/).forEach((line, i) => {
     for (const { re, why } of banned) {
+      if (allowEmoji && why === "emoji") continue;
       re.lastIndex = 0;
       if (re.test(line)) out.push(`${label}:${i + 1}: ${why}: ${line.trim().slice(0, 100)}`);
     }

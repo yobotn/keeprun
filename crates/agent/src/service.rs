@@ -91,7 +91,12 @@ fn run_service(settings: Settings) -> Result<()> {
     result
 }
 
-pub fn install(settings: &Settings, start: bool, grant_user: Option<&str>) -> Result<()> {
+pub fn install(
+    settings: &Settings,
+    start: bool,
+    grant_user: Option<&str>,
+    port: Option<u16>,
+) -> Result<()> {
     let manager = ServiceManager::local_computer(
         None::<&str>,
         ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE,
@@ -109,6 +114,14 @@ pub fn install(settings: &Settings, start: bool, grant_user: Option<&str>) -> Re
             println!("Wrote default config to {}", cfg.display());
         }
     }
+    let mut settings = settings.clone();
+    if let Some(port) = port.filter(|p| *p != settings.port) {
+        crate::port::ensure_free(&settings, port)?;
+        let path = crate::port::write(&settings, port)?;
+        println!("Saved port {port} to {}.", path.display());
+        settings.port = port;
+    }
+    let settings = &settings;
 
     let token_path = settings.token_path();
     keeprun_core::token::load_or_create(&token_path)?;
@@ -214,6 +227,37 @@ pub fn install(settings: &Settings, start: bool, grant_user: Option<&str>) -> Re
         println!("Started. API at {}", settings.base_url());
     }
     Ok(())
+}
+
+/// Restart the installed service if it is running. Returns false when it is not installed
+/// or not running.
+pub fn restart_if_running(settings: &Settings) -> Result<bool> {
+    let Ok(manager) = ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)
+    else {
+        return Ok(false);
+    };
+    let Ok(service) = manager.open_service(
+        settings.service_name(),
+        ServiceAccess::QUERY_STATUS | ServiceAccess::STOP | ServiceAccess::START,
+    ) else {
+        return Ok(false);
+    };
+    if service.query_status()?.current_state != ServiceState::Running {
+        return Ok(false);
+    }
+    service.stop().context(
+        "Cannot stop the agent service. Run this command from an Administrator terminal.",
+    )?;
+    for _ in 0..60 {
+        std::thread::sleep(Duration::from_millis(500));
+        if service.query_status()?.current_state == ServiceState::Stopped {
+            break;
+        }
+    }
+    service
+        .start::<&str>(&[])
+        .context("The agent service did not start. Check agent.log in the data folder.")?;
+    Ok(true)
 }
 
 const USERS_GROUP: &str = "Keeprun Users";

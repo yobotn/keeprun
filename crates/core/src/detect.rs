@@ -25,6 +25,9 @@ pub struct Suggestion {
     pub command: String,
     /// Extra detail, e.g. the script body.
     pub detail: Option<String>,
+    /// Short name for a task, e.g. "db:migrate". Used as the saved task name.
+    #[serde(default)]
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,8 +35,12 @@ pub struct Detection {
     pub kind: Kind,
     /// Suggested app name.
     pub name: String,
-    /// Best first. May be empty for Custom.
+    /// Commands that run the app, best first. May be empty for Custom.
     pub suggestions: Vec<Suggestion>,
+    /// One-off commands such as installs, builds and migrations. Saved as app tasks,
+    /// never offered as the run command.
+    #[serde(default)]
+    pub tasks: Vec<Suggestion>,
     /// Port the app probably listens on, when it can be read from config.
     pub port: Option<u16>,
     /// Values from a `.env` file in the folder, offered for import.
@@ -190,39 +197,45 @@ fn detect_node(dir: &Path) -> Detection {
                 .collect()
         })
         .unwrap_or_default();
-    scripts.retain(|(k, _)| !k.starts_with("pre") && !k.starts_with("post"));
+    // npm runs lifecycle hooks (prestart, postbuild, prepare) by itself.
+    let names: Vec<String> = scripts.iter().map(|(k, _)| k.clone()).collect();
+    scripts.retain(|(k, _)| !is_lifecycle_hook(k, &names));
     scripts.sort_by_key(|(k, _)| order.iter().position(|o| o == k).unwrap_or(order.len()));
 
+    let script = |k: &str, body: &str| {
+        let (label, command) = if pm == "npm" || pm == "bun" {
+            (format!("{pm} run {k}"), format!("{pm_path} run {k}"))
+        } else {
+            (format!("{pm} {k}"), format!("{pm_path} {k}"))
+        };
+        Suggestion {
+            label,
+            command,
+            detail: Some(body.to_string()),
+            name: k.to_string(),
+        }
+    };
     let mut port = None;
-    let mut suggestions: Vec<Suggestion> = scripts
-        .iter()
-        .filter(|(k, _)| {
-            !matches!(
-                k.as_str(),
-                "test" | "lint" | "build" | "format" | "typecheck" | "check"
-            )
-        })
-        .map(|(k, body)| {
+    let mut suggestions = vec![];
+    let mut tasks = vec![];
+    if has_deps {
+        tasks.push(Suggestion {
+            label: format!("{pm} install"),
+            command: format!("{pm_path} install"),
+            detail: None,
+            name: "install".into(),
+        });
+    }
+    for (k, body) in &scripts {
+        if is_task_script(k) {
+            tasks.push(script(k, body));
+        } else {
             if port.is_none() {
                 port = port_in(body);
             }
-            let run = if pm == "npm" || pm == "bun" {
-                format!("{pm} run {k}")
-            } else {
-                format!("{pm} {k}")
-            };
-            let command = if pm == "npm" || pm == "bun" {
-                format!("{pm_path} run {k}")
-            } else {
-                format!("{pm_path} {k}")
-            };
-            Suggestion {
-                label: run,
-                command,
-                detail: Some(body.clone()),
-            }
-        })
-        .collect();
+            suggestions.push(script(k, body));
+        }
+    }
 
     let main = pkg["main"].as_str().map(str::to_string).or_else(|| {
         ["server.js", "index.js", "app.js", "main.js"]
@@ -236,6 +249,7 @@ fn detect_node(dir: &Path) -> Detection {
             label: format!("node {main}"),
             command: format!("{node} {main}"),
             detail: None,
+            name: String::new(),
         });
     }
     warnings.dedup();
@@ -243,10 +257,73 @@ fn detect_node(dir: &Path) -> Detection {
         kind: Kind::Node,
         name,
         suggestions,
+        tasks,
         port,
         dotenv: BTreeMap::new(),
         warnings,
     }
+}
+
+/// Words in a script name that mark a one-off job rather than a server.
+const TASK_WORDS: &[&str] = &[
+    "test",
+    "tests",
+    "e2e",
+    "coverage",
+    "lint",
+    "format",
+    "fmt",
+    "fix",
+    "typecheck",
+    "check",
+    "build",
+    "compile",
+    "bundle",
+    "clean",
+    "install",
+    "setup",
+    "bootstrap",
+    "generate",
+    "codegen",
+    "migrate",
+    "migration",
+    "migrations",
+    "seed",
+    "db",
+    "prisma",
+    "reset",
+    "deploy",
+    "release",
+    "publish",
+];
+
+/// "db:migrate", "build-prod", "test_unit" are tasks. "start", "start:prod", "dev" are not.
+fn is_task_script(name: &str) -> bool {
+    name.to_ascii_lowercase()
+        .split([':', '-', '_', '.'])
+        .any(|w| TASK_WORDS.contains(&w) || w.starts_with("migrat"))
+}
+
+/// npm runs `preX` and `postX` around script X, and lifecycle scripts on install and publish.
+fn is_lifecycle_hook(name: &str, all: &[String]) -> bool {
+    const LIFECYCLE: &[&str] = &[
+        "prepare",
+        "prepublish",
+        "prepublishOnly",
+        "prepack",
+        "postpack",
+        "preinstall",
+        "install",
+        "postinstall",
+        "dependencies",
+    ];
+    if LIFECYCLE.contains(&name) {
+        return true;
+    }
+    ["pre", "post"].iter().any(|p| {
+        name.strip_prefix(p)
+            .is_some_and(|rest| !rest.is_empty() && all.iter().any(|n| n == rest))
+    })
 }
 
 fn detect_dotnet(dir: &Path, proj: &Path) -> Detection {
@@ -268,12 +345,14 @@ fn detect_dotnet(dir: &Path, proj: &Path) -> Detection {
                 label: format!("{rel}/{stem}.exe"),
                 command: quote(&exe),
                 detail: None,
+                name: String::new(),
             });
         } else if dll.is_file() {
             suggestions.push(Suggestion {
                 label: format!("dotnet {rel}/{stem}.dll"),
                 command: format!("{dotnet} {}", quote(&dll)),
                 detail: None,
+                name: String::new(),
             });
         }
     }
@@ -282,7 +361,23 @@ fn detect_dotnet(dir: &Path, proj: &Path) -> Detection {
         label: "dotnet run -c Release".into(),
         command: format!("{dotnet} run -c Release --project {file}"),
         detail: None,
+        name: String::new(),
     });
+    let mut tasks = vec![Suggestion {
+        label: "dotnet publish -c Release -o publish".into(),
+        command: format!("{dotnet} publish {file} -c Release -o publish"),
+        detail: None,
+        name: "publish".into(),
+    }];
+    let proj_text = std::fs::read_to_string(proj).unwrap_or_default();
+    if proj_text.contains("Microsoft.EntityFrameworkCore") {
+        tasks.push(Suggestion {
+            label: "dotnet ef database update".into(),
+            command: format!("{dotnet} ef database update --project {file}"),
+            detail: Some("Needs the dotnet-ef tool".into()),
+            name: "ef-update".into(),
+        });
+    }
 
     let port = std::fs::read_to_string(dir.join("Properties").join("launchSettings.json"))
         .ok()
@@ -303,6 +398,7 @@ fn detect_dotnet(dir: &Path, proj: &Path) -> Detection {
         kind: Kind::Dotnet,
         name: stem,
         suggestions,
+        tasks,
         port,
         dotenv: BTreeMap::new(),
         warnings,
@@ -350,6 +446,7 @@ fn detect_python(dir: &Path) -> Detection {
             label: "Django (manage.py runserver)".into(),
             command: format!("{python} manage.py runserver 127.0.0.1:8000 --noreload"),
             detail: None,
+            name: String::new(),
         });
         port = Some(8000);
     }
@@ -363,6 +460,7 @@ fn detect_python(dir: &Path) -> Detection {
                 label: format!("uvicorn {module}:app"),
                 command: format!("{python} -m uvicorn {module}:app --host 127.0.0.1 --port 8000"),
                 detail: None,
+                name: String::new(),
             });
             port = port.or(Some(8000));
         }
@@ -371,6 +469,7 @@ fn detect_python(dir: &Path) -> Detection {
                 label: format!("flask --app {module} run"),
                 command: format!("{python} -m flask --app {module} run --port 5000"),
                 detail: None,
+                name: String::new(),
             });
             port = port.or(Some(5000));
         }
@@ -378,12 +477,45 @@ fn detect_python(dir: &Path) -> Detection {
             label: format!("python {entry}"),
             command: format!("{python} {entry}"),
             detail: None,
+            name: String::new(),
+        });
+    }
+    let mut tasks = vec![];
+    if dir.join("requirements.txt").is_file() {
+        tasks.push(Suggestion {
+            label: "pip install -r requirements.txt".into(),
+            command: format!("{python} -m pip install -r requirements.txt"),
+            detail: None,
+            name: "install".into(),
+        });
+    }
+    if dir.join("manage.py").is_file() {
+        tasks.push(Suggestion {
+            label: "manage.py migrate".into(),
+            command: format!("{python} manage.py migrate --noinput"),
+            detail: None,
+            name: "migrate".into(),
+        });
+        tasks.push(Suggestion {
+            label: "manage.py collectstatic".into(),
+            command: format!("{python} manage.py collectstatic --noinput"),
+            detail: None,
+            name: "collectstatic".into(),
+        });
+    }
+    if dir.join("alembic.ini").is_file() {
+        tasks.push(Suggestion {
+            label: "alembic upgrade head".into(),
+            command: format!("{python} -m alembic upgrade head"),
+            detail: None,
+            name: "upgrade".into(),
         });
     }
     Detection {
         kind: Kind::Python,
         name: folder_name(dir),
         suggestions,
+        tasks,
         port,
         dotenv: BTreeMap::new(),
         warnings,
@@ -419,6 +551,7 @@ fn detect_custom(dir: &Path) -> Detection {
                 label: name,
                 command,
                 detail: None,
+                name: String::new(),
             });
         }
     }
@@ -426,6 +559,7 @@ fn detect_custom(dir: &Path) -> Detection {
         kind: Kind::Custom,
         name: folder_name(dir),
         suggestions,
+        tasks: vec![],
         port: None,
         dotenv: BTreeMap::new(),
         warnings: vec![],
@@ -461,6 +595,32 @@ mod tests {
         assert!(!r.suggestions.iter().any(|s| s.label.contains("test")));
         assert_eq!(r.port, Some(3001));
         assert_eq!(r.dotenv["DB_PASSWORD"], "x");
+        assert!(r.tasks.iter().any(|s| s.label == "pnpm test"));
+    }
+
+    #[test]
+    fn node_scripts_split_into_run_and_tasks() {
+        let d = tmp("node-tasks");
+        std::fs::write(
+            d.join("package.json"),
+            r#"{"scripts":{"start":"node s.js","start:prod":"node s.js","preview":"vite preview","prestart":"x","db:migrate":"knex migrate:latest","seed":"node seed.js","build-prod":"tsc","postinstall":"x"},"dependencies":{"a":"1"}}"#,
+        )
+        .unwrap();
+        let r = detect(&d).unwrap();
+        let run: Vec<&str> = r.suggestions.iter().map(|s| s.label.as_str()).collect();
+        let tasks: Vec<&str> = r.tasks.iter().map(|s| s.label.as_str()).collect();
+        assert!(run.contains(&"npm run start"));
+        assert!(run.contains(&"npm run start:prod"));
+        assert!(run.contains(&"npm run preview"));
+        assert!(!run
+            .iter()
+            .any(|l| l.contains("migrate") || l.contains("seed")));
+        assert!(!run.contains(&"npm run prestart"));
+        assert_eq!(tasks[0], "npm install");
+        assert!(tasks.contains(&"npm run db:migrate"));
+        assert!(tasks.contains(&"npm run seed"));
+        assert!(tasks.contains(&"npm run build-prod"));
+        assert!(!tasks.iter().any(|l| l.contains("postinstall")));
     }
 
     #[test]

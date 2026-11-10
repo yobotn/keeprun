@@ -69,6 +69,36 @@ pub struct AppSpec {
     /// Restarts in a row before the app is marked Failed. 0 means no limit.
     #[serde(default = "five")]
     pub max_restarts: u32,
+    /// One-off commands run on demand, e.g. a database migration.
+    #[serde(default)]
+    pub tasks: Vec<TaskSpec>,
+}
+
+/// A saved one-off command for an app. Runs in the app folder with the app environment.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TaskSpec {
+    pub name: String,
+    pub command: String,
+}
+
+/// Body of `POST /apps/{id}/tasks/run`: a saved task name or a command line.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RunTask {
+    pub name: Option<String>,
+    pub command: Option<String>,
+}
+
+/// The running or most recent task of an app.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TaskRun {
+    /// Saved task name, or none for a one-off command.
+    pub name: Option<String>,
+    pub command: String,
+    pub running: bool,
+    /// Unix time in milliseconds.
+    pub started_at: u64,
+    pub finished_at: Option<u64>,
+    pub exit_code: Option<i32>,
 }
 
 /// Body of `POST /apps`.
@@ -89,6 +119,8 @@ pub struct NewApp {
     pub restart: RestartPolicy,
     #[serde(default = "five")]
     pub max_restarts: u32,
+    #[serde(default)]
+    pub tasks: Vec<TaskSpec>,
 }
 
 /// Body of `PATCH /apps/{id}`. Missing fields keep their value.
@@ -103,6 +135,7 @@ pub struct UpdateApp {
     pub autostart: Option<bool>,
     pub restart: Option<RestartPolicy>,
     pub max_restarts: Option<u32>,
+    pub tasks: Option<Vec<TaskSpec>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -171,6 +204,9 @@ pub struct AppView {
     /// Unix time in milliseconds of the next restart attempt.
     pub next_restart_at: Option<u64>,
     pub stats: Option<Stats>,
+    /// The running or most recent task since the agent started.
+    #[serde(default)]
+    pub task: Option<TaskRun>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -185,6 +221,9 @@ pub enum EventKind {
     Crashed,
     Restarted,
     Failed,
+    TaskStarted,
+    TaskFinished,
+    TaskFailed,
 }
 
 impl EventKind {
@@ -199,6 +238,9 @@ impl EventKind {
             EventKind::Crashed => "crashed",
             EventKind::Restarted => "restarted",
             EventKind::Failed => "failed",
+            EventKind::TaskStarted => "task-started",
+            EventKind::TaskFinished => "task-finished",
+            EventKind::TaskFailed => "task-failed",
         }
     }
 
@@ -213,6 +255,9 @@ impl EventKind {
             "crashed" => EventKind::Crashed,
             "restarted" => EventKind::Restarted,
             "failed" => EventKind::Failed,
+            "task-started" => EventKind::TaskStarted,
+            "task-finished" => EventKind::TaskFinished,
+            "task-failed" => EventKind::TaskFailed,
             _ => return None,
         })
     }
@@ -242,6 +287,13 @@ pub struct LogLine {
     pub ts: u64,
     pub stream: Stream,
     pub text: String,
+    /// Output of a task rather than the app itself.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub task: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// Response of `GET /health`.

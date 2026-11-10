@@ -31,6 +31,7 @@
     crashed: "text-danger",
     failed: "text-danger",
     "start-failed": "text-danger",
+    "task-failed": "text-danger",
     restarted: "text-warn",
     started: "text-accent",
   };

@@ -6,7 +6,7 @@ use futures_util::StreamExt;
 use keeprun_core::detect;
 use keeprun_core::model::{
     looks_secret, parse_dotenv, ApiError, AppState, AppView, Event, Health, LogLine, NewApp,
-    RestartPolicy, Stream, UpdateApp,
+    RestartPolicy, RunTask, Stream, TaskSpec, UpdateApp,
 };
 use keeprun_core::{Env, Settings};
 use reqwest::{Method, StatusCode};
@@ -147,6 +147,39 @@ enum Cmd {
         app: Option<String>,
         #[arg(short = 'n', long, default_value_t = 30)]
         limit: u32,
+    },
+    /// List, add or remove an app's saved tasks (one-off commands such as migrations).
+    ///
+    /// Examples:
+    ///   keeprun tasks hr-portal
+    ///   keeprun tasks hr-portal --add migrate -- npm run db:migrate
+    ///   keeprun tasks hr-portal --rm migrate
+    Tasks {
+        app: String,
+        /// Save a task with this name. The command follows --.
+        #[arg(long, value_name = "NAME", conflicts_with = "rm")]
+        add: Option<String>,
+        /// Remove the saved task with this name.
+        #[arg(long, value_name = "NAME")]
+        rm: Option<String>,
+        #[arg(last = true)]
+        command: Vec<String>,
+    },
+    /// Run a saved task, or a one-off command, in the app folder with the app environment.
+    /// Shows the output and exits with the task's exit code. Ctrl+C stops the task.
+    ///
+    /// Examples:
+    ///   keeprun run hr-portal migrate
+    ///   keeprun run hr-portal -- npm run seed
+    Run {
+        app: String,
+        /// Saved task name. See `keeprun tasks <app>`.
+        task: Option<String>,
+        /// Start the task and return without waiting for it.
+        #[arg(long)]
+        no_wait: bool,
+        #[arg(last = true)]
+        command: Vec<String>,
     },
 }
 
@@ -377,6 +410,12 @@ async fn run() -> Result<()> {
                     s.command
                 );
             }
+            if !d.tasks.is_empty() {
+                println!("Tasks (saved with the app, run on demand)");
+                for t in &d.tasks {
+                    println!("    {:<16}  {}", t.name, t.command);
+                }
+            }
             if !d.dotenv.is_empty() {
                 println!(".env     {} variables", d.dotenv.len());
             }
@@ -413,6 +452,16 @@ async fn run() -> Result<()> {
             let cwd = cwd.map_or_else(std::env::current_dir, Ok)?;
             let cwd = std::path::absolute(&cwd).unwrap_or(cwd);
             let mut env = BTreeMap::new();
+            // Detected one-off commands (install, migrate, build) are saved as tasks, never run.
+            let tasks: Vec<TaskSpec> = detect::detect(&cwd)
+                .map(|d| d.tasks)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|t| TaskSpec {
+                    name: if t.name.is_empty() { t.label } else { t.name },
+                    command: t.command,
+                })
+                .collect();
             let (name, command) = match (name, command.is_empty()) {
                 (Some(name), false) => (name, command.join(" ")),
                 (name, _) => {
@@ -455,9 +504,18 @@ async fn run() -> Result<()> {
                 autostart: !no_autostart,
                 restart,
                 max_restarts: 5,
+                tasks,
             };
             let app: AppView = c.send(Method::POST, "/apps", &body).await?;
             println!("Added {} ({}).", app.spec.id, app.spec.command);
+            if !app.spec.tasks.is_empty() {
+                let names: Vec<&str> = app.spec.tasks.iter().map(|t| t.name.as_str()).collect();
+                println!(
+                    "Saved tasks: {}. Run one with: keeprun run {} <task>",
+                    names.join(", "),
+                    app.spec.id
+                );
+            }
             if start {
                 action(&c, &app.spec.id, "start").await?;
             } else {
@@ -565,6 +623,104 @@ async fn run() -> Result<()> {
                 }
             }
         }
+        Cmd::Tasks {
+            app,
+            add,
+            rm,
+            command,
+        } => {
+            let v: AppView = c.get(&format!("/apps/{app}")).await?;
+            let mut tasks = v.spec.tasks.clone();
+            let changed = if let Some(name) = add {
+                if command.is_empty() {
+                    bail!("Give the task command after --, e.g. keeprun tasks {app} --add {name} -- npm run migrate");
+                }
+                let command = command.join(" ");
+                match tasks.iter_mut().find(|t| t.name == name) {
+                    Some(t) => t.command = command,
+                    None => tasks.push(TaskSpec { name, command }),
+                }
+                true
+            } else if let Some(name) = rm {
+                let before = tasks.len();
+                tasks.retain(|t| t.name != name);
+                if tasks.len() == before {
+                    bail!("App \"{app}\" has no task named \"{name}\".");
+                }
+                true
+            } else {
+                false
+            };
+            let v = if changed {
+                let u = UpdateApp {
+                    tasks: Some(tasks),
+                    ..Default::default()
+                };
+                c.send::<AppView>(Method::PATCH, &format!("/apps/{app}"), &u)
+                    .await?
+            } else {
+                v
+            };
+            if json {
+                println!("{}", serde_json::to_string_pretty(&v.spec.tasks)?);
+                return Ok(());
+            }
+            if v.spec.tasks.is_empty() {
+                println!(
+                    "No saved tasks. Add one with: keeprun tasks {app} --add <name> -- <command>"
+                );
+            } else {
+                let w = v
+                    .spec
+                    .tasks
+                    .iter()
+                    .map(|t| t.name.len())
+                    .max()
+                    .unwrap_or(4)
+                    .max(4);
+                println!("{:<w$}  COMMAND", "NAME");
+                for t in &v.spec.tasks {
+                    println!("{:<w$}  {}", t.name, t.command);
+                }
+            }
+            if let Some(r) = &v.task {
+                let what = r.name.as_deref().unwrap_or(&r.command);
+                let state = match (r.running, r.exit_code) {
+                    (true, _) => "running".to_string(),
+                    (false, Some(code)) => format!("exit code {code}"),
+                    (false, None) => "ended".to_string(),
+                };
+                println!(
+                    "\nLast run: {what}, {state}, started {}",
+                    time(r.started_at)
+                );
+            }
+        }
+        Cmd::Run {
+            app,
+            task,
+            no_wait,
+            command,
+        } => {
+            let body = match (task, command.is_empty()) {
+                (Some(name), true) => RunTask {
+                    name: Some(name),
+                    command: None,
+                },
+                (None, false) => RunTask {
+                    name: None,
+                    command: Some(command.join(" ")),
+                },
+                (Some(_), false) => bail!("Give a task name or a command after --, not both."),
+                (None, true) => bail!(
+                    "Give a task name or a command, e.g. keeprun run {app} migrate. See: keeprun tasks {app}"
+                ),
+            };
+            let code = run_task(&c, &app, &body, no_wait).await?;
+            if code != 0 {
+                std::process::exit(code);
+            }
+        }
         Cmd::Logs { app, follow, tail } => {
             if !follow {
                 let lines: Vec<LogLine> = c
@@ -621,6 +777,79 @@ async fn run() -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Start a task and stream its output until it ends. Returns the exit code to exit with.
+async fn run_task(c: &Client, app: &str, body: &RunTask, no_wait: bool) -> Result<i32> {
+    if no_wait {
+        let v: AppView = c
+            .send(Method::POST, &format!("/apps/{app}/tasks/run"), body)
+            .await?;
+        if let Some(r) = v.task {
+            println!(
+                "Started {}. Output: keeprun logs {app} -f",
+                r.name.unwrap_or(r.command)
+            );
+        }
+        return Ok(0);
+    }
+    // Connect first so no output is missed, then skip the history the agent sends.
+    let url = format!(
+        "ws://{}:{}/apps/{}/logs?token={}",
+        c.settings.host, c.settings.port, app, c.token
+    );
+    let (mut ws, _) = tokio_tungstenite::connect_async(&url)
+        .await
+        .map_err(|e| match e {
+            tokio_tungstenite::tungstenite::Error::Http(r) if r.status() == 404 => {
+                anyhow::anyhow!("No app with id \"{app}\". Run `keeprun list` to see app ids.")
+            }
+            _ => c.unreachable(),
+        })?;
+    loop {
+        tokio::select! {
+            msg = ws.next() => if msg.is_none() { return Err(c.unreachable()) },
+            _ = tokio::time::sleep(std::time::Duration::from_millis(200)) => break,
+        }
+    }
+    let v: AppView = c
+        .send(Method::POST, &format!("/apps/{app}/tasks/run"), body)
+        .await?;
+    let started = v.task.map(|t| t.started_at).unwrap_or(0);
+    let mut interrupted = false;
+    loop {
+        tokio::select! {
+            msg = ws.next() => match msg {
+                Some(Ok(Message::Text(t))) => {
+                    let Ok(l) = serde_json::from_str::<LogLine>(&t) else { continue };
+                    if !l.task || l.ts < started {
+                        continue;
+                    }
+                    print_line(&l);
+                    if l.stream == Stream::System
+                        && ["Task finished", "Task failed", "Task stopped"]
+                            .iter()
+                            .any(|p| l.text.starts_with(p))
+                    {
+                        break;
+                    }
+                }
+                Some(Ok(_)) => {}
+                _ => bail!("Connection to the agent closed. The task may still be running."),
+            },
+            _ = tokio::signal::ctrl_c(), if !interrupted => {
+                interrupted = true;
+                let _ = c
+                    .call::<AppView>(Method::POST, &format!("/apps/{app}/tasks/stop"), None::<&()>)
+                    .await;
+            }
+        }
+    }
+    let v: AppView = c.get(&format!("/apps/{app}")).await?;
+    Ok(match v.task {
+        Some(r) if !r.running => r.exit_code.unwrap_or(1),
+        _ => 1,
+    })
 }
 
 async fn action(c: &Client, app: &str, verb: &str) -> Result<()> {

@@ -8,8 +8,8 @@ use crate::db::Db;
 use crate::job::{self, Job};
 use anyhow::{anyhow, Context, Result};
 use keeprun_core::model::{
-    slugify, AppSpec, AppState, AppView, Event, EventKind, LogLine, NewApp, RestartPolicy, Stats,
-    Stream, UpdateApp,
+    slugify, AppSpec, AppState, AppView, Event, EventKind, LogLine, NewApp, RestartPolicy, RunTask,
+    Stats, Stream, TaskRun, TaskSpec, UpdateApp,
 };
 use keeprun_core::Settings;
 use std::collections::{BTreeMap, HashSet, VecDeque};
@@ -77,6 +77,17 @@ struct Managed {
     spec: RwLock<AppSpec>,
     rt: Mutex<Runtime>,
     logs: LogHub,
+    task: Mutex<TaskSlot>,
+}
+
+/// One task at a time per app. Tasks run beside the app and are never restarted.
+#[derive(Default)]
+struct TaskSlot {
+    run: Option<TaskRun>,
+    job: Option<Arc<Job>>,
+    /// Increments per task, so a late exit never overwrites a newer run.
+    seq: u64,
+    stop_requested: bool,
 }
 
 #[derive(Default)]
@@ -121,10 +132,15 @@ impl LogHub {
     }
 
     pub fn push(&self, stream: Stream, text: String) {
+        self.push_line(stream, text, false);
+    }
+
+    fn push_line(&self, stream: Stream, text: String, task: bool) {
         let line = LogLine {
             ts: now_ms(),
             stream,
             text,
+            task,
         };
         {
             let mut buf = self.buffer.lock().unwrap();
@@ -142,10 +158,13 @@ impl LogHub {
         let Some((path, file)) = guard.as_mut() else {
             return;
         };
-        let tag = match line.stream {
-            Stream::Stdout => "out",
-            Stream::Stderr => "err",
-            Stream::System => "sys",
+        let tag = match (line.task, line.stream) {
+            (false, Stream::Stdout) => "out",
+            (false, Stream::Stderr) => "err",
+            (false, Stream::System) => "sys",
+            (true, Stream::Stdout) => "task-out",
+            (true, Stream::Stderr) => "task-err",
+            (true, Stream::System) => "task-sys",
         };
         let _ = writeln!(file, "{} {} {}", line.ts, tag, line.text);
         if file
@@ -192,6 +211,7 @@ impl Managed {
             restarts: rt.restarts,
             next_restart_at: rt.next_restart_at,
             stats,
+            task: self.task.lock().unwrap().run.clone(),
         }
     }
 }
@@ -248,6 +268,7 @@ impl Supervisor {
             spec: RwLock::new(spec),
             rt: Mutex::new(Runtime::default()),
             logs,
+            task: Mutex::new(TaskSlot::default()),
         })
     }
 
@@ -342,6 +363,7 @@ impl Supervisor {
 
     pub fn add(&self, new: NewApp) -> Result<AppView, SupError> {
         Self::validate(&new.name, &new.cwd, &new.command)?;
+        let tasks = clean_tasks(new.tasks)?;
         let id = slugify(&new.name);
         let spec = AppSpec {
             id: id.clone(),
@@ -358,6 +380,7 @@ impl Supervisor {
             autostart: new.autostart,
             restart: new.restart,
             max_restarts: new.max_restarts,
+            tasks,
         };
         {
             let mut apps = self.apps.write().unwrap();
@@ -414,6 +437,9 @@ impl Supervisor {
         if let Some(v) = u.max_restarts {
             spec.max_restarts = v;
         }
+        if let Some(v) = u.tasks {
+            spec.tasks = clean_tasks(v)?;
+        }
         Self::validate(&spec.name, &spec.cwd, &spec.command)?;
         if spec == before {
             return self.view(id);
@@ -440,6 +466,11 @@ impl Supervisor {
         if m.state().is_active() {
             return Err(SupError::Conflict(format!(
                 "App \"{id}\" is running. Stop it before removing it."
+            )));
+        }
+        if m.task.lock().unwrap().job.is_some() {
+            return Err(SupError::Conflict(format!(
+                "A task is running for \"{id}\". Wait for it or stop it before removing the app."
             )));
         }
         self.db.delete_app(id)?;
@@ -595,10 +626,10 @@ impl Supervisor {
         tracing::info!(app = %id, pid = ?pid, "started");
 
         if let Some(out) = child.stdout.take() {
-            tokio::spawn(pump(out, m.clone(), Stream::Stdout));
+            tokio::spawn(pump(out, m.clone(), Stream::Stdout, false));
         }
         if let Some(err) = child.stderr.take() {
-            tokio::spawn(pump(err, m.clone(), Stream::Stderr));
+            tokio::spawn(pump(err, m.clone(), Stream::Stderr, false));
         }
         let sup = self.clone();
         let m2 = m.clone();
@@ -772,6 +803,150 @@ impl Supervisor {
         Ok(())
     }
 
+    /// Run a saved task or a one-off command in the app folder with the app environment.
+    /// Returns once the process has started. Output goes to the app log, marked as task output.
+    pub fn run_task(self: &Arc<Self>, id: &str, req: RunTask) -> Result<AppView, SupError> {
+        let m = self.get(id)?;
+        let spec = m.spec.read().unwrap().clone();
+        let (name, command) = match (req.name, req.command) {
+            (Some(n), None) => {
+                let t = spec.tasks.iter().find(|t| t.name == n).ok_or_else(|| {
+                    SupError::NotFound(format!(
+                        "App \"{id}\" has no task named \"{n}\". Run `keeprun tasks {id}` to see them."
+                    ))
+                })?;
+                (Some(n), t.command.clone())
+            }
+            (None, Some(c)) if !c.trim().is_empty() => (None, c.trim().to_string()),
+            _ => {
+                return Err(SupError::BadRequest(
+                    "Give either a task name or a command.".into(),
+                ))
+            }
+        };
+        let label = name.clone().unwrap_or_else(|| command.clone());
+
+        let seq = {
+            let mut slot = m.task.lock().unwrap();
+            if let Some(r) = slot.run.as_ref().filter(|r| r.running) {
+                return Err(SupError::Conflict(format!(
+                    "A task is already running for \"{id}\": {}. Wait for it or stop it.",
+                    r.name.as_deref().unwrap_or(&r.command)
+                )));
+            }
+            slot.seq += 1;
+            slot.stop_requested = false;
+            slot.run = Some(TaskRun {
+                name: name.clone(),
+                command: command.clone(),
+                running: true,
+                started_at: now_ms(),
+                finished_at: None,
+                exit_code: None,
+            });
+            slot.seq
+        };
+
+        let (mut child, job) = match job::spawn_in_job(&spec.cwd, &command, &spec.env) {
+            Ok(v) => v,
+            Err(e) => {
+                let msg = format!("{e:#}");
+                if let Some(r) = m.task.lock().unwrap().run.as_mut() {
+                    r.running = false;
+                    r.finished_at = Some(now_ms());
+                }
+                m.logs
+                    .push_line(Stream::System, format!("Task did not start: {msg}"), true);
+                self.event(
+                    id,
+                    EventKind::TaskFailed,
+                    format!("Task {label} did not start: {msg}"),
+                );
+                return Err(SupError::BadRequest(msg));
+            }
+        };
+        m.task.lock().unwrap().job = Some(Arc::new(job));
+        m.logs
+            .push_line(Stream::System, format!("Task started: {command}"), true);
+        self.event(id, EventKind::TaskStarted, format!("Task {label} started"));
+        tracing::info!(app = %id, task = %label, "task started");
+
+        let mut pumps = vec![];
+        if let Some(out) = child.stdout.take() {
+            pumps.push(tokio::spawn(pump(out, m.clone(), Stream::Stdout, true)));
+        }
+        if let Some(err) = child.stderr.take() {
+            pumps.push(tokio::spawn(pump(err, m.clone(), Stream::Stderr, true)));
+        }
+        let sup = self.clone();
+        let m2 = m.clone();
+        let id2 = id.to_string();
+        tokio::spawn(async move {
+            let code = child.wait().await.ok().and_then(|s| s.code());
+            // Ending the job closes pipes held by leftover child processes, so the output
+            // is complete before the finish line. Clients use that line as the end marker.
+            let job = m2.task.lock().unwrap().job.clone();
+            if let Some(job) = job {
+                job.terminate(1);
+            }
+            let flush = futures_util::future::join_all(pumps);
+            let _ = tokio::time::timeout(Duration::from_secs(2), flush).await;
+            let stopped = {
+                let mut slot = m2.task.lock().unwrap();
+                if slot.seq != seq {
+                    return;
+                }
+                // Dropping the job ends any process the task left behind.
+                slot.job = None;
+                if let Some(r) = slot.run.as_mut() {
+                    r.running = false;
+                    r.finished_at = Some(now_ms());
+                    r.exit_code = code;
+                }
+                slot.stop_requested
+            };
+            let code_s = code.map_or_else(|| "no exit code".into(), |c| format!("exit code {c}"));
+            let (kind, msg, line) = if stopped {
+                (
+                    EventKind::TaskFailed,
+                    format!("Task {label} stopped"),
+                    "Task stopped".to_string(),
+                )
+            } else if code == Some(0) {
+                (
+                    EventKind::TaskFinished,
+                    format!("Task {label} finished"),
+                    "Task finished with exit code 0".to_string(),
+                )
+            } else {
+                (
+                    EventKind::TaskFailed,
+                    format!("Task {label} failed with {code_s}"),
+                    format!("Task failed with {code_s}"),
+                )
+            };
+            m2.logs.push_line(Stream::System, line, true);
+            sup.event(&id2, kind, msg);
+        });
+        self.view(id)
+    }
+
+    /// End the running task and its process tree.
+    pub fn stop_task(&self, id: &str) -> Result<AppView, SupError> {
+        let m = self.get(id)?;
+        {
+            let mut slot = m.task.lock().unwrap();
+            let Some(job) = slot.job.clone() else {
+                return Err(SupError::Conflict(format!(
+                    "No task is running for \"{id}\"."
+                )));
+            };
+            slot.stop_requested = true;
+            job.terminate(1);
+        }
+        self.view(id)
+    }
+
     pub async fn restart(self: &Arc<Self>, id: &str) -> Result<AppView, SupError> {
         self.stop_inner(id).await?;
         self.start(id)
@@ -779,6 +954,11 @@ impl Supervisor {
 
     /// Stop every running app without changing desired state. Used on agent shutdown.
     pub async fn stop_all(&self) {
+        for m in self.apps.read().unwrap().values() {
+            if let Some(job) = m.task.lock().unwrap().job.clone() {
+                job.terminate(1);
+            }
+        }
         let ids: Vec<String> = self
             .apps
             .read()
@@ -805,6 +985,30 @@ fn clean_tags(tags: Vec<String>) -> Vec<String> {
     t.sort();
     t.dedup();
     t
+}
+
+/// Trim names and commands, drop empty rows, and reject duplicate names.
+fn clean_tasks(tasks: Vec<TaskSpec>) -> Result<Vec<TaskSpec>, SupError> {
+    let mut out: Vec<TaskSpec> = vec![];
+    for t in tasks {
+        let name = t.name.trim().to_string();
+        let command = t.command.trim().to_string();
+        if name.is_empty() && command.is_empty() {
+            continue;
+        }
+        if name.is_empty() || command.is_empty() {
+            return Err(SupError::BadRequest(
+                "Each task needs a name and a command.".into(),
+            ));
+        }
+        if out.iter().any(|o| o.name == name) {
+            return Err(SupError::BadRequest(format!(
+                "Two tasks are named \"{name}\". Give each task its own name."
+            )));
+        }
+        out.push(TaskSpec { name, command });
+    }
+    Ok(out)
 }
 
 fn needs_restart(a: &AppSpec, b: &AppSpec) -> bool {
@@ -858,6 +1062,9 @@ fn describe_changes(a: &AppSpec, b: &AppSpec) -> String {
     if a.max_restarts != b.max_restarts {
         parts.push(format!("max restarts to {}", b.max_restarts));
     }
+    if a.tasks != b.tasks {
+        parts.push("tasks".into());
+    }
     parts.join(", ")
 }
 
@@ -894,7 +1101,7 @@ async fn wait_until_done(m: &Managed, generation: u64, timeout: Duration) -> boo
     }
 }
 
-async fn pump<R: AsyncRead + Unpin>(reader: R, m: Arc<Managed>, stream: Stream) {
+async fn pump<R: AsyncRead + Unpin>(reader: R, m: Arc<Managed>, stream: Stream, task: bool) {
     use tokio::io::AsyncReadExt;
     // Cap line length so output without newlines cannot grow memory without bound.
     const MAX_LINE: u64 = 64 * 1024;
@@ -910,8 +1117,11 @@ async fn pump<R: AsyncRead + Unpin>(reader: R, m: Arc<Managed>, stream: Stream) 
             Ok(0) | Err(_) => break,
             Ok(_) => {
                 let text = String::from_utf8_lossy(&buf);
-                m.logs
-                    .push(stream, text.trim_end_matches(['\r', '\n']).to_string());
+                m.logs.push_line(
+                    stream,
+                    text.trim_end_matches(['\r', '\n']).to_string(),
+                    task,
+                );
             }
         }
     }
@@ -943,6 +1153,10 @@ mod tests {
             autostart: true,
             restart,
             max_restarts: max,
+            tasks: vec![TaskSpec {
+                name: "hello".into(),
+                command: "echo task-output".into(),
+            }],
         })
         .unwrap()
         .spec
@@ -958,6 +1172,107 @@ mod tests {
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
+    }
+
+    async fn wait_task(s: &Supervisor, id: &str, secs: u64) -> TaskRun {
+        let deadline = Instant::now() + Duration::from_secs(secs);
+        loop {
+            let t = s.view(id).unwrap().task.unwrap();
+            if !t.running || Instant::now() > deadline {
+                return t;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+
+    #[tokio::test]
+    async fn tasks_run_once_and_are_marked_in_logs() {
+        let s = sup("tasks");
+        let id = app(
+            &s,
+            "tasker",
+            "ping -n 60 127.0.0.1 >nul",
+            RestartPolicy::Never,
+            5,
+        );
+        s.run_task(
+            &id,
+            RunTask {
+                name: Some("hello".into()),
+                command: None,
+            },
+        )
+        .unwrap();
+        let t = wait_task(&s, &id, 10).await;
+        assert_eq!(t.exit_code, Some(0));
+        assert_eq!(t.name.as_deref(), Some("hello"));
+        // Give the output pump a moment after the exit.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        let logs = s.recent_logs(&id, 50).unwrap();
+        assert!(logs
+            .iter()
+            .any(|l| l.task && l.text.contains("task-output")));
+        // The app itself was never started by the task.
+        assert_eq!(s.view(&id).unwrap().state, AppState::Stopped);
+
+        // A failing one-off command reports its exit code.
+        s.run_task(
+            &id,
+            RunTask {
+                name: None,
+                command: Some("exit /b 3".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(wait_task(&s, &id, 10).await.exit_code, Some(3));
+
+        // Unknown names and a second concurrent task are refused; stop ends a long task.
+        assert!(matches!(
+            s.run_task(
+                &id,
+                RunTask {
+                    name: Some("nope".into()),
+                    command: None
+                }
+            ),
+            Err(SupError::NotFound(_))
+        ));
+        s.run_task(
+            &id,
+            RunTask {
+                name: None,
+                command: Some("ping -n 60 127.0.0.1 >nul".into()),
+            },
+        )
+        .unwrap();
+        assert!(matches!(
+            s.run_task(
+                &id,
+                RunTask {
+                    name: Some("hello".into()),
+                    command: None
+                }
+            ),
+            Err(SupError::Conflict(_))
+        ));
+        assert!(matches!(s.remove(&id), Err(SupError::Conflict(_))));
+        s.stop_task(&id).unwrap();
+        assert!(!wait_task(&s, &id, 5).await.running);
+        s.remove(&id).unwrap();
+    }
+
+    #[test]
+    fn task_list_is_validated() {
+        let t = |n: &str, c: &str| TaskSpec {
+            name: n.into(),
+            command: c.into(),
+        };
+        assert_eq!(
+            clean_tasks(vec![t(" a ", " x "), t("", "")]).unwrap(),
+            vec![t("a", "x")]
+        );
+        assert!(clean_tasks(vec![t("a", "")]).is_err());
+        assert!(clean_tasks(vec![t("a", "x"), t("a", "y")]).is_err());
     }
 
     #[tokio::test]

@@ -4,12 +4,14 @@
 //! `keeprun-agent install`    Install and start the Windows service (needs Administrator).
 //! `keeprun-agent uninstall`  Stop and remove the Windows service.
 //! `keeprun-agent config`     Print the effective settings.
+//! `keeprun-agent set-port`   Change the API port and restart the service.
 //! `keeprun-agent service`    Entry point used by the Service Control Manager.
 
 mod api;
 mod db;
 mod dpapi;
 mod job;
+mod port;
 mod service;
 mod supervisor;
 mod syspath;
@@ -43,6 +45,18 @@ enum Cmd {
         /// User (DOMAIN\name) who may use the desktop app. Defaults to the current user.
         #[arg(long)]
         grant_user: Option<String>,
+        /// API port. Saved to the config file. Empty keeps the current port.
+        #[arg(long)]
+        port: Option<String>,
+    },
+    /// Change the API port, save it to the config file and restart the service.
+    /// Run from an Administrator terminal.
+    SetPort {
+        port: u16,
+        /// Also write the outcome to this file. Used by the desktop app, which cannot read
+        /// the output of an elevated process.
+        #[arg(long, hide = true)]
+        report: Option<std::path::PathBuf>,
     },
     /// Stop and remove the Windows service.
     Uninstall,
@@ -72,7 +86,28 @@ fn main() -> Result<()> {
         Cmd::Install {
             no_start,
             grant_user,
-        } => service::install(&settings, !no_start, grant_user.as_deref()),
+            port,
+        } => {
+            let port = match port.as_deref().map(str::trim).filter(|p| !p.is_empty()) {
+                Some(p) => Some(p.parse::<u16>().with_context(|| {
+                    format!("Port \"{p}\" is not valid. Use a number from 1 to 65535.")
+                })?),
+                None => None,
+            };
+            let grant_user = grant_user.filter(|u| !u.trim().is_empty());
+            service::install(&settings, !no_start, grant_user.as_deref(), port)
+        }
+        Cmd::SetPort { port, report } => {
+            let result = port::set_port(&settings, port);
+            if let Some(path) = report {
+                let text = match &result {
+                    Ok(()) => "ok".to_string(),
+                    Err(e) => format!("{e:#}"),
+                };
+                let _ = std::fs::write(path, text);
+            }
+            result
+        }
         Cmd::Uninstall => service::uninstall(&settings),
         Cmd::Config => {
             println!("{}", serde_json::to_string_pretty(&settings)?);

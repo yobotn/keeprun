@@ -224,6 +224,41 @@ impl Settings {
     }
 }
 
+impl Settings {
+    /// The config file a settings change is written to: `KEEPRUN_CONFIG` when set, otherwise
+    /// `config.toml` in the prod data folder, or `config/dev.local.toml` in dev.
+    pub fn writable_config_path(&self) -> PathBuf {
+        if let Some(p) = var("KEEPRUN_CONFIG") {
+            return PathBuf::from(p);
+        }
+        match self.env {
+            Env::Prod => self.data_dir.join("config.toml"),
+            Env::Dev => repo_root().join("config").join("dev.local.toml"),
+        }
+    }
+}
+
+/// Set `port = N` in TOML config text, keeping comments and other lines.
+pub fn with_port(text: &str, port: u16) -> String {
+    let mut found = false;
+    let mut out: Vec<String> = text
+        .lines()
+        .map(|l| {
+            let key = l.trim_start().split('=').next().unwrap_or("").trim();
+            if !found && key == "port" && l.contains('=') {
+                found = true;
+                format!("port = {port}")
+            } else {
+                l.to_string()
+            }
+        })
+        .collect();
+    if !found {
+        out.push(format!("port = {port}"));
+    }
+    out.join("\n") + "\n"
+}
+
 fn var(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|v| !v.trim().is_empty())
 }
@@ -231,6 +266,20 @@ fn var(name: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn port_is_replaced_or_added() {
+        let t = "# c\nhost = \"127.0.0.1\"\nport = 7171\n# port = 1\n";
+        assert_eq!(
+            with_port(t, 8080),
+            "# c\nhost = \"127.0.0.1\"\nport = 8080\n# port = 1\n"
+        );
+        assert_eq!(
+            with_port("host = \"x\"\n", 9000),
+            "host = \"x\"\nport = 9000\n"
+        );
+        assert_eq!(with_port("", 9000), "port = 9000\n");
+    }
 
     #[test]
     fn parses_env_names() {

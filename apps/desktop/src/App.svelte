@@ -1,6 +1,6 @@
 <script lang="ts">
   import { openPath, openUrl } from "@tauri-apps/plugin-opener";
-  import { Monitor, Moon, Play, Plus, RotateCw, Search, Square, Sun, TriangleAlert } from "@lucide/svelte";
+  import { Monitor, Moon, Play, Plus, RotateCw, Search, Server, Square, Sun, TriangleAlert } from "@lucide/svelte";
   import {
     api,
     appUrl,
@@ -19,12 +19,15 @@
   import SettingsTab from "./lib/SettingsTab.svelte";
   import EventsList from "./lib/EventsList.svelte";
   import AddAppDialog from "./lib/AddAppDialog.svelte";
+  import AgentDialog from "./lib/AgentDialog.svelte";
+  import TasksTab from "./lib/TasksTab.svelte";
   import CommandPalette, { type Command } from "./lib/CommandPalette.svelte";
 
-  type Tab = "overview" | "logs" | "environment" | "settings" | "events";
+  type Tab = "overview" | "logs" | "tasks" | "environment" | "settings" | "events";
   const tabs: [Tab, string][] = [
     ["overview", "Overview"],
     ["logs", "Logs"],
+    ["tasks", "Tasks"],
     ["environment", "Environment"],
     ["settings", "Settings"],
     ["events", "Events"],
@@ -39,6 +42,7 @@
   let busy = $state(false);
   let adding = $state(false);
   let palette = $state(false);
+  let agentOpen = $state(false);
   let loaded = $state(false);
   let now = $state(Date.now());
 
@@ -103,7 +107,7 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    if (adding || palette) return;
+    if (adding || palette || agentOpen) return;
     const k = e.key.toLowerCase();
     if (e.ctrlKey && k === "k") {
       e.preventDefault();
@@ -115,7 +119,7 @@
       adding = true;
       return;
     }
-    if (e.ctrlKey && e.key >= "1" && e.key <= "5") {
+    if (e.ctrlKey && e.key >= "1" && e.key <= String(tabs.length)) {
       e.preventDefault();
       tab = tabs[Number(e.key) - 1][0];
       return;
@@ -150,6 +154,16 @@
       tabs.forEach(([t, label], i) =>
         out.push({ id: `tab-${t}`, group: s.name, label: `Open ${label}`, hint: `Ctrl+${i + 1}`, run: () => (tab = t) }),
       );
+      if (!s.task?.running) {
+        for (const t of s.tasks) {
+          out.push({
+            id: `task-${t.name}`,
+            group: s.name,
+            label: `Run task ${t.name}`,
+            run: () => run(() => api.runTask(s.id, { name: t.name })).then(() => (tab = "tasks")),
+          });
+        }
+      }
       const url = appUrl(s);
       if (url) out.push({ id: "url", group: s.name, label: `Open ${url}`, run: () => openUrl(url) });
       out.push({ id: "folder", group: s.name, label: "Open folder", run: () => openPath(s.cwd) });
@@ -159,6 +173,7 @@
       out.push({ id: `logs-${a.id}`, group: "Apps", label: `${a.name} logs`, run: () => select(a.id, "logs") });
     }
     out.push({ id: "add", group: "General", label: "Add app", hint: "Ctrl+N", run: () => (adding = true) });
+    out.push({ id: "agent", group: "General", label: "Agent settings (port)", run: () => (agentOpen = true) });
     out.push({ id: "theme-system", group: "General", label: "Theme: follow system", run: () => applyTheme("system") });
     out.push({ id: "theme-light", group: "General", label: "Theme: light", run: () => applyTheme("light") });
     out.push({ id: "theme-dark", group: "General", label: "Theme: dark", run: () => applyTheme("dark") });
@@ -190,6 +205,9 @@
       <Search size={14} />
       <span class="flex-1 text-left">Search</span>
       <span class="kbd">Ctrl K</span>
+    </button>
+    <button class="btn-icon" onclick={() => (agentOpen = true)} title="Agent: {conn?.baseUrl ?? 'not connected'}. Change port.">
+      <Server size={16} />
     </button>
     <button
       class="btn-icon"
@@ -293,6 +311,8 @@
             <Overview app={selected} {now} onshowevents={() => (tab = "events")} />
           {:else if tab === "logs"}
             <LogPanel appId={selected.id} />
+          {:else if tab === "tasks"}
+            <TasksTab app={selected} {now} onchanged={refresh} />
           {:else if tab === "environment"}
             <EnvEditor app={selected} onsaved={refresh} />
           {:else if tab === "settings"}
@@ -322,6 +342,10 @@
       refresh();
     }}
   />
+{/if}
+
+{#if agentOpen}
+  <AgentDialog {conn} onclose={() => (agentOpen = false)} onchanged={refresh} />
 {/if}
 
 {#if palette}

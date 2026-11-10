@@ -3,11 +3,18 @@
   Keeprun MSI: installs the agent as a Windows service.
   Silent install for Intune / SCCM: msiexec /i Keeprun_x.y.z_x64_en-US.msi /qn
   Optional: KEEPRUN_USER=DOMAIN\name grants that user access to the desktop app.
+  Optional: KEEPRUN_PORT=7272 sets the agent API port (default 7171).
 -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Fragment>
     <Property Id="KEEPRUN_USER" Secure="yes" />
     <SetProperty Id="KEEPRUN_USER" Value="[LogonUser]" Before="CostInitialize" Sequence="execute">NOT KEEPRUN_USER</SetProperty>
+    <Property Id="KEEPRUN_PORT" Secure="yes" />
+
+    <!-- The Tauri template sets ARPNOREPAIR, which hides Repair in the installer and in
+         Apps and features. Repair is useful here: it reinstalls the files and re-registers
+         the service. A formatted value of an unset property clears ARPNOREPAIR. -->
+    <SetProperty Id="ARPNOREPAIR" Value="[KEEPRUN_UNSET]" Before="CostInitialize" Sequence="both" />
 
     <DirectoryRef Id="INSTALLDIR">
       <Component Id="KeeprunServiceRegistration" Guid="6E0B3F4A-6A55-4C2B-9E39-2F7A1D2C9B11">
@@ -25,7 +32,7 @@
     <CustomAction Id="KeeprunStopBeforeRemove" Directory="INSTALLDIR" Execute="deferred" Impersonate="no" Return="ignore"
       ExeCommand="&quot;[System64Folder]net.exe&quot; stop KeeprunAgent" />
     <CustomAction Id="KeeprunInstallService" Directory="INSTALLDIR" Execute="deferred" Impersonate="no" Return="check"
-      ExeCommand="&quot;[INSTALLDIR]keeprun-agent.exe&quot; install --env prod --grant-user &quot;[KEEPRUN_USER]&quot;" />
+      ExeCommand="&quot;[INSTALLDIR]keeprun-agent.exe&quot; install --env prod --grant-user &quot;[KEEPRUN_USER]&quot; --port &quot;[KEEPRUN_PORT]&quot;" />
     <CustomAction Id="KeeprunUninstallService" Directory="INSTALLDIR" Execute="deferred" Impersonate="no" Return="ignore"
       ExeCommand="&quot;[INSTALLDIR]keeprun-agent.exe&quot; uninstall --env prod" />
 

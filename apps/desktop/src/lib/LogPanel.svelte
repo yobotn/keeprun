@@ -2,7 +2,8 @@
   import { ArrowDown, Copy, Eraser, Pause, Play, Search } from "@lucide/svelte";
   import { api, config, formatTime, type LogLine } from "./api";
 
-  let { appId }: { appId: string } = $props();
+  // `taskSince` shows only task output from that time on (used by the Tasks tab).
+  let { appId, taskSince }: { appId: string; taskSince?: number } = $props();
 
   let lines = $state<LogLine[]>([]);
   let paused = $state(false);
@@ -17,7 +18,12 @@
 
   const visible = $derived.by(() => {
     const q = query.toLowerCase();
-    return lines.filter((l) => (!errorsOnly || l.stream === "stderr") && (!q || l.text.toLowerCase().includes(q)));
+    return lines.filter(
+      (l) =>
+        (taskSince === undefined || (l.task && l.ts >= taskSince)) &&
+        (!errorsOnly || l.stream === "stderr") &&
+        (!q || l.text.toLowerCase().includes(q)),
+    );
   });
 
   function flush() {
@@ -121,7 +127,7 @@
       <input
         bind:this={searchInput}
         bind:value={query}
-        placeholder="Search logs"
+        placeholder={taskSince === undefined ? "Search logs" : "Search task output"}
         class="w-full bg-transparent text-[13px] outline-none placeholder:text-fg-muted"
       />
       {#if query}<span class="shrink-0 text-xs tabular-nums text-fg-muted">{visible.length} lines</span>{:else}<span class="kbd">/</span>{/if}
@@ -149,11 +155,16 @@
       aria-live="off"
     >
       {#if visible.length === 0}
-        <p class="text-fg-muted">{query || errorsOnly ? "No lines match." : "No output yet."}</p>
+        <p class="text-fg-muted">
+          {query || errorsOnly ? "No lines match." : taskSince === undefined ? "No output yet." : "No task output yet."}
+        </p>
       {/if}
       {#each visible as l}
         <div class="flex gap-3">
           <span class="shrink-0 tabular-nums text-fg-muted/70">{formatTime(l.ts)}</span>
+          {#if l.task && taskSince === undefined}
+            <span class="shrink-0 select-none text-accent" title="Task output">task</span>
+          {/if}
           <span
             class="min-w-0 whitespace-pre-wrap break-all {l.stream === 'stderr'
               ? 'text-danger'
