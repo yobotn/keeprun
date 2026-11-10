@@ -33,6 +33,16 @@ Uninstall removes the service and the PATH entry. Apps, events, logs and the tok
 - Detection rule: MSI product code, or registry `HKLM\Software\Keeprun` value `InstallDir`.
 - Install behavior: System.
 
+## Test an installer
+
+On a test machine or VM, from an Administrator terminal:
+
+```powershell
+npm run smoke:install
+```
+
+The script installs the MSI silently, checks the service, token permissions, PATH, the API on port 7171 and the CLI, runs a sample app, then uninstalls and checks cleanup. Pass `-KeepInstalled` to skip the uninstall.
+
 ## Upgrades
 
 Install the new version over the old one. The installer stops the service (apps stop with it),

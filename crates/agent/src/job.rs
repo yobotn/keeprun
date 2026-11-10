@@ -242,6 +242,8 @@ fn resume_process(pid: u32) -> Result<()> {
 }
 
 /// Spawn `command` through `cmd.exe` inside a new job. Returns the child and its job.
+const NO_CWD_IN_PATH: &str = "NoDefaultCurrentDirectoryInExePath";
+
 pub fn spawn_in_job(
     cwd: &Path,
     command: &str,
@@ -256,8 +258,13 @@ pub fn spawn_in_job(
     let job = Job::new()?;
     let mut cmd = Command::new("cmd.exe");
     cmd.raw_arg(format!("/d /s /c \"{command}\""))
-        .current_dir(cwd)
-        .envs(env);
+        .current_dir(cwd);
+    // Hardened servers set this to stop cmd.exe finding programs in the current folder.
+    // Commands like `start.bat` must resolve inside the app folder the admin chose.
+    if !env.keys().any(|k| k.eq_ignore_ascii_case(NO_CWD_IN_PATH)) {
+        cmd.env_remove(NO_CWD_IN_PATH);
+    }
+    cmd.envs(env);
     if let Some(path) = path_with_tool_dir(command, env) {
         cmd.env("PATH", path);
     }
@@ -319,5 +326,33 @@ pub fn ensure_hidden_console() {
                 let _ = ShowWindow(w, SW_HIDE);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::AsyncReadExt;
+
+    /// A script in the app folder runs even when the agent inherited
+    /// NoDefaultCurrentDirectoryInExePath (set on hardened servers and some shells).
+    #[tokio::test]
+    async fn runs_script_from_app_folder() {
+        let dir = std::env::temp_dir().join(format!("keeprun-job-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("run.cmd"), "@echo from-folder\r\n").unwrap();
+        let (mut child, _job) = spawn_in_job(&dir, "run.cmd", &BTreeMap::new()).unwrap();
+        let mut out = String::new();
+        child
+            .stdout
+            .take()
+            .unwrap()
+            .read_to_string(&mut out)
+            .await
+            .unwrap();
+        let status = child.wait().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(status.success(), "exit {status:?}");
+        assert!(out.contains("from-folder"), "output: {out}");
     }
 }
