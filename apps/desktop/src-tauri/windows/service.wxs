@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Keeprun MSI: installs the agent as a Windows service.
+  Silent install for Intune / SCCM: msiexec /i Keeprun_x.y.z_x64_en-US.msi /qn
+  Optional: KEEPRUN_USER=DOMAIN\name grants that user access to the desktop app.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <Property Id="KEEPRUN_USER" Secure="yes" />
+    <SetProperty Id="KEEPRUN_USER" Value="[LogonUser]" Before="CostInitialize" Sequence="execute">NOT KEEPRUN_USER</SetProperty>
+
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="KeeprunServiceRegistration" Guid="6E0B3F4A-6A55-4C2B-9E39-2F7A1D2C9B11">
+        <RegistryValue Root="HKLM" Key="Software\Keeprun" Name="InstallDir" Type="string" Value="[INSTALLDIR]" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <ComponentGroup Id="KeeprunServiceActions">
+      <ComponentRef Id="KeeprunServiceRegistration" />
+    </ComponentGroup>
+
+    <!-- net stop waits until the service has stopped, so files are free to replace or remove. -->
+    <CustomAction Id="KeeprunStopBeforeInstall" Directory="INSTALLDIR" Execute="deferred" Impersonate="no" Return="ignore"
+      ExeCommand="&quot;[System64Folder]net.exe&quot; stop KeeprunAgent" />
+    <CustomAction Id="KeeprunStopBeforeRemove" Directory="INSTALLDIR" Execute="deferred" Impersonate="no" Return="ignore"
+      ExeCommand="&quot;[System64Folder]net.exe&quot; stop KeeprunAgent" />
+    <CustomAction Id="KeeprunInstallService" Directory="INSTALLDIR" Execute="deferred" Impersonate="no" Return="check"
+      ExeCommand="&quot;[INSTALLDIR]keeprun-agent.exe&quot; install --env prod --grant-user &quot;[KEEPRUN_USER]&quot;" />
+    <CustomAction Id="KeeprunUninstallService" Directory="INSTALLDIR" Execute="deferred" Impersonate="no" Return="ignore"
+      ExeCommand="&quot;[INSTALLDIR]keeprun-agent.exe&quot; uninstall --env prod" />
+
+    <InstallExecuteSequence>
+      <Custom Action="KeeprunStopBeforeInstall" Before="InstallFiles">NOT REMOVE</Custom>
+      <Custom Action="KeeprunInstallService" After="InstallFiles">NOT REMOVE</Custom>
+      <Custom Action="KeeprunStopBeforeRemove" Before="RemoveFiles">REMOVE="ALL"</Custom>
+      <!-- On upgrade the new version reinstalls the service, so only remove it on a real uninstall. -->
+      <Custom Action="KeeprunUninstallService" After="KeeprunStopBeforeRemove">REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
+    </InstallExecuteSequence>
+  </Fragment>
+</Wix>

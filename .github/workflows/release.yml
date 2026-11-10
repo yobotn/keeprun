@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  installers:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install UI dependencies
+        run: npm --prefix apps/desktop ci
+
+      - name: Build installers (prod)
+        shell: pwsh
+        env:
+          # Set these repository secrets to sign with Azure Trusted Signing. Unsigned otherwise.
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          KEEPRUN_SIGN_COMMAND: ${{ secrets.KEEPRUN_SIGN_COMMAND }}
+        run: |
+          if ($env:KEEPRUN_SIGN_COMMAND) { cargo install trusted-signing-cli --locked }
+          ./scripts/build.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: keeprun-installers
+          path: |
+            target/release/bundle/msi/*.msi
+            target/release/bundle/nsis/*-setup.exe
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            target/release/bundle/msi/*.msi
+            target/release/bundle/nsis/*-setup.exe

@@ -1,0 +1,10 @@
+# Keeprun agent settings for the prod environment.
+# Loaded when KEEPRUN_ENV=prod (the default for release builds).
+# The installed agent reads C:\ProgramData\Keeprun\config.toml instead of this file.
+# This file is the template copied there by `keeprun-agent install`.
+
+host = "127.0.0.1"
+port = 7171
+log_level = "keeprun=info,warn"
+stop_timeout_ms = 10000
+# data_dir defaults to C:\ProgramData\Keeprun

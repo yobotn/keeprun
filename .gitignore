@@ -1,0 +1,9 @@
+/target
+node_modules/
+/apps/desktop/dist/
+/apps/desktop/src-tauri/gen/
+/.dev-data/
+/config/*.local.toml
+.env.local
+.env.*.local
+/apps/desktop/src-tauri/binaries/

@@ -1,0 +1,10 @@
+# Keeprun agent settings for the dev environment.
+# Loaded when KEEPRUN_ENV=dev (the default for debug builds).
+# Override any value with an environment variable, e.g. KEEPRUN_PORT=7300.
+# Put personal overrides in config/dev.local.toml (git ignored).
+
+host = "127.0.0.1"
+port = 7181
+log_level = "keeprun=debug,info"
+stop_timeout_ms = 3000
+# data_dir defaults to <repo>/.dev-data

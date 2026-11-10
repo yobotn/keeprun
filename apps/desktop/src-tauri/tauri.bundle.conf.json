@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "externalBin": ["binaries/keeprun-agent", "binaries/keeprun"],
+    "publisher": "Keeprun",
+    "shortDescription": "Run and manage internal apps on Windows",
+    "longDescription": "Keeprun runs internal apps as supervised processes under a Windows service, with a desktop UI and a CLI.",
+    "copyright": "Apache-2.0",
+    "category": "DeveloperTool",
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine",
+        "installerHooks": "./windows/hooks.nsh"
+      },
+      "wix": {
+        "fragmentPaths": ["./windows/service.wxs"],
+        "componentGroupRefs": ["KeeprunServiceActions"]
+      }
+    }
+  }
+}

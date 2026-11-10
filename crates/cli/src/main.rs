@@ -1,0 +1,643 @@
+//! `keeprun` command line client. Talks to the local agent API.
+
+use anyhow::{bail, Context, Result};
+use clap::{Parser, Subcommand};
+use futures_util::StreamExt;
+use keeprun_core::detect;
+use keeprun_core::model::{
+    looks_secret, parse_dotenv, ApiError, AppState, AppView, Event, Health, LogLine, NewApp,
+    RestartPolicy, Stream, UpdateApp,
+};
+use keeprun_core::{Env, Settings};
+use reqwest::{Method, StatusCode};
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
+use tokio_tungstenite::tungstenite::Message;
+
+#[derive(Parser)]
+#[command(
+    name = "keeprun",
+    version,
+    about = "Run and manage internal apps on Windows"
+)]
+struct Cli {
+    /// Environment: dev or prod. Defaults to KEEPRUN_ENV, then to dev for debug builds and
+    /// prod for release builds.
+    #[arg(long, global = true)]
+    env: Option<Env>,
+    /// Print JSON instead of tables.
+    #[arg(long, global = true)]
+    json: bool,
+    #[command(subcommand)]
+    cmd: Cmd,
+}
+
+#[derive(Subcommand)]
+enum Cmd {
+    /// Show agent status and the active environment.
+    Status,
+    /// List apps with status, CPU, memory and ports.
+    #[command(alias = "ls")]
+    List,
+    /// Show what Keeprun detects in a folder.
+    Detect {
+        /// Folder. Defaults to the current folder.
+        dir: Option<PathBuf>,
+    },
+    /// Add an app. Without a command, the best detected command is used.
+    ///
+    /// Examples:
+    ///   keeprun add --cwd D:\apps\hr-portal --start
+    ///   keeprun add web --cwd D:\apps\web -e PORT=3001 -- npm run start
+    Add {
+        /// App name. Defaults to the detected name.
+        name: Option<String>,
+        /// App folder. Defaults to the current folder.
+        #[arg(long)]
+        cwd: Option<PathBuf>,
+        /// Environment variable as KEY=VALUE. Repeat for more.
+        #[arg(short = 'e', long = "set")]
+        vars: Vec<String>,
+        /// Import variables from a .env file. By default a .env in the folder is imported.
+        #[arg(long)]
+        env_file: Option<PathBuf>,
+        /// Tag for grouping. Repeat for more.
+        #[arg(short, long = "tag")]
+        tags: Vec<String>,
+        /// Restart policy: never, on-failure, always.
+        #[arg(long, default_value = "on-failure")]
+        restart: RestartPolicy,
+        /// Do not start this app when the agent starts.
+        #[arg(long)]
+        no_autostart: bool,
+        /// Start it right after adding.
+        #[arg(long)]
+        start: bool,
+        /// Command line that starts the app.
+        #[arg(last = true)]
+        command: Vec<String>,
+    },
+    /// Change app settings.
+    Set {
+        app: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        cwd: Option<PathBuf>,
+        #[arg(long)]
+        command: Option<String>,
+        /// never, on-failure or always.
+        #[arg(long)]
+        restart: Option<RestartPolicy>,
+        /// Restarts in a row before giving up. 0 means no limit.
+        #[arg(long)]
+        max_restarts: Option<u32>,
+        /// Start with the agent: true or false.
+        #[arg(long)]
+        autostart: Option<bool>,
+        /// Replace tags (comma separated).
+        #[arg(long)]
+        tags: Option<String>,
+    },
+    /// Show, set or remove environment variables.
+    Env {
+        app: String,
+        /// KEY=VALUE to set. Repeat for more.
+        #[arg(short = 'e', long = "set")]
+        set: Vec<String>,
+        /// Mark the keys set in this call as secret.
+        #[arg(long)]
+        secret: bool,
+        /// KEY to remove. Repeat for more.
+        #[arg(long)]
+        unset: Vec<String>,
+        /// Import a .env file.
+        #[arg(long)]
+        import: Option<PathBuf>,
+        /// Print secret values instead of masking them.
+        #[arg(long)]
+        reveal: bool,
+    },
+    /// Remove a stopped app.
+    #[command(alias = "rm")]
+    Remove {
+        app: String,
+    },
+    Start {
+        app: String,
+    },
+    Stop {
+        app: String,
+    },
+    Restart {
+        app: String,
+    },
+    /// Show app logs.
+    Logs {
+        app: String,
+        /// Keep streaming new lines.
+        #[arg(short, long)]
+        follow: bool,
+        /// Number of recent lines to show.
+        #[arg(short = 'n', long, default_value_t = 200)]
+        tail: usize,
+    },
+    /// Show recent events for one app, or all apps.
+    Events {
+        app: Option<String>,
+        #[arg(short = 'n', long, default_value_t = 30)]
+        limit: u32,
+    },
+}
+
+struct Client {
+    http: reqwest::Client,
+    settings: Settings,
+    token: String,
+}
+
+impl Client {
+    fn new(settings: Settings) -> Result<Self> {
+        let token = keeprun_core::token::read(&settings.token_path())?;
+        Ok(Client {
+            http: reqwest::Client::new(),
+            settings,
+            token,
+        })
+    }
+
+    async fn call<T: serde::de::DeserializeOwned>(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<&impl serde::Serialize>,
+    ) -> Result<Option<T>> {
+        let url = format!("{}{}", self.settings.base_url(), path);
+        let mut req = self.http.request(method, &url).bearer_auth(&self.token);
+        if let Some(b) = body {
+            req = req.json(b);
+        }
+        let res = req.send().await.map_err(|_| self.unreachable())?;
+        let status = res.status();
+        if status == StatusCode::NO_CONTENT {
+            return Ok(None);
+        }
+        if !status.is_success() {
+            let msg = res
+                .json::<ApiError>()
+                .await
+                .map(|e| e.error)
+                .unwrap_or_else(|_| status.to_string());
+            bail!("{msg}");
+        }
+        Ok(Some(
+            res.json()
+                .await
+                .context("Unexpected response from the agent")?,
+        ))
+    }
+
+    async fn get<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T> {
+        self.call(Method::GET, path, None::<&()>)
+            .await?
+            .context("Empty response")
+    }
+
+    async fn send<T: serde::de::DeserializeOwned>(
+        &self,
+        method: Method,
+        path: &str,
+        body: &impl serde::Serialize,
+    ) -> Result<T> {
+        self.call(method, path, Some(body))
+            .await?
+            .context("Empty response")
+    }
+
+    fn unreachable(&self) -> anyhow::Error {
+        anyhow::anyhow!(
+            "Cannot reach the {} agent at {}. Start it with `keeprun-agent run` or start the service.",
+            self.settings.env,
+            self.settings.base_url()
+        )
+    }
+}
+
+fn print_line(l: &LogLine) {
+    match l.stream {
+        Stream::Stderr => eprintln!("{}", l.text),
+        Stream::System => println!("-- {}", l.text),
+        Stream::Stdout => println!("{}", l.text),
+    }
+}
+
+fn mb(bytes: u64) -> String {
+    format!("{:.0} MB", bytes as f64 / 1024.0 / 1024.0)
+}
+
+fn status_text(a: &AppView) -> String {
+    match (a.state, a.exit_code) {
+        (AppState::Exited, Some(c)) => format!("Exited {c}"),
+        (AppState::Restarting, _) => format!("Restarting ({})", a.restarts),
+        (s, _) => s.to_string(),
+    }
+}
+
+fn print_apps(apps: &[AppView]) {
+    if apps.is_empty() {
+        println!("No apps yet. Add one with: keeprun add --cwd <folder>");
+        return;
+    }
+    let w = apps
+        .iter()
+        .map(|a| a.spec.id.len())
+        .max()
+        .unwrap_or(2)
+        .max(2);
+    println!(
+        "{:<w$}  {:<14}  {:>6}  {:>5}  {:>8}  {:<12}  COMMAND",
+        "ID", "STATUS", "PID", "CPU", "MEMORY", "PORTS"
+    );
+    for a in apps {
+        let pid = a.pid.map(|p| p.to_string()).unwrap_or_else(|| "-".into());
+        let (cpu, mem, ports) = match &a.stats {
+            Some(s) => (
+                format!("{:.0}%", s.cpu_percent),
+                mb(s.memory_bytes),
+                s.ports
+                    .iter()
+                    .map(|p| p.to_string())
+                    .collect::<Vec<_>>()
+                    .join(","),
+            ),
+            None => ("-".into(), "-".into(), String::new()),
+        };
+        let ports = if ports.is_empty() { "-".into() } else { ports };
+        println!(
+            "{:<w$}  {:<14}  {:>6}  {:>5}  {:>8}  {:<12}  {}",
+            a.spec.id,
+            status_text(a),
+            pid,
+            cpu,
+            mem,
+            ports,
+            a.spec.command
+        );
+    }
+}
+
+/// Format a Unix millisecond timestamp as UTC. Avoids a date library for one call site.
+fn time(ts: u64) -> String {
+    let secs = ts / 1000;
+    let (h, m, s) = ((secs / 3600) % 24, (secs / 60) % 60, secs % 60);
+    let (y, mo, d) = civil_from_days((secs / 86400) as i64);
+    format!("{y:04}-{mo:02}-{d:02} {h:02}:{m:02}:{s:02}Z")
+}
+
+/// Days since 1970-01-01 to (year, month, day). Howard Hinnant's algorithm.
+fn civil_from_days(z: i64) -> (i64, u32, u32) {
+    let z = z + 719468;
+    let era = z.div_euclid(146097);
+    let doe = z.rem_euclid(146097);
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    (if m <= 2 { y + 1 } else { y }, m, d)
+}
+
+fn parse_vars(vars: &[String]) -> Result<BTreeMap<String, String>> {
+    let mut env = BTreeMap::new();
+    for v in vars {
+        let (k, val) = v
+            .split_once('=')
+            .with_context(|| format!("\"{v}\" is not KEY=VALUE."))?;
+        env.insert(k.trim().to_string(), val.to_string());
+    }
+    Ok(env)
+}
+
+fn read_env_file(p: &PathBuf) -> Result<BTreeMap<String, String>> {
+    let text =
+        std::fs::read_to_string(p).with_context(|| format!("Cannot read {}", p.display()))?;
+    parse_dotenv(&text).map_err(|e| anyhow::anyhow!("{}: {e}", p.display()))
+}
+
+#[tokio::main]
+async fn main() {
+    if let Err(e) = run().await {
+        eprintln!("Error: {e:#}");
+        std::process::exit(1);
+    }
+}
+
+async fn run() -> Result<()> {
+    let cli = Cli::parse();
+    if let Some(env) = cli.env {
+        std::env::set_var("KEEPRUN_ENV", env.as_str());
+    }
+    let settings = Settings::load()?;
+    let json = cli.json;
+
+    match cli.cmd {
+        Cmd::Status => {
+            let url = format!("{}/health", settings.base_url());
+            println!("Environment  {}", settings.env);
+            println!("Agent URL    {}", settings.base_url());
+            println!("Data folder  {}", settings.data_dir.display());
+            match reqwest::get(&url).await {
+                Ok(r) => {
+                    let h: Health = r.json().await?;
+                    println!("Agent        running (v{}, env {})", h.version, h.env);
+                }
+                Err(_) => println!("Agent        not reachable"),
+            }
+            return Ok(());
+        }
+        Cmd::Detect { dir } => {
+            let dir = dir.map_or_else(std::env::current_dir, Ok)?;
+            let d = detect::detect(&std::path::absolute(&dir)?).map_err(anyhow::Error::msg)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&d)?);
+                return Ok(());
+            }
+            println!("Type     {:?}", d.kind);
+            println!("Name     {}", d.name);
+            if let Some(p) = d.port {
+                println!("Port     {p}");
+            }
+            println!("Commands");
+            for (i, s) in d.suggestions.iter().enumerate() {
+                println!(
+                    "  {}{}  {}",
+                    if i == 0 { "* " } else { "  " },
+                    s.label,
+                    s.command
+                );
+            }
+            if !d.dotenv.is_empty() {
+                println!(".env     {} variables", d.dotenv.len());
+            }
+            for w in d.warnings {
+                println!("Warning  {w}");
+            }
+            return Ok(());
+        }
+        _ => {}
+    }
+
+    let c = Client::new(settings)?;
+    match cli.cmd {
+        Cmd::Status | Cmd::Detect { .. } => unreachable!(),
+        Cmd::List => {
+            let apps: Vec<AppView> = c.get("/apps").await?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&apps)?);
+            } else {
+                print_apps(&apps);
+            }
+        }
+        Cmd::Add {
+            name,
+            cwd,
+            vars,
+            env_file,
+            tags,
+            restart,
+            no_autostart,
+            start,
+            command,
+        } => {
+            let cwd = cwd.map_or_else(std::env::current_dir, Ok)?;
+            let cwd = std::path::absolute(&cwd).unwrap_or(cwd);
+            let mut env = BTreeMap::new();
+            let (name, command) = match (name, command.is_empty()) {
+                (Some(name), false) => (name, command.join(" ")),
+                (name, _) => {
+                    let d = detect::detect(&cwd).map_err(anyhow::Error::msg)?;
+                    for w in &d.warnings {
+                        eprintln!("Warning: {w}");
+                    }
+                    let command = if command.is_empty() {
+                        let best = d.suggestions.first().with_context(|| {
+                            format!(
+                                "Nothing to run was detected in {}. Pass the command after --.",
+                                cwd.display()
+                            )
+                        })?;
+                        println!("Detected: {}", best.label);
+                        best.command.clone()
+                    } else {
+                        command.join(" ")
+                    };
+                    if env_file.is_none() && !d.dotenv.is_empty() {
+                        println!("Imported {} variables from .env", d.dotenv.len());
+                        env.extend(d.dotenv);
+                    }
+                    (name.unwrap_or(d.name), command)
+                }
+            };
+            if let Some(f) = &env_file {
+                env.extend(read_env_file(f)?);
+            }
+            env.extend(parse_vars(&vars)?);
+            let secrets: BTreeSet<String> =
+                env.keys().filter(|k| looks_secret(k)).cloned().collect();
+            let body = NewApp {
+                name,
+                cwd,
+                command,
+                env,
+                secrets,
+                tags,
+                autostart: !no_autostart,
+                restart,
+                max_restarts: 5,
+            };
+            let app: AppView = c.send(Method::POST, "/apps", &body).await?;
+            println!("Added {} ({}).", app.spec.id, app.spec.command);
+            if start {
+                action(&c, &app.spec.id, "start").await?;
+            } else {
+                println!("Start it with: keeprun start {}", app.spec.id);
+            }
+        }
+        Cmd::Set {
+            app,
+            name,
+            cwd,
+            command,
+            restart,
+            max_restarts,
+            autostart,
+            tags,
+        } => {
+            let needs_restart = cwd.is_some() || command.is_some();
+            let u = UpdateApp {
+                name,
+                cwd: cwd.map(|p| std::path::absolute(&p).unwrap_or(p)),
+                command,
+                restart,
+                max_restarts,
+                autostart,
+                tags: tags.map(|t| t.split(',').map(str::to_string).collect()),
+                ..Default::default()
+            };
+            let v: AppView = c.send(Method::PATCH, &format!("/apps/{app}"), &u).await?;
+            println!("Saved {}.", v.spec.id);
+            if needs_restart && v.state.is_active() {
+                println!("Restart to apply: keeprun restart {}", v.spec.id);
+            }
+        }
+        Cmd::Env {
+            app,
+            set,
+            secret,
+            unset,
+            import,
+            reveal,
+        } => {
+            let v: AppView = c.get(&format!("/apps/{app}")).await?;
+            let mut env = v.spec.env.clone();
+            let mut secrets = v.spec.secrets.clone();
+            let changing = !set.is_empty() || !unset.is_empty() || import.is_some();
+            if let Some(f) = &import {
+                let vars = read_env_file(f)?;
+                secrets.extend(vars.keys().filter(|k| looks_secret(k)).cloned());
+                env.extend(vars);
+            }
+            let vars = parse_vars(&set)?;
+            if secret {
+                secrets.extend(vars.keys().cloned());
+            }
+            env.extend(vars);
+            for k in &unset {
+                env.remove(k);
+                secrets.remove(k);
+            }
+            let v = if changing {
+                let u = UpdateApp {
+                    env: Some(env),
+                    secrets: Some(secrets),
+                    ..Default::default()
+                };
+                let v: AppView = c.send(Method::PATCH, &format!("/apps/{app}"), &u).await?;
+                println!("Saved. Restart the app to apply.");
+                v
+            } else {
+                v
+            };
+            for (k, val) in &v.spec.env {
+                let shown = if v.spec.secrets.contains(k) && !reveal {
+                    "********"
+                } else {
+                    val
+                };
+                println!("{k}={shown}");
+            }
+        }
+        Cmd::Remove { app } => {
+            c.call::<serde_json::Value>(Method::DELETE, &format!("/apps/{app}"), None::<&()>)
+                .await?;
+            println!("Removed {app}.");
+        }
+        Cmd::Start { app } => action(&c, &app, "start").await?,
+        Cmd::Stop { app } => action(&c, &app, "stop").await?,
+        Cmd::Restart { app } => action(&c, &app, "restart").await?,
+        Cmd::Events { app, limit } => {
+            let path = match &app {
+                Some(a) => format!("/apps/{a}/events?limit={limit}"),
+                None => format!("/events?limit={limit}"),
+            };
+            let mut events: Vec<Event> = c.get(&path).await?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&events)?);
+                return Ok(());
+            }
+            events.reverse();
+            for e in events {
+                if app.is_some() {
+                    println!("{}  {}", time(e.ts), e.message);
+                } else {
+                    println!("{}  {:<16}  {}", time(e.ts), e.app_id, e.message);
+                }
+            }
+        }
+        Cmd::Logs { app, follow, tail } => {
+            if !follow {
+                let lines: Vec<LogLine> = c
+                    .get(&format!("/apps/{app}/logs/recent?tail={tail}"))
+                    .await?;
+                lines.iter().for_each(print_line);
+                return Ok(());
+            }
+            let url = format!(
+                "ws://{}:{}/apps/{}/logs?token={}",
+                c.settings.host, c.settings.port, app, c.token
+            );
+            let (mut ws, _) =
+                tokio_tungstenite::connect_async(&url)
+                    .await
+                    .map_err(|e| match e {
+                        tokio_tungstenite::tungstenite::Error::Http(r) if r.status() == 404 => {
+                            anyhow::anyhow!(
+                                "No app with id \"{app}\". Run `keeprun list` to see app ids."
+                            )
+                        }
+                        _ => c.unreachable(),
+                    })?;
+            // The agent sends its buffer first. Show only the last `tail` lines of it.
+            let mut history = Vec::new();
+            loop {
+                tokio::select! {
+                    msg = ws.next() => match msg {
+                        Some(Ok(Message::Text(t))) => {
+                            if let Ok(l) = serde_json::from_str::<LogLine>(&t) { history.push(l) }
+                        }
+                        Some(Ok(_)) => {}
+                        _ => return Ok(()),
+                    },
+                    _ = tokio::time::sleep(std::time::Duration::from_millis(300)) => break,
+                }
+            }
+            history
+                .iter()
+                .skip(history.len().saturating_sub(tail))
+                .for_each(print_line);
+            loop {
+                tokio::select! {
+                    msg = ws.next() => match msg {
+                        Some(Ok(Message::Text(t))) => {
+                            if let Ok(l) = serde_json::from_str::<LogLine>(&t) { print_line(&l) }
+                        }
+                        Some(Ok(_)) => {}
+                        _ => { println!("-- Connection to the agent closed."); return Ok(()) }
+                    },
+                    _ = tokio::signal::ctrl_c() => return Ok(()),
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn action(c: &Client, app: &str, verb: &str) -> Result<()> {
+    let v: AppView = c
+        .call(Method::POST, &format!("/apps/{app}/{verb}"), None::<&()>)
+        .await?
+        .context("Empty response")?;
+    let pid = v.pid.map(|p| format!(" (PID {p})")).unwrap_or_default();
+    println!("{}: {}{}", v.spec.id, v.state, pid);
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn dates() {
+        assert_eq!(super::time(0), "1970-01-01 00:00:00Z");
+        assert_eq!(super::time(951_782_400_000), "2000-02-29 00:00:00Z");
+    }
+}

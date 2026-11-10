@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Text lint (files)
+        run: node scripts/text-lint.mjs
+
+      - name: Text lint (commit messages)
+        shell: bash
+        run: |
+          base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then base="HEAD~1"; fi
+          git log --format=%B "$base..HEAD" > commit-msgs.txt || git log -1 --format=%B > commit-msgs.txt
+          node scripts/text-lint.mjs --commit-msg commit-msgs.txt
+
+      - name: Install UI dependencies
+        run: npm --prefix apps/desktop ci
+
+      - name: Build UI
+        run: npm --prefix apps/desktop run build
+
+      - name: UI type check
+        run: npm --prefix apps/desktop run check
+
+      - name: Rust format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Release build (prod)
+        env:
+          KEEPRUN_ENV: prod
+        run: cargo build --release -p keeprun-agent -p keeprun-cli

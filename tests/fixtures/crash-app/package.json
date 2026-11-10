@@ -1,0 +1,7 @@
+{
+  "name": "crash-app",
+  "private": true,
+  "scripts": {
+    "start": "node crash.js"
+  }
+}

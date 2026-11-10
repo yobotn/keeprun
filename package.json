@@ -1,0 +1,18 @@
+{
+  "name": "keeprun",
+  "private": true,
+  "description": "Run and manage internal apps on Windows.",
+  "license": "Apache-2.0",
+  "scripts": {
+    "setup": "npm --prefix apps/desktop install",
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1",
+    "dev:agent": "cargo run -p keeprun-agent -- run --env dev",
+    "dev:ui": "npm --prefix apps/desktop run tauri:dev",
+    "dev:cli": "cargo run -q -p keeprun-cli -- --env dev",
+    "prod:agent": "cargo run --release -p keeprun-agent -- run --env prod",
+    "build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1",
+    "test": "cargo test --workspace",
+    "lint": "cargo clippy --workspace -- -D warnings && cargo fmt --all --check && node scripts/text-lint.mjs && npm --prefix apps/desktop run check",
+    "lint:text": "node scripts/text-lint.mjs"
+  }
+}
