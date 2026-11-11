@@ -1,19 +1,40 @@
 name: Release
 
+# Push a tag vX.Y.Z to release. Nothing is published until every check passes:
+#   checks       lint, tests and builds on the tagged commit (the CI workflow)
+#   installers   builds and signs the installers, then verifies latest.json and the update
+#                signatures against the public key the desktop app ships with
+#   smoke-test   installs the MSI and the setup.exe on a clean Windows runner, checks the
+#                service, API, CLI and version, and uninstalls
+#   publish      creates the GitHub release and redeploys the website, which serves
+#                latest.json to the desktop updater
+# Run by hand (workflow_dispatch) to build and test installers without releasing.
+
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
 
 permissions:
-  contents: write
-  actions: write
+  contents: read
 
 jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
   installers:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Tag matches the version in Cargo.toml
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"(.+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+          if ("v$version" -ne $env:GITHUB_REF_NAME) {
+            throw "Tag $env:GITHUB_REF_NAME does not match version $version in Cargo.toml. Bump the version, commit, then tag."
+          }
 
       - uses: actions/setup-node@v4
         with:
@@ -48,9 +69,16 @@ jobs:
           if ($env:KEEPRUN_SIGN_COMMAND) { cargo install trusted-signing-cli --locked }
           ./scripts/build.ps1
 
+      - name: Verify update manifest and signatures
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          KEEPRUN_TAG: ${{ github.ref_name }}
+        run: node scripts/verify-release.mjs
+
       - uses: actions/upload-artifact@v4
         with:
           name: keeprun-installers
+          if-no-files-found: error
           path: |
             target/release/bundle/msi/*.msi
             target/release/bundle/nsis/*-setup.exe
@@ -58,24 +86,73 @@ jobs:
             target/release/bundle/nsis/*.sig
             target/release/bundle/latest.json
 
+  smoke-test:
+    needs: installers
+    # A fresh runner, so the installers are tested on a machine that never built them.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: keeprun-installers
+          path: bundle
+
+      - name: Install, check and uninstall the MSI
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"(.+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+          $msi = (Get-ChildItem bundle/msi/*.msi | Select-Object -First 1).FullName
+          ./scripts/smoke-install.ps1 -Msi $msi -Version $version
+
+      - name: Install, check and uninstall the setup.exe
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"(.+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+          $setup = (Get-ChildItem bundle/nsis/*-setup.exe | Select-Object -First 1).FullName
+          ./scripts/smoke-setup.ps1 -Setup $setup -Version $version
+
+      - name: Collect installer logs
+        if: failure()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force logs | Out-Null
+          Copy-Item "$env:TEMP\keeprun-install.log*" logs -ErrorAction SilentlyContinue
+
+      - name: Upload installer logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-logs
+          path: logs
+
+  publish:
+    needs: [checks, smoke-test]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: keeprun-installers
+          path: bundle
+
       - name: Publish GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          # Published right away. Releases created with GITHUB_TOKEN do not trigger other
-          # workflows, so the next step redeploys the website (which serves latest.json to
-          # the desktop updater) explicitly.
-          draft: false
           generate_release_notes: true
           files: |
-            target/release/bundle/msi/*.msi
-            target/release/bundle/nsis/*-setup.exe
-            target/release/bundle/msi/*.sig
-            target/release/bundle/nsis/*.sig
-            target/release/bundle/latest.json
+            bundle/msi/*.msi
+            bundle/nsis/*-setup.exe
+            bundle/msi/*.sig
+            bundle/nsis/*.sig
+            bundle/latest.json
 
+      # Releases created with GITHUB_TOKEN do not trigger other workflows, so start the
+      # Website workflow here. It serves the new latest.json to the desktop updater.
       - name: Redeploy website with the new update manifest
-        if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run pages.yml --repo "$env:GITHUB_REPOSITORY" --ref main
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main

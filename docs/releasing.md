@@ -4,12 +4,19 @@ How a version gets from a git tag to users, and the one-time setup it needs.
 
 ## How it works
 
-1. Push a tag `vX.Y.Z`. The **Release** workflow builds the MSI and the setup.exe, signs them
-   for the updater, writes `latest.json`, and attaches everything to a **draft** release.
-2. Review the draft on GitHub and publish it. Nothing reaches users before this step.
-3. Publishing runs the **Website** workflow. It rebuilds the site with the new download links
-   and copies the release's `latest.json` to `https://keeprun.app/latest.json`.
-4. Desktop apps find the update on their next check (within 6 hours, or at the next start).
+1. Push a tag `vX.Y.Z`. The **Release** workflow runs the CI checks on the tagged commit and
+   builds the MSI and the setup.exe, signed for the updater, with `latest.json`.
+2. It verifies the release before anything is public: the tag matches the version, `latest.json`
+   points at this release, and every update signature verifies against the public key the
+   desktop app ships with (`scripts/verify-release.mjs`).
+3. On a clean Windows runner it installs the MSI and the setup.exe silently, checks the service,
+   API, CLI and version, and uninstalls (`scripts/smoke-install.ps1`, `scripts/smoke-setup.ps1`).
+4. Only when all of that passes does it publish the GitHub release and run the **Website**
+   workflow, which rebuilds the site with the new download links and copies the release's
+   `latest.json` to `https://keeprun.app/latest.json`. If a check fails, nothing is published.
+5. Desktop apps find the update on their next check (within 6 hours, or at the next start).
+
+To build and test installers without releasing, run the **Release** workflow by hand.
 
 To stop a rollout, delete the release or mark it as a pre-release, then run the Website workflow
 by hand. The site falls back to the previous published release.

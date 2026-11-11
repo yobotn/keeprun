@@ -1,8 +1,10 @@
 # End to end installer check. Run from an Administrator terminal on a test machine or VM.
 # Installs the MSI silently, checks the service, API and CLI, then uninstalls and checks cleanup.
-# Usage: powershell -ExecutionPolicy Bypass -File scripts\smoke-install.ps1 [-Msi path] [-KeepInstalled]
+# Usage: powershell -ExecutionPolicy Bypass -File scripts\smoke-install.ps1 [-Msi path] [-Version x.y.z] [-KeepInstalled]
 param(
     [string]$Msi = (Get-ChildItem "$PSScriptRoot\..\target\release\bundle\msi\*.msi" | Select-Object -First 1).FullName,
+    # When set, the running agent must report this version.
+    [string]$Version,
     [switch]$KeepInstalled
 )
 $ErrorActionPreference = 'Stop'
@@ -52,6 +54,7 @@ for ($i = 0; $i -lt 20 -and -not $ok; $i++) {
     try { $h = Invoke-RestMethod http://127.0.0.1:7171/health; $ok = $h.ok } catch { Start-Sleep -Milliseconds 500 }
 }
 Check 'API /health on 7171 reports prod' { $ok -and $h.env -eq 'prod' }
+if ($Version) { Check "Agent reports version $Version" { $ok -and $h.version -eq $Version } }
 Check 'CLI status' { & "$dir\keeprun.exe" status *> $null; $LASTEXITCODE -eq 0 }
 
 # Add, start and stop a real app through the installed CLI.
