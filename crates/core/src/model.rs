@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// What to do when the app process ends without a Stop request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -78,6 +78,10 @@ pub struct AppSpec {
     /// Watch the output for errors while the app runs, and report them as an issue.
     #[serde(default = "yes")]
     pub watch_errors: bool,
+    /// Env file read on every start, e.g. ".env.local". Relative to `cwd`, or absolute.
+    /// Variables in `env` override the file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub env_file: Option<String>,
 }
 
 /// A saved one-off command for an app. Runs in the app folder with the app environment.
@@ -129,6 +133,8 @@ pub struct NewApp {
     pub tasks: Vec<TaskSpec>,
     #[serde(default = "yes")]
     pub watch_errors: bool,
+    #[serde(default)]
+    pub env_file: Option<String>,
 }
 
 /// Body of `PATCH /apps/{id}`. Missing fields keep their value.
@@ -146,6 +152,8 @@ pub struct UpdateApp {
     pub tasks: Option<Vec<TaskSpec>>,
     pub disabled: Option<bool>,
     pub watch_errors: Option<bool>,
+    /// Env file to read on every start. An empty string unlinks it.
+    pub env_file: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -220,6 +228,23 @@ pub struct AppView {
     /// Errors in the output of the current run. Only while `watch_errors` is on.
     #[serde(default)]
     pub issue: Option<AppIssue>,
+    /// State of the linked env file. None when the app has no env file.
+    #[serde(default)]
+    pub env_file_status: Option<EnvFileStatus>,
+}
+
+/// The linked env file as the agent sees it. Keys only: values may be secret.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct EnvFileStatus {
+    /// Keys in the file now.
+    pub keys: Vec<String>,
+    /// PORT in the file, if any.
+    pub port: Option<u16>,
+    /// Keys added, removed or changed since the running process started. Empty when the
+    /// app is not running or nothing changed.
+    pub changed: Vec<String>,
+    /// Why the file cannot be read, e.g. it was deleted.
+    pub error: Option<String>,
 }
 
 /// Errors an app printed while it kept running, e.g. a dev server whose build broke.
@@ -412,6 +437,33 @@ pub fn parse_dotenv(text: &str) -> Result<BTreeMap<String, String>, String> {
         out.insert(k.to_string(), v);
     }
     Ok(out)
+}
+
+/// Read and parse an app's linked env file. `file` is relative to `cwd`, or absolute.
+/// A UTF-8 byte order mark is dropped: Windows editors often write one.
+pub fn read_env_file(cwd: &Path, file: &str) -> Result<BTreeMap<String, String>, String> {
+    let path = cwd.join(file);
+    let text = std::fs::read_to_string(&path).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            format!("{file} does not exist in {}.", cwd.display())
+        } else {
+            format!("Cannot read {file}: {e}")
+        }
+    })?;
+    parse_dotenv(text.strip_prefix('\u{feff}').unwrap_or(&text)).map_err(|e| format!("{file}: {e}"))
+}
+
+/// Keys whose value differs between two env maps, including added and removed keys.
+pub fn changed_keys(a: &BTreeMap<String, String>, b: &BTreeMap<String, String>) -> Vec<String> {
+    let mut keys: Vec<String> = a
+        .keys()
+        .chain(b.keys())
+        .filter(|k| a.get(*k) != b.get(*k))
+        .cloned()
+        .collect();
+    keys.sort();
+    keys.dedup();
+    keys
 }
 
 /// Key names that usually hold secrets. Used to pre-mark imported values.

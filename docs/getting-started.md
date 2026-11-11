@@ -21,8 +21,11 @@ For silent installs, see [deployment.md](deployment.md).
    - **Python**: the `.venv` or `venv` interpreter, with uvicorn, Flask, Django or a plain
      script.
    - **Custom**: any `.exe`, `.bat`, `.cmd` or `.ps1` in the folder, or a command you type.
-3. Choose a command. Variables from a `.env` file in the folder can be imported. Keys that look
-   like secrets (`PASSWORD`, `TOKEN`, `API_KEY` and so on) are encrypted.
+3. Choose a command, and the env file to use: `.env`, `.env.local`, `.env.production` or any
+   other `.env.*` file in the folder, or none. Keeprun reads the file every time the app starts.
+   When you edit it while the app runs, the Overview tab lists the changed keys and offers a
+   restart. Variables you add in Keeprun override the file. Keys that look like secrets
+   (`PASSWORD`, `TOKEN`, `API_KEY` and so on) are encrypted.
 4. Click **Save and start**. The Logs tab opens.
 
 You can also right-click a folder in Explorer, or the empty space inside one, and choose

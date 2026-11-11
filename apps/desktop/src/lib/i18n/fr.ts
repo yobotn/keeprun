@@ -178,6 +178,8 @@ const catalog: Catalog = {
   "overview.command": "Commande",
   "overview.pid": "PID",
   "overview.restart": "Redémarrage",
+  "overview.envFileChanged": "{file} a changé depuis le démarrage de l’app. Redémarrez pour appliquer.",
+  "overview.envFileError": "Fichier env non chargé : {error}",
   "overview.policyNever": "Jamais",
   "overview.policyOnFailure": "En cas d'échec",
   "overview.policyAlways": "Toujours",
@@ -226,6 +228,8 @@ const catalog: Catalog = {
   "tasks.aTaskRunning": "Une tâche est en cours d'exécution",
   "tasks.runName": "Exécuter {name}",
   "tasks.none": "Aucune tâche enregistrée.",
+  "tasks.available": "Disponibles dans le projet",
+  "tasks.saveName": "Enregistrer {name} comme tâche",
   "tasks.add": "Ajouter une tâche",
   "tasks.oneOffPlaceholder": "Exécuter une commande une fois, par exemple npm run seed",
   "tasks.oneOffLabel": "Commande à exécuter une fois",
@@ -261,6 +265,9 @@ const catalog: Catalog = {
   "env.removeVar": "Supprimer la variable",
   "env.duplicate": "{name} figure deux fois. Conservez-en une seule.",
   "env.restartToApply": "Redémarrez l'application pour appliquer les modifications.",
+  "env.file": "Fichier env",
+  "env.fileNone": "Aucun",
+  "env.fileHint": "Lu à chaque démarrage : {keys}. Les variables ci-dessous ont priorité.",
 
   // Settings
   "settings.name": "Nom",
@@ -315,11 +322,15 @@ const catalog: Catalog = {
     other:
       "{count} tâches également trouvées : {names}. Elles sont enregistrées, mais pas exécutées. Exécutez-les depuis l'onglet Tâches.",
   },
-  "add.importEnv": {
-    one: "Importer {count} variable depuis .env (les secrets sont chiffrés)",
-    many: "Importer {count} variables depuis .env (les secrets sont chiffrés)",
-    other: "Importer {count} variables depuis .env (les secrets sont chiffrés)",
+  "add.envFile": "Fichier d’environnement",
+  "add.envNone": "Ne pas importer",
+  "add.envVars": {
+    one: "{count} variable",
+    many: "{count} de variables",
+    other: "{count} variables",
   },
+  "add.envTemplate": "Modèle",
+  "add.envHint": "Lu à chaque démarrage de l’app. Modifiez le fichier, puis redémarrez pour appliquer.",
   "add.startNow": "Démarrer maintenant",
   "add.chooseFolder": "Choisissez le dossier qui contient l'application.",
   "add.saveAndStart": "Enregistrer et démarrer",

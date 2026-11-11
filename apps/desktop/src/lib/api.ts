@@ -43,6 +43,18 @@ export interface AppSpec {
   disabled: boolean;
   /** Watch the output for errors while the app runs. */
   watch_errors: boolean;
+  /** Env file read on every start, relative to `cwd` or absolute. `env` overrides it. */
+  env_file?: string | null;
+}
+
+/** The linked env file as the agent sees it. Keys only: values may be secret. */
+export interface EnvFileStatus {
+  keys: string[];
+  port: number | null;
+  /** Keys changed since the running process started. Restart to apply. */
+  changed: string[];
+  /** Why the file cannot be read, e.g. it was deleted. */
+  error: string | null;
 }
 
 /** Errors an app printed while it kept running, e.g. a dev server whose build broke. */
@@ -87,10 +99,17 @@ export interface AppView extends AppSpec {
   stats: Stats | null;
   task: TaskRun | null;
   issue: AppIssue | null;
+  env_file_status: EnvFileStatus | null;
 }
 
 export type NewApp = Omit<AppSpec, "id" | "disabled" | "watch_errors"> & { watch_errors?: boolean };
+/** `env_file: ""` unlinks the env file. */
 export type UpdateApp = Partial<NewApp> & { disabled?: boolean };
+
+/** PORT the app gets: set in Keeprun, else from its env file. */
+export function appPort(app: AppView): string | null {
+  return app.env.PORT ?? (app.env_file_status?.port ? String(app.env_file_status.port) : null);
+}
 
 export interface LogLine {
   ts: number;
@@ -122,8 +141,17 @@ export interface Detection {
   suggestions: Suggestion[];
   tasks: Suggestion[];
   port: number | null;
-  dotenv: Record<string, string>;
+  /** `.env` and `.env.*` files in the folder. `.env` first, templates last. */
+  env_files: EnvFile[];
   warnings: string[];
+}
+
+export interface EnvFile {
+  /** File name, e.g. ".env.local". */
+  name: string;
+  vars: Record<string, string>;
+  /** A placeholder file such as `.env.example`. Never selected by default. */
+  template: boolean;
 }
 
 export interface Connection {
@@ -310,6 +338,6 @@ export function samePath(a: string, b: string): boolean {
 }
 
 export function appUrl(app: AppView): string | null {
-  const port = app.stats?.ports[0] ?? (app.env.PORT ? Number(app.env.PORT) : null);
+  const port = app.stats?.ports[0] ?? (appPort(app) ? Number(appPort(app)) : null);
   return port ? `http://localhost:${port}` : null;
 }

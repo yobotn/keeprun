@@ -162,6 +162,8 @@ const catalog: Catalog = {
   "overview.command": "コマンド",
   "overview.pid": "PID",
   "overview.restart": "再起動",
+  "overview.envFileChanged": "アプリの起動後に {file} が変更されました。再起動して反映してください。",
+  "overview.envFileError": "env ファイルを読み込めませんでした: {error}",
   "overview.policyNever": "しない",
   "overview.policyOnFailure": "失敗時",
   "overview.policyAlways": "常に",
@@ -210,6 +212,8 @@ const catalog: Catalog = {
   "tasks.aTaskRunning": "タスクを実行中です",
   "tasks.runName": "{name} を実行",
   "tasks.none": "保存されたタスクはありません。",
+  "tasks.available": "プロジェクトで使用可能",
+  "tasks.saveName": "{name} をタスクとして保存",
   "tasks.add": "タスクを追加",
   "tasks.oneOffPlaceholder": "コマンドを 1 回実行 (例: npm run seed)",
   "tasks.oneOffLabel": "1 回だけ実行するコマンド",
@@ -244,6 +248,9 @@ const catalog: Catalog = {
   "env.removeVar": "変数を削除",
   "env.duplicate": "{name} が重複しています。1 つだけ残してください。",
   "env.restartToApply": "適用するには、アプリを再起動してください。",
+  "env.file": "env ファイル",
+  "env.fileNone": "なし",
+  "env.fileHint": "起動のたびに読み込み: {keys}。下の変数が優先されます。",
 
   // 設定
   "settings.name": "名前",
@@ -291,9 +298,13 @@ const catalog: Catalog = {
   "add.tasksFound": {
     other: "タスクも {count} 個見つかりました: {names}。これらは保存されますが、実行はされません。[タスク] タブから実行してください。",
   },
-  "add.importEnv": {
-    other: ".env から {count} 個の変数をインポート (シークレットは暗号化されます)",
+  "add.envFile": "環境ファイル",
+  "add.envNone": "インポートしない",
+  "add.envVars": {
+    other: "{count} 個の変数",
   },
+  "add.envTemplate": "テンプレート",
+  "add.envHint": "アプリの起動のたびに読み込まれます。ファイルを編集したら、再起動して反映してください。",
   "add.startNow": "今すぐ開始",
   "add.chooseFolder": "アプリが含まれているフォルダーを選択してください。",
   "add.saveAndStart": "保存して開始",

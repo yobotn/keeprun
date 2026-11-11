@@ -174,6 +174,8 @@ const catalog: Catalog = {
   "overview.command": "Comando",
   "overview.pid": "PID",
   "overview.restart": "Riavvio",
+  "overview.envFileChanged": "{file} è cambiato dall’avvio dell’app. Riavvia per applicare.",
+  "overview.envFileError": "File env non caricato: {error}",
   "overview.policyNever": "Mai",
   "overview.policyOnFailure": "In caso di errore",
   "overview.policyAlways": "Sempre",
@@ -222,6 +224,8 @@ const catalog: Catalog = {
   "tasks.aTaskRunning": "Un'attività è in esecuzione",
   "tasks.runName": "Esegui {name}",
   "tasks.none": "Nessuna attività salvata.",
+  "tasks.available": "Disponibili nel progetto",
+  "tasks.saveName": "Salva {name} come attività",
   "tasks.add": "Aggiungi attività",
   "tasks.oneOffPlaceholder": "Esegui un comando una volta, ad esempio npm run seed",
   "tasks.oneOffLabel": "Comando da eseguire una volta",
@@ -257,6 +261,9 @@ const catalog: Catalog = {
   "env.removeVar": "Rimuovi variabile",
   "env.duplicate": "{name} è presente due volte. Mantienine una.",
   "env.restartToApply": "Riavvia l'app per applicare le modifiche.",
+  "env.file": "File env",
+  "env.fileNone": "Nessuno",
+  "env.fileHint": "Letto a ogni avvio: {keys}. Le variabili qui sotto hanno la precedenza.",
 
   // Settings
   "settings.name": "Nome",
@@ -309,11 +316,15 @@ const catalog: Catalog = {
     other:
       "Trovate anche {count} attività: {names}. Vengono salvate, non eseguite. Eseguile dalla scheda Attività.",
   },
-  "add.importEnv": {
-    one: "Importa {count} variabile da .env (i segreti vengono crittografati)",
-    many: "Importa {count} variabili da .env (i segreti vengono crittografati)",
-    other: "Importa {count} variabili da .env (i segreti vengono crittografati)",
+  "add.envFile": "File di ambiente",
+  "add.envNone": "Non importare",
+  "add.envVars": {
+    one: "{count} variabile",
+    many: "{count} di variabili",
+    other: "{count} variabili",
   },
+  "add.envTemplate": "Modello",
+  "add.envHint": "Letto a ogni avvio dell’app. Modifica il file, poi riavvia per applicare.",
   "add.startNow": "Avvia ora",
   "add.chooseFolder": "Scegli la cartella che contiene l'app.",
   "add.saveAndStart": "Salva e avvia",

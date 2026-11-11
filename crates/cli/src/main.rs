@@ -58,9 +58,14 @@ enum Cmd {
         /// Environment variable as KEY=VALUE. Repeat for more.
         #[arg(short = 'e', long = "set")]
         vars: Vec<String>,
-        /// Import variables from a .env file. By default a .env in the folder is imported.
-        #[arg(long)]
+        /// Env file the agent reads on every start, e.g. .env.local. A bare name is looked up
+        /// in the app folder. By default the folder's .env is linked, or else its first other
+        /// .env.* file that is not a template such as .env.example.
+        #[arg(long, conflicts_with = "no_env_file")]
         env_file: Option<PathBuf>,
+        /// Do not link an env file.
+        #[arg(long)]
+        no_env_file: bool,
         /// Tag for grouping. Repeat for more.
         #[arg(short, long = "tag")]
         tags: Vec<String>,
@@ -107,6 +112,9 @@ enum Cmd {
         /// Watch the output for errors: true or false.
         #[arg(long)]
         watch_errors: Option<bool>,
+        /// Env file read on every start, e.g. .env.local. "none" unlinks it.
+        #[arg(long)]
+        env_file: Option<String>,
     },
     /// Show, set or remove environment variables.
     Env {
@@ -358,6 +366,22 @@ fn parse_vars(vars: &[String]) -> Result<BTreeMap<String, String>> {
     Ok(env)
 }
 
+/// The name to store for an env file: relative to the app folder when it is inside it,
+/// otherwise absolute. The agent resolves it against the app folder.
+fn link_env_file(cwd: &std::path::Path, f: &std::path::Path) -> Result<String> {
+    let in_app = cwd.join(f);
+    let path = if f.is_relative() && in_app.is_file() {
+        in_app
+    } else {
+        std::path::absolute(f)?
+    };
+    anyhow::ensure!(path.is_file(), "Env file {} does not exist.", f.display());
+    Ok(match path.strip_prefix(cwd) {
+        Ok(rel) => rel.display().to_string(),
+        Err(_) => path.display().to_string(),
+    })
+}
+
 fn read_env_file(p: &PathBuf) -> Result<BTreeMap<String, String>> {
     let text =
         std::fs::read_to_string(p).with_context(|| format!("Cannot read {}", p.display()))?;
@@ -422,8 +446,14 @@ async fn run() -> Result<()> {
                     println!("    {:<16}  {}", t.name, t.command);
                 }
             }
-            if !d.dotenv.is_empty() {
-                println!(".env     {} variables", d.dotenv.len());
+            let default_env = d.default_env_file().map(|f| f.name.clone());
+            for f in &d.env_files {
+                let mark = if Some(&f.name) == default_env.as_ref() {
+                    "*"
+                } else {
+                    " "
+                };
+                println!("Env    {mark} {:<16}  {} variables", f.name, f.vars.len());
             }
             for w in d.warnings {
                 println!("Warning  {w}");
@@ -449,6 +479,7 @@ async fn run() -> Result<()> {
             cwd,
             vars,
             env_file,
+            no_env_file,
             tags,
             restart,
             no_autostart,
@@ -462,6 +493,26 @@ async fn run() -> Result<()> {
             // Detected one-off commands (install, migrate, build) are saved as tasks, never run.
             let detected = detect::detect(&cwd).ok();
             let detected_port = detected.as_ref().and_then(|d| d.port);
+            let env_file = match (env_file, no_env_file) {
+                (_, true) => None,
+                (Some(f), _) => Some(link_env_file(&cwd, &f)?),
+                (None, _) => detected
+                    .as_ref()
+                    .and_then(|d| d.default_env_file())
+                    .map(|f| f.name.clone()),
+            };
+            let file_vars = match &env_file {
+                Some(f) => {
+                    let vars =
+                        keeprun_core::model::read_env_file(&cwd, f).map_err(anyhow::Error::msg)?;
+                    println!(
+                        "Env file: {f} ({} variables, read on every start). Pick another with --env-file or none with --no-env-file.",
+                        vars.len()
+                    );
+                    vars
+                }
+                None => BTreeMap::new(),
+            };
             let tasks: Vec<TaskSpec> = detected
                 .map(|d| d.tasks)
                 .unwrap_or_default()
@@ -490,21 +541,17 @@ async fn run() -> Result<()> {
                     } else {
                         command.join(" ")
                     };
-                    if env_file.is_none() && !d.dotenv.is_empty() {
-                        println!("Imported {} variables from .env", d.dotenv.len());
-                        env.extend(d.dotenv);
-                    }
                     (name.unwrap_or(d.name), command)
                 }
             };
-            if let Some(f) = &env_file {
-                env.extend(read_env_file(f)?);
-            }
             env.extend(parse_vars(&vars)?);
             // Detected commands may read %PORT%, so give the app a port whenever one is known.
+            // A PORT in the env file is left to the file, so editing it there takes effect.
             if let Some(p) = port.filter(|p| *p != 0) {
                 env.insert("PORT".into(), p.to_string());
-            } else if let Some(p) = detected_port.filter(|_| !env.contains_key("PORT")) {
+            } else if let Some(p) = detected_port
+                .filter(|_| !env.contains_key("PORT") && !file_vars.contains_key("PORT"))
+            {
                 env.insert("PORT".into(), p.to_string());
             }
             let secrets: BTreeSet<String> =
@@ -521,6 +568,7 @@ async fn run() -> Result<()> {
                 max_restarts: 5,
                 tasks,
                 watch_errors: true,
+                env_file,
             };
             let app: AppView = c.send(Method::POST, "/apps", &body).await?;
             println!("Added {} ({}).", app.spec.id, app.spec.command);
@@ -549,8 +597,10 @@ async fn run() -> Result<()> {
             tags,
             port,
             watch_errors,
+            env_file,
         } => {
-            let needs_restart = cwd.is_some() || command.is_some() || port.is_some();
+            let needs_restart =
+                cwd.is_some() || command.is_some() || port.is_some() || env_file.is_some();
             let env = match port {
                 Some(p) => {
                     let v: AppView = c.get(&format!("/apps/{app}")).await?;
@@ -574,6 +624,13 @@ async fn run() -> Result<()> {
                 tags: tags.map(|t| t.split(',').map(str::to_string).collect()),
                 env,
                 watch_errors,
+                env_file: env_file.map(|f| {
+                    if f.eq_ignore_ascii_case("none") {
+                        String::new()
+                    } else {
+                        f
+                    }
+                }),
                 ..Default::default()
             };
             let v: AppView = c.send(Method::PATCH, &format!("/apps/{app}"), &u).await?;
@@ -620,6 +677,22 @@ async fn run() -> Result<()> {
             } else {
                 v
             };
+            if let (Some(f), Some(st)) = (&v.spec.env_file, &v.env_file_status) {
+                match &st.error {
+                    Some(e) => println!("# Env file {f}: {e}"),
+                    None => println!("# Env file {f}: {}", st.keys.join(", ")),
+                }
+                if !st.changed.is_empty() {
+                    println!(
+                        "# Changed since start: {}. Apply with: keeprun restart {}",
+                        st.changed.join(", "),
+                        v.spec.id
+                    );
+                }
+                if !v.spec.env.is_empty() {
+                    println!("# Set in Keeprun (override the file):");
+                }
+            }
             for (k, val) in &v.spec.env {
                 let shown = if v.spec.secrets.contains(k) && !reveal {
                     "********"

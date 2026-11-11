@@ -226,6 +226,7 @@ mod tests {
             tasks: vec![],
             disabled: false,
             watch_errors: true,
+            env_file: None,
         };
         db.insert_app(&spec).unwrap();
         let raw: String = db

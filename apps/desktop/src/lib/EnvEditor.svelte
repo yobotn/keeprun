@@ -26,6 +26,7 @@
       loadedFor = app.id;
       rows = fromApp(app);
       baseline = snapshot(rows);
+      fileSaved = false;
     }
   });
 
@@ -34,6 +35,35 @@
   }
 
   const dirty = $derived(snapshot(rows) !== baseline);
+
+  // Env files in the app folder, for the linked file picker. Listed again when the folder changes.
+  let files = $state<string[]>([]);
+  let filesFor = "";
+  $effect(() => {
+    if (app.cwd === filesFor) return;
+    filesFor = app.cwd;
+    desktop
+      .detect(app.cwd)
+      .then((d) => (files = d.env_files.map((f) => f.name)))
+      .catch(() => (files = []));
+  });
+  const fileOptions = $derived(app.env_file && !files.includes(app.env_file) ? [app.env_file, ...files] : files);
+  let fileSaving = $state(false);
+  let fileSaved = $state(false);
+
+  async function setEnvFile(name: string) {
+    error = "";
+    fileSaving = true;
+    try {
+      await api.update(app.id, { env_file: name });
+      fileSaved = true;
+      onsaved();
+    } catch (e) {
+      error = (e as Error).message;
+    } finally {
+      fileSaving = false;
+    }
+  }
   let error = $state("");
   let saved = $state(false);
   let saving = $state(false);
@@ -106,6 +136,32 @@
     <button class="btn" onclick={importFile}><FileInput size={14} /> {t("env.import")}</button>
     <button class="btn" onclick={addRow}><Plus size={14} /> {t("env.add")}</button>
   </div>
+
+  {#if fileOptions.length}
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-6 py-2.5 text-[13px]">
+      <label for="env-file" class="text-fg-muted">{t("env.file")}</label>
+      <select
+        id="env-file"
+        class="input w-auto font-mono"
+        value={app.env_file ?? ""}
+        disabled={fileSaving}
+        onchange={(e) => setEnvFile(e.currentTarget.value)}
+      >
+        {#each fileOptions as f}<option value={f}>{f}</option>{/each}
+        <option value="">{t("env.fileNone")}</option>
+      </select>
+      {#if app.env_file_status?.error}
+        <span class="selectable min-w-0 flex-1 text-xs text-danger">{app.env_file_status.error}</span>
+      {:else if app.env_file_status}
+        <span class="min-w-0 flex-1 truncate text-xs text-fg-muted" title={app.env_file_status.keys.join(", ")}>
+          {t("env.fileHint", { keys: app.env_file_status.keys.join(", ") || "-" })}
+        </span>
+      {/if}
+      {#if fileSaved && isActive(app.state)}
+        <span class="text-xs text-fg-muted">{t("env.restartToApply")}</span>
+      {/if}
+    </div>
+  {/if}
 
   <div class="flex-1 overflow-auto px-6 py-3">
     {#if rows.length === 0}

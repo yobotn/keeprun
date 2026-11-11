@@ -14,7 +14,9 @@
   let command = $state("");
   let port = $state("");
   let custom = $state(false);
-  let importEnv = $state(true);
+  /** Name of the env file to import, or "" for none. */
+  let envFile = $state("");
+  let portEdited = $state(false);
   let startNow = $state(true);
   let error = $state("");
   let busy = $state(false);
@@ -39,12 +41,23 @@
       const d = await desktop.detect(dir);
       detection = d;
       name = d.name;
-      port = d.dotenv.PORT ?? (d.port ? String(d.port) : "");
+      portEdited = false;
+      pickEnv(d.env_files.find((f) => !f.template)?.name ?? "");
       command = d.suggestions[0]?.command ?? "";
       custom = d.suggestions.length === 0;
     } catch (e) {
       error = String(e);
     }
+  }
+
+  const selectedEnv = $derived(detection?.env_files.find((f) => f.name === envFile));
+
+  /** Select an env file. Its PORT fills the port field until the user types one. */
+  function pickEnv(file: string) {
+    envFile = file;
+    if (portEdited || !detection) return;
+    const vars = detection.env_files.find((f) => f.name === file)?.vars;
+    port = vars?.PORT ?? (detection.port ? String(detection.port) : "");
   }
 
   async function submit(e: SubmitEvent) {
@@ -53,8 +66,10 @@
     error = "";
     busy = true;
     try {
-      const env: Record<string, string> = importEnv && detection ? { ...detection.dotenv } : {};
-      if (port.trim()) env.PORT = port.trim();
+      // The file is linked, not copied: the agent reads it on every start. Only a port that
+      // differs from the file's is kept in Keeprun, as an override.
+      const env: Record<string, string> = {};
+      if (port.trim() && port.trim() !== selectedEnv?.vars.PORT) env.PORT = port.trim();
       const secrets: string[] = [];
       for (const k of Object.keys(env)) if (await desktop.looksSecret(k)) secrets.push(k);
       let app = await api.add({
@@ -62,6 +77,7 @@
         cwd,
         command,
         env,
+        env_file: selectedEnv?.name ?? null,
         secrets,
         tags: [],
         autostart: true,
@@ -131,6 +147,7 @@
             id="a-port"
             class="input tabular-nums"
             bind:value={port}
+            oninput={() => (portEdited = true)}
             inputmode="numeric"
             pattern="\d{'{'}1,5{'}'}"
             maxlength="5"
@@ -182,11 +199,39 @@
         </p>
       {/if}
 
-      {#if Object.keys(detection.dotenv).length}
-        <label class="flex items-center gap-2 text-[13px]">
-          <input type="checkbox" class="accent-[var(--accent)]" bind:checked={importEnv} />
-          {t("add.importEnv", { count: Object.keys(detection.dotenv).length })}
-        </label>
+      {#if detection.env_files.length}
+        <fieldset>
+          <legend class="label">{t("add.envFile")}</legend>
+          <div class="flex max-h-44 flex-col overflow-auto rounded-md border border-border">
+            {#each detection.env_files as f}
+              <label class="flex cursor-default items-start gap-3 border-b border-border px-3 py-2 hover:bg-bg-hover">
+                <input
+                  type="radio"
+                  name="envfile"
+                  class="mt-1 accent-[var(--accent)]"
+                  checked={envFile === f.name}
+                  onchange={() => pickEnv(f.name)}
+                />
+                <span class="min-w-0">
+                  <span class="block font-mono text-[13px] font-medium">
+                    {f.name}
+                    <span class="ms-1 font-sans text-xs font-normal text-fg-muted">
+                      {t("add.envVars", { count: Object.keys(f.vars).length })}{f.template ? ` · ${t("add.envTemplate")}` : ""}
+                    </span>
+                  </span>
+                  {#if Object.keys(f.vars).length}
+                    <span class="block truncate font-mono text-xs text-fg-muted">{Object.keys(f.vars).join(", ")}</span>
+                  {/if}
+                </span>
+              </label>
+            {/each}
+            <label class="flex cursor-default items-center gap-3 px-3 py-2 hover:bg-bg-hover">
+              <input type="radio" name="envfile" class="accent-[var(--accent)]" checked={envFile === ""} onchange={() => pickEnv("")} />
+              <span class="text-[13px] font-medium">{t("add.envNone")}</span>
+            </label>
+          </div>
+          {#if selectedEnv}<p class="hint">{t("add.envHint")}</p>{/if}
+        </fieldset>
       {/if}
       <label class="flex items-center gap-2 text-[13px]">
         <input type="checkbox" class="accent-[var(--accent)]" bind:checked={startNow} />

@@ -43,10 +43,27 @@ pub struct Detection {
     pub tasks: Vec<Suggestion>,
     /// Port the app probably listens on, when it can be read from config.
     pub port: Option<u16>,
-    /// Values from a `.env` file in the folder, offered for import.
-    pub dotenv: BTreeMap<String, String>,
+    /// `.env` and `.env.*` files in the folder, offered for import. The user picks one.
+    #[serde(default)]
+    pub env_files: Vec<EnvFile>,
     /// Problems the user should know about, e.g. a tool that is not installed.
     pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EnvFile {
+    /// File name, e.g. ".env.local".
+    pub name: String,
+    pub vars: BTreeMap<String, String>,
+    /// A placeholder file such as `.env.example`. Never selected by default.
+    pub template: bool,
+}
+
+impl Detection {
+    /// The env file selected when the user has not chosen: the first real (non-template) one.
+    pub fn default_env_file(&self) -> Option<&EnvFile> {
+        self.env_files.iter().find(|f| !f.template)
+    }
 }
 
 /// Find an executable on PATH, trying PATHEXT extensions. Returns the absolute path.
@@ -107,11 +124,44 @@ fn folder_name(dir: &Path) -> String {
         .unwrap_or_else(|| "app".into())
 }
 
-fn read_dotenv(dir: &Path) -> BTreeMap<String, String> {
-    read_text(dir.join(".env"))
-        .ok()
-        .and_then(|t| crate::model::parse_dotenv(&t).ok())
-        .unwrap_or_default()
+/// Suffixes of env files that hold placeholders rather than real values.
+const ENV_TEMPLATES: [&str; 5] = ["example", "sample", "template", "dist", "defaults"];
+
+/// Every `.env` or `.env.*` file in the folder that parses. `.env` comes first, templates
+/// such as `.env.example` last, the rest by name.
+fn read_env_files(dir: &Path) -> Vec<EnvFile> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return vec![];
+    };
+    let mut files: Vec<EnvFile> = entries
+        .flatten()
+        .filter(|e| e.path().is_file())
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            let lower = name.to_ascii_lowercase();
+            if lower != ".env" && !lower.starts_with(".env.") {
+                return None;
+            }
+            let vars = crate::model::parse_dotenv(&read_text(e.path()).ok()?).ok()?;
+            let template = lower
+                .rsplit('.')
+                .next()
+                .is_some_and(|s| ENV_TEMPLATES.contains(&s));
+            Some(EnvFile {
+                name,
+                vars,
+                template,
+            })
+        })
+        .collect();
+    files.sort_by_key(|f| {
+        (
+            f.template,
+            !f.name.eq_ignore_ascii_case(".env"),
+            f.name.to_ascii_lowercase(),
+        )
+    });
+    files
 }
 
 /// Find `--port N`, `-p N`, `PORT=N` or `:N` style port hints in a string.
@@ -140,8 +190,12 @@ pub fn detect(dir: &Path) -> Result<Detection, String> {
             dir.display()
         ));
     }
-    let dotenv = read_dotenv(dir);
-    let env_port = dotenv.get("PORT").and_then(|p| p.parse().ok());
+    let env_files = read_env_files(dir);
+    let env_port = env_files
+        .iter()
+        .find(|f| !f.template)
+        .and_then(|f| f.vars.get("PORT"))
+        .and_then(|p| p.parse().ok());
     let mut d = if dir.join("package.json").is_file() {
         detect_node(dir)
     } else if let Some(proj) = find_ext(dir, "csproj").or_else(|| find_ext(dir, "fsproj")) {
@@ -157,7 +211,7 @@ pub fn detect(dir: &Path) -> Result<Detection, String> {
         Kind::Python => env_port.or(d.port),
         _ => d.port.or(env_port),
     };
-    d.dotenv = dotenv;
+    d.env_files = env_files;
     Ok(d)
 }
 
@@ -274,7 +328,7 @@ fn detect_node(dir: &Path) -> Detection {
         suggestions,
         tasks,
         port,
-        dotenv: BTreeMap::new(),
+        env_files: vec![],
         warnings,
     }
 }
@@ -415,7 +469,7 @@ fn detect_dotnet(dir: &Path, proj: &Path) -> Detection {
         suggestions,
         tasks,
         port,
-        dotenv: BTreeMap::new(),
+        env_files: vec![],
         warnings,
     }
 }
@@ -532,7 +586,7 @@ fn detect_python(dir: &Path) -> Detection {
         suggestions,
         tasks,
         port,
-        dotenv: BTreeMap::new(),
+        env_files: vec![],
         warnings,
     }
 }
@@ -576,7 +630,7 @@ fn detect_custom(dir: &Path) -> Detection {
         suggestions,
         tasks: vec![],
         port: None,
-        dotenv: BTreeMap::new(),
+        env_files: vec![],
         warnings: vec![],
     }
 }
@@ -609,8 +663,42 @@ mod tests {
         assert_eq!(r.suggestions[1].label, "pnpm dev");
         assert!(!r.suggestions.iter().any(|s| s.label.contains("test")));
         assert_eq!(r.port, Some(3001));
-        assert_eq!(r.dotenv["DB_PASSWORD"], "x");
+        assert_eq!(r.default_env_file().unwrap().vars["DB_PASSWORD"], "x");
         assert!(r.tasks.iter().any(|s| s.label == "pnpm test"));
+    }
+
+    #[test]
+    fn env_files_are_listed_for_choice() {
+        let d = tmp("env-files");
+        std::fs::write(d.join(".env.production"), "A=prod\n").unwrap();
+        std::fs::write(d.join(".env.example"), "A=changeme\n").unwrap();
+        std::fs::write(d.join(".env.local"), "PORT=4100\nB=2\n").unwrap();
+        std::fs::write(d.join(".env"), "PORT=4000\nA=1\n").unwrap();
+        std::fs::write(d.join(".envrc"), "export X=1\n").unwrap();
+        let r = detect(&d).unwrap();
+        let names: Vec<&str> = r.env_files.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(
+            names,
+            [".env", ".env.local", ".env.production", ".env.example"]
+        );
+        assert!(r.env_files[3].template);
+        assert_eq!(r.default_env_file().unwrap().name, ".env");
+        assert_eq!(r.port, Some(4000));
+
+        // Only a .env.local: it is the default. A lone template is never the default.
+        let only_local = tmp("env-only-local");
+        std::fs::write(only_local.join(".env.local"), "SECRET=x\n").unwrap();
+        assert_eq!(
+            detect(&only_local)
+                .unwrap()
+                .default_env_file()
+                .unwrap()
+                .name,
+            ".env.local"
+        );
+        let only_example = tmp("env-only-example");
+        std::fs::write(only_example.join(".env.example"), "SECRET=x\n").unwrap();
+        assert!(detect(&only_example).unwrap().default_env_file().is_none());
     }
 
     #[test]

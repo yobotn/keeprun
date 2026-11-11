@@ -9,8 +9,9 @@ use crate::job::{self, Job};
 use anyhow::{anyhow, Context, Result};
 use keeprun_core::issue::{self, IssueTracker};
 use keeprun_core::model::{
-    slugify, AppSpec, AppState, AppView, Event, EventKind, IssueReport, LogLine, NewApp,
-    RestartPolicy, RunTask, Stats, Stream, TaskRun, TaskSpec, UpdateApp,
+    changed_keys, read_env_file, slugify, AppSpec, AppState, AppView, EnvFileStatus, Event,
+    EventKind, IssueReport, LogLine, NewApp, RestartPolicy, RunTask, Stats, Stream, TaskRun,
+    TaskSpec, UpdateApp,
 };
 use keeprun_core::Settings;
 use std::collections::{BTreeMap, HashSet, VecDeque};
@@ -79,6 +80,17 @@ struct Managed {
     rt: Mutex<Runtime>,
     logs: LogHub,
     task: Mutex<TaskSlot>,
+    env_cache: Mutex<EnvCache>,
+}
+
+type EnvVars = BTreeMap<String, String>;
+
+/// The linked env file, parsed again only when its path, size or modified time changes.
+/// Status polls ask for it every second.
+#[derive(Default)]
+struct EnvCache {
+    stamp: Option<(PathBuf, Option<SystemTime>, Option<u64>)>,
+    vars: Option<Result<EnvVars, String>>,
 }
 
 /// One task at a time per app. Tasks run beside the app and are never restarted.
@@ -105,6 +117,9 @@ struct Runtime {
     next_restart_at: Option<u64>,
     cpu_sample: Option<(Instant, u64)>,
     cpu_percent: f32,
+    /// Env file variables the current process started with. None without a linked file or
+    /// when it could not be read at start.
+    env_file_loaded: Option<EnvVars>,
 }
 
 pub struct LogHub {
@@ -217,10 +232,57 @@ impl Managed {
         self.rt.lock().unwrap().state.unwrap_or(AppState::Stopped)
     }
 
+    /// The linked env file as it is on disk now. None when the app has no env file.
+    fn file_env(&self, spec: &AppSpec) -> Option<Result<EnvVars, String>> {
+        let file = spec.env_file.as_deref()?;
+        let path = spec.cwd.join(file);
+        let meta = std::fs::metadata(&path).ok();
+        let stamp = (
+            path,
+            meta.as_ref().and_then(|m| m.modified().ok()),
+            meta.as_ref().map(|m| m.len()),
+        );
+        let mut cache = self.env_cache.lock().unwrap();
+        if cache.stamp.as_ref() != Some(&stamp) || cache.vars.is_none() {
+            cache.vars = Some(read_env_file(&spec.cwd, file));
+            cache.stamp = Some(stamp);
+        }
+        cache.vars.clone()
+    }
+
+    /// What a process of this app gets: the env file, overridden by the app variables.
+    fn effective_env(&self, spec: &AppSpec) -> (EnvVars, Option<Result<EnvVars, String>>) {
+        let file = self.file_env(spec);
+        let mut env = file.clone().and_then(Result::ok).unwrap_or_default();
+        env.extend(spec.env.clone());
+        (env, file)
+    }
+
+    fn env_file_status(&self, spec: &AppSpec, state: AppState) -> Option<EnvFileStatus> {
+        let file = self.file_env(spec)?;
+        let loaded = self.rt.lock().unwrap().env_file_loaded.clone();
+        let empty = EnvVars::new();
+        let now = file.as_ref().unwrap_or(&empty);
+        let changed = if state.is_active() {
+            changed_keys(loaded.as_ref().unwrap_or(&empty), now)
+        } else {
+            vec![]
+        };
+        Some(EnvFileStatus {
+            keys: now.keys().cloned().collect(),
+            port: job::port_of(now),
+            changed,
+            error: file.err(),
+        })
+    }
+
     fn view(&self, stats: Option<Stats>) -> AppView {
         let spec = self.spec.read().unwrap().clone();
         let rt = self.rt.lock().unwrap();
         let state = rt.state.unwrap_or(AppState::Stopped);
+        drop(rt);
+        let env_file_status = self.env_file_status(&spec, state);
+        let rt = self.rt.lock().unwrap();
         // A user stop ends the run; its errors are no longer news.
         let issue = (spec.watch_errors && state != AppState::Stopped)
             .then(|| self.logs.issue.lock().unwrap().current(now_ms()))
@@ -236,6 +298,7 @@ impl Managed {
             stats,
             task: self.task.lock().unwrap().run.clone(),
             issue,
+            env_file_status,
         }
     }
 }
@@ -293,6 +356,7 @@ impl Supervisor {
             rt: Mutex::new(Runtime::default()),
             logs,
             task: Mutex::new(TaskSlot::default()),
+            env_cache: Mutex::default(),
         })
     }
 
@@ -407,10 +471,11 @@ impl Supervisor {
             tasks,
             disabled: false,
             watch_errors: new.watch_errors,
+            env_file: clean_env_file(new.env_file),
         };
         {
             let mut apps = self.apps.write().unwrap();
-            Self::port_taken(&apps, &id, &spec.env)?;
+            Self::port_taken(&apps, &id, &Self::spec_env(&spec))?;
             if apps.contains_key(&id) {
                 return Err(SupError::Conflict(format!(
                     "An app with id \"{id}\" already exists. Choose another name."
@@ -481,9 +546,13 @@ impl Supervisor {
                 m.logs.clear_issue();
             }
         }
+        if let Some(v) = u.env_file {
+            spec.env_file = clean_env_file(Some(v));
+        }
         Self::validate(&spec.name, &spec.cwd, &spec.command)?;
-        if job::port_of(&spec.env) != job::port_of(&before.env) {
-            Self::port_taken(&self.apps.read().unwrap(), id, &spec.env)?;
+        let env = Self::spec_env(&spec);
+        if job::port_of(&env) != job::port_of(&Self::spec_env(&before)) {
+            Self::port_taken(&self.apps.read().unwrap(), id, &env)?;
         }
         if spec == before {
             return self.view(id);
@@ -594,7 +663,8 @@ impl Supervisor {
             return Ok(());
         };
         for (other, m) in apps.iter().filter(|(k, _)| k.as_str() != id) {
-            if job::port_of(&m.spec.read().unwrap().env) == Some(port) {
+            let spec = m.spec.read().unwrap().clone();
+            if job::port_of(&m.effective_env(&spec).0) == Some(port) {
                 return Err(SupError::Conflict(format!(
                     "Port {port} is already set for app \"{other}\". Choose another port."
                 )));
@@ -603,9 +673,20 @@ impl Supervisor {
         Ok(())
     }
 
+    /// Env of an app that is not managed yet, uncached: the env file under the app variables.
+    fn spec_env(spec: &AppSpec) -> EnvVars {
+        let mut env = spec
+            .env_file
+            .as_deref()
+            .and_then(|f| read_env_file(&spec.cwd, f).ok())
+            .unwrap_or_default();
+        env.extend(spec.env.clone());
+        env
+    }
+
     /// Port given in the app env as PORT, if another process already listens on it.
-    fn port_conflict(spec: &AppSpec) -> Option<String> {
-        let port = job::port_of(&spec.env)?;
+    fn port_conflict(env: &EnvVars) -> Option<String> {
+        let port = job::port_of(env)?;
         let (pid, _) = job::listening_ports()
             .into_iter()
             .find(|(_, p)| *p == port)?;
@@ -644,8 +725,16 @@ impl Supervisor {
         let spec = m.spec.read().unwrap().clone();
         let id = spec.id.clone();
 
-        let started = Self::port_conflict(&spec).map_or_else(
-            || job::spawn_in_job(&spec.cwd, &spec.command, &spec.env),
+        let (env, file) = m.effective_env(&spec);
+        // A missing or broken env file is reported but does not stop the app from starting:
+        // keeping it up comes first, and the status shows the error.
+        if let Some(Err(e)) = &file {
+            m.logs
+                .push(Stream::System, format!("Env file not loaded: {e}"));
+        }
+        m.rt.lock().unwrap().env_file_loaded = file.and_then(Result::ok);
+        let started = Self::port_conflict(&env).map_or_else(
+            || job::spawn_in_job(&spec.cwd, &spec.command, &env),
             |msg| Err(anyhow!(msg)),
         );
         let (mut child, job) = match started {
@@ -937,7 +1026,8 @@ impl Supervisor {
             slot.seq
         };
 
-        let (mut child, job) = match job::spawn_in_job(&spec.cwd, &command, &spec.env) {
+        let env = m.effective_env(&spec).0;
+        let (mut child, job) = match job::spawn_in_job(&spec.cwd, &command, &env) {
             Ok(v) => v,
             Err(e) => {
                 let msg = format!("{e:#}");
@@ -1102,7 +1192,12 @@ fn clean_tasks(tasks: Vec<TaskSpec>) -> Result<Vec<TaskSpec>, SupError> {
 }
 
 fn needs_restart(a: &AppSpec, b: &AppSpec) -> bool {
-    a.cwd != b.cwd || a.command != b.command || a.env != b.env
+    a.cwd != b.cwd || a.command != b.command || a.env != b.env || a.env_file != b.env_file
+}
+
+/// Trim an env file name. Empty means no file.
+fn clean_env_file(v: Option<String>) -> Option<String> {
+    v.map(|f| f.trim().to_string()).filter(|f| !f.is_empty())
 }
 
 fn describe_changes(a: &AppSpec, b: &AppSpec) -> String {
@@ -1115,6 +1210,12 @@ fn describe_changes(a: &AppSpec, b: &AppSpec) -> String {
     }
     if a.command != b.command {
         parts.push("command".into());
+    }
+    if a.env_file != b.env_file {
+        parts.push(match &b.env_file {
+            Some(f) => format!("env file to {f}"),
+            None => "env file (unlinked)".into(),
+        });
     }
     if a.env != b.env || a.secrets != b.secrets {
         let mut keys: Vec<&String> = a
@@ -1264,6 +1365,7 @@ mod tests {
                 command: "echo task-output".into(),
             }],
             watch_errors: true,
+            env_file: None,
         })
         .unwrap()
         .spec
@@ -1290,6 +1392,75 @@ mod tests {
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
+    }
+
+    #[tokio::test]
+    async fn env_file_is_read_on_start_and_changes_are_reported() {
+        let s = sup("envfile");
+        let dir = std::env::temp_dir().join(format!("keeprun-envfile-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(".env.local"), "GREETING=hi\nOTHER=1\n").unwrap();
+        let id = app(
+            &s,
+            "envfile",
+            "echo greet-%GREETING%-%OTHER% & ping -n 60 127.0.0.1 >nul",
+            RestartPolicy::Never,
+            5,
+        );
+        let v = s
+            .update(
+                &id,
+                UpdateApp {
+                    cwd: Some(dir.clone()),
+                    env_file: Some(".env.local".into()),
+                    env: Some(BTreeMap::from([("OTHER".into(), "app".into())])),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let status = v.env_file_status.unwrap();
+        assert_eq!(status.keys, ["GREETING", "OTHER"]);
+        assert!(status.changed.is_empty() && status.error.is_none());
+
+        s.start(&id).unwrap();
+        wait_for(&s, &id, AppState::Running, 10).await;
+        let deadline = Instant::now() + Duration::from_secs(10);
+        // App variables override the file.
+        while !s
+            .recent_logs(&id, 50)
+            .unwrap()
+            .iter()
+            .any(|l| l.text.contains("greet-hi-app"))
+        {
+            assert!(
+                Instant::now() < deadline,
+                "env file values not in the app output"
+            );
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+
+        std::fs::write(dir.join(".env.local"), "GREETING=hello\nOTHER=1\nNEW=x\n").unwrap();
+        assert_eq!(
+            s.view(&id).unwrap().env_file_status.unwrap().changed,
+            ["GREETING", "NEW"]
+        );
+
+        std::fs::remove_file(dir.join(".env.local")).unwrap();
+        let status = s.view(&id).unwrap().env_file_status.unwrap();
+        assert!(status.error.unwrap().contains("does not exist"));
+        assert_eq!(status.changed, ["GREETING", "OTHER"]);
+
+        // Not running: nothing to restart for.
+        s.stop(&id).await.unwrap();
+        wait_for(&s, &id, AppState::Stopped, 10).await;
+        assert!(s
+            .view(&id)
+            .unwrap()
+            .env_file_status
+            .unwrap()
+            .changed
+            .is_empty());
     }
 
     #[tokio::test]

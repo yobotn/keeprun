@@ -174,6 +174,8 @@ const catalog: Catalog = {
   "overview.command": "Comando",
   "overview.pid": "PID",
   "overview.restart": "Reinicio",
+  "overview.envFileChanged": "{file} cambió desde que se inició la app. Reinicia para aplicar los cambios.",
+  "overview.envFileError": "No se cargó el archivo env: {error}",
   "overview.policyNever": "Nunca",
   "overview.policyOnFailure": "Si se produce un error",
   "overview.policyAlways": "Siempre",
@@ -222,6 +224,8 @@ const catalog: Catalog = {
   "tasks.aTaskRunning": "Hay una tarea en ejecución",
   "tasks.runName": "Ejecutar {name}",
   "tasks.none": "No hay tareas guardadas.",
+  "tasks.available": "Disponibles en el proyecto",
+  "tasks.saveName": "Guardar {name} como tarea",
   "tasks.add": "Agregar tarea",
   "tasks.oneOffPlaceholder": "Ejecutar un comando una vez, p. ej., npm run seed",
   "tasks.oneOffLabel": "Comando para ejecutar una vez",
@@ -257,6 +261,9 @@ const catalog: Catalog = {
   "env.removeVar": "Quitar variable",
   "env.duplicate": "{name} aparece dos veces. Deja solo una.",
   "env.restartToApply": "Reinicia la aplicación para aplicar los cambios.",
+  "env.file": "Archivo env",
+  "env.fileNone": "Ninguno",
+  "env.fileHint": "Se lee en cada inicio: {keys}. Las variables de abajo lo reemplazan.",
 
   // Settings
   "settings.name": "Nombre",
@@ -309,11 +316,15 @@ const catalog: Catalog = {
     other:
       "También se encontraron {count} tareas: {names}. Se guardan, pero no se ejecutan. Ejecútalas desde la pestaña Tareas.",
   },
-  "add.importEnv": {
-    one: "Importar {count} variable de .env (los secretos se cifran)",
-    many: "Importar {count} variables de .env (los secretos se cifran)",
-    other: "Importar {count} variables de .env (los secretos se cifran)",
+  "add.envFile": "Archivo de entorno",
+  "add.envNone": "No importar",
+  "add.envVars": {
+    one: "{count} variable",
+    many: "{count} de variables",
+    other: "{count} variables",
   },
+  "add.envTemplate": "Plantilla",
+  "add.envHint": "Se lee cada vez que se inicia la app. Edita el archivo y reinicia para aplicar los cambios.",
   "add.startNow": "Iniciar ahora",
   "add.chooseFolder": "Elige la carpeta que contiene la aplicación.",
   "add.saveAndStart": "Guardar e iniciar",

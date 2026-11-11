@@ -162,6 +162,8 @@ const catalog: Catalog = {
   "overview.command": "Befehl",
   "overview.pid": "PID",
   "overview.restart": "Neustart",
+  "overview.envFileChanged": "{file} wurde seit dem Start der App geändert. Neu starten, um die Änderungen zu übernehmen.",
+  "overview.envFileError": "Env-Datei nicht geladen: {error}",
   "overview.policyNever": "Nie",
   "overview.policyOnFailure": "Bei Fehler",
   "overview.policyAlways": "Immer",
@@ -210,6 +212,8 @@ const catalog: Catalog = {
   "tasks.aTaskRunning": "Eine Aufgabe wird ausgeführt",
   "tasks.runName": "{name} ausführen",
   "tasks.none": "Keine gespeicherten Aufgaben.",
+  "tasks.available": "Im Projekt verfügbar",
+  "tasks.saveName": "{name} als Aufgabe speichern",
   "tasks.add": "Aufgabe hinzufügen",
   "tasks.oneOffPlaceholder": "Befehl einmalig ausführen, z. B. npm run seed",
   "tasks.oneOffLabel": "Einmalig auszuführender Befehl",
@@ -244,6 +248,9 @@ const catalog: Catalog = {
   "env.removeVar": "Variable entfernen",
   "env.duplicate": "{name} ist doppelt vorhanden. Behalten Sie nur einen Eintrag.",
   "env.restartToApply": "Starten Sie die App neu, um die Änderungen zu übernehmen.",
+  "env.file": "Env-Datei",
+  "env.fileNone": "Keine",
+  "env.fileHint": "Wird bei jedem Start gelesen: {keys}. Variablen unten haben Vorrang.",
 
   // Settings
   "settings.name": "Name",
@@ -294,10 +301,14 @@ const catalog: Catalog = {
     other:
       "Außerdem wurden {count} Aufgaben gefunden: {names}. Sie werden gespeichert, aber nicht ausgeführt. Führen Sie sie auf der Registerkarte „Aufgaben“ aus.",
   },
-  "add.importEnv": {
-    one: "1 Variable aus .env importieren (geheime Werte werden verschlüsselt)",
-    other: "{count} Variablen aus .env importieren (geheime Werte werden verschlüsselt)",
+  "add.envFile": "Umgebungsdatei",
+  "add.envNone": "Nicht importieren",
+  "add.envVars": {
+    one: "1 Variable",
+    other: "{count} Variablen",
   },
+  "add.envTemplate": "Vorlage",
+  "add.envHint": "Wird bei jedem Start der App gelesen. Datei bearbeiten und neu starten, um Änderungen zu übernehmen.",
   "add.startNow": "Jetzt starten",
   "add.chooseFolder": "Wählen Sie den Ordner aus, der die App enthält.",
   "add.saveAndStart": "Speichern und starten",

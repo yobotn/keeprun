@@ -162,6 +162,8 @@ const catalog: Catalog = {
   "overview.command": "命令",
   "overview.pid": "PID",
   "overview.restart": "重启",
+  "overview.envFileChanged": "{file} 在应用启动后已更改。重启后生效。",
+  "overview.envFileError": "未加载 env 文件:{error}",
   "overview.policyNever": "从不",
   "overview.policyOnFailure": "失败时",
   "overview.policyAlways": "始终",
@@ -210,6 +212,8 @@ const catalog: Catalog = {
   "tasks.aTaskRunning": "有任务正在运行",
   "tasks.runName": "运行 {name}",
   "tasks.none": "没有已保存的任务。",
+  "tasks.available": "项目中可用",
+  "tasks.saveName": "将 {name} 保存为任务",
   "tasks.add": "添加任务",
   "tasks.oneOffPlaceholder": "运行一次命令，例如 npm run seed",
   "tasks.oneOffLabel": "要运行一次的命令",
@@ -244,6 +248,9 @@ const catalog: Catalog = {
   "env.removeVar": "移除变量",
   "env.duplicate": "{name} 出现了两次。请只保留一个。",
   "env.restartToApply": "重启应用以应用更改。",
+  "env.file": "env 文件",
+  "env.fileNone": "无",
+  "env.fileHint": "每次启动时读取:{keys}。下方变量优先。",
 
   // 设置
   "settings.name": "名称",
@@ -291,9 +298,13 @@ const catalog: Catalog = {
   "add.tasksFound": {
     other: "还找到 {count} 个任务: {names}。这些任务已保存，但不会运行。请在“任务”选项卡中运行。",
   },
-  "add.importEnv": {
-    other: "从 .env 导入 {count} 个变量(机密会被加密)",
+  "add.envFile": "环境文件",
+  "add.envNone": "不导入",
+  "add.envVars": {
+    other: "{count} 个变量",
   },
+  "add.envTemplate": "模板",
+  "add.envHint": "每次启动应用时读取。编辑文件后重启即可生效。",
   "add.startNow": "立即启动",
   "add.chooseFolder": "选择包含应用的文件夹。",
   "add.saveAndStart": "保存并启动",

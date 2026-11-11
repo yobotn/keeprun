@@ -161,6 +161,8 @@ const catalog: Catalog = {
   "overview.command": "명령",
   "overview.pid": "PID",
   "overview.restart": "다시 시작",
+  "overview.envFileChanged": "앱이 시작된 후 {file}이(가) 변경되었습니다. 다시 시작하면 적용됩니다.",
+  "overview.envFileError": "env 파일을 불러오지 못함: {error}",
   "overview.policyNever": "안 함",
   "overview.policyOnFailure": "실패 시",
   "overview.policyAlways": "항상",
@@ -209,6 +211,8 @@ const catalog: Catalog = {
   "tasks.aTaskRunning": "작업이 실행 중입니다",
   "tasks.runName": "{name} 실행",
   "tasks.none": "저장된 작업이 없습니다.",
+  "tasks.available": "프로젝트에서 사용 가능",
+  "tasks.saveName": "{name}을(를) 작업으로 저장",
   "tasks.add": "작업 추가",
   "tasks.oneOffPlaceholder": "명령을 한 번 실행(예: npm run seed)",
   "tasks.oneOffLabel": "한 번 실행할 명령",
@@ -243,6 +247,9 @@ const catalog: Catalog = {
   "env.removeVar": "변수 제거",
   "env.duplicate": "{name} 변수가 두 번 있습니다. 하나만 남기세요.",
   "env.restartToApply": "적용하려면 앱을 다시 시작하세요.",
+  "env.file": "env 파일",
+  "env.fileNone": "없음",
+  "env.fileHint": "시작할 때마다 읽음: {keys}. 아래 변수가 우선합니다.",
 
   // 설정
   "settings.name": "이름",
@@ -290,9 +297,13 @@ const catalog: Catalog = {
   "add.tasksFound": {
     other: "작업도 {count}개 찾았습니다: {names}. 작업은 저장만 되고 실행되지 않습니다. [작업] 탭에서 실행하세요.",
   },
-  "add.importEnv": {
-    other: ".env에서 변수 {count}개 가져오기(비밀 값은 암호화됨)",
+  "add.envFile": "환경 파일",
+  "add.envNone": "가져오지 않음",
+  "add.envVars": {
+    other: "변수 {count}개",
   },
+  "add.envTemplate": "템플릿",
+  "add.envHint": "앱이 시작될 때마다 읽습니다. 파일을 수정한 뒤 다시 시작하면 적용됩니다.",
   "add.startNow": "지금 시작",
   "add.chooseFolder": "앱이 들어 있는 폴더를 선택하세요.",
   "add.saveAndStart": "저장 후 시작",

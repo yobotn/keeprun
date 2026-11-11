@@ -1,7 +1,7 @@
 <script lang="ts">
   import { openPath, openUrl } from "@tauri-apps/plugin-opener";
   import { Copy, ExternalLink, FolderOpen, TriangleAlert } from "@lucide/svelte";
-  import { api, formatBytes, formatDuration, formatTime, isActive, type AppView } from "./api";
+  import { api, appPort, formatBytes, formatDuration, formatTime, isActive, type AppView } from "./api";
   import { t } from "./i18n/index.svelte";
   import EventsList from "./EventsList.svelte";
 
@@ -11,8 +11,8 @@
   const urls = $derived(
     running && app.stats?.ports.length
       ? app.stats.ports.map((p) => `http://localhost:${p}`)
-      : app.env.PORT
-        ? [`http://localhost:${app.env.PORT}`]
+      : appPort(app)
+        ? [`http://localhost:${appPort(app)}`]
         : [],
   );
   let copied = $state("");
@@ -58,6 +58,22 @@
     }
   }
 
+  // The linked env file changed while the app runs: offer the restart that applies it.
+  const envFile = $derived(app.env_file_status);
+  let envRestarting = $state(false);
+  let envError = $state("");
+  async function restartForEnv() {
+    envError = "";
+    envRestarting = true;
+    try {
+      await api.restart(app.id);
+    } catch (e) {
+      envError = (e as Error).message;
+    } finally {
+      envRestarting = false;
+    }
+  }
+
   const policy = $derived({
     never: t("overview.policyNever"),
     "on-failure": t("overview.policyOnFailure"),
@@ -80,6 +96,23 @@
     <p class="alert mb-4" role="alert">
       {t("overview.failed", { max: app.max_restarts })}
     </p>
+  {/if}
+
+  {#if app.env_file && envFile?.error}
+    <p class="alert alert-warn mb-4 flex items-start gap-2" role="status">
+      <TriangleAlert size={15} class="mt-0.5 shrink-0" aria-hidden="true" />
+      <span class="selectable">{t("overview.envFileError", { error: envFile.error })}</span>
+    </p>
+  {:else if app.env_file && envFile?.changed.length}
+    <div class="alert alert-warn mb-4 flex items-start gap-3" role="status">
+      <TriangleAlert size={15} class="mt-0.5 shrink-0" aria-hidden="true" />
+      <div class="min-w-0 flex-1">
+        <p class="font-medium">{t("overview.envFileChanged", { file: app.env_file })}</p>
+        <p class="selectable mt-1 truncate font-mono text-[12px]" dir="ltr">{envFile.changed.join(", ")}</p>
+        {#if envError}<p class="mt-2 text-xs text-danger" role="alert">{envError}</p>{/if}
+      </div>
+      <button class="btn btn-primary shrink-0" onclick={restartForEnv} disabled={envRestarting}>{t("overview.restart")}</button>
+    </div>
   {/if}
 
   {#if app.issue}

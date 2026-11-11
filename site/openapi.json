@@ -296,7 +296,8 @@
           "restart": { "$ref": "#/components/schemas/RestartPolicy" },
           "max_restarts": { "type": "integer", "minimum": 0, "default": 5, "description": "Restarts in a row before the app is marked failed. 0 means no limit." },
           "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } },
-          "watch_errors": { "type": "boolean", "default": true, "description": "Watch the output for errors while the app runs, and report them as issue." }
+          "watch_errors": { "type": "boolean", "default": true, "description": "Watch the output for errors while the app runs, and report them as issue." },
+          "env_file": { "type": ["string", "null"], "description": "Env file the agent reads on every start, such as .env.local. Relative to cwd, or absolute. Variables in env override it.", "examples": [".env.local"] }
         }
       },
       "UpdateApp": {
@@ -314,7 +315,8 @@
           "max_restarts": { "type": "integer", "minimum": 0 },
           "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } },
           "disabled": { "type": "boolean", "description": "true switches the app off: it cannot start and does not start with the agent. Stop it first, or the change returns 409." },
-          "watch_errors": { "type": "boolean", "description": "Watch the output for errors while the app runs, and report them as issue." }
+          "watch_errors": { "type": "boolean", "description": "Watch the output for errors while the app runs, and report them as issue." },
+          "env_file": { "type": "string", "description": "Env file read on every start. An empty string unlinks it. Restart a running app to apply." }
         }
       },
       "RunTask": {
@@ -360,6 +362,7 @@
           "autostart": { "type": "boolean" },
           "disabled": { "type": "boolean", "description": "Switched off. Starting it returns 409." },
           "watch_errors": { "type": "boolean" },
+          "env_file": { "type": "string", "description": "Linked env file. Absent when there is none." },
           "restart": { "$ref": "#/components/schemas/RestartPolicy" },
           "max_restarts": { "type": "integer" },
           "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } },
@@ -371,7 +374,19 @@
           "next_restart_at": { "type": ["integer", "null"], "description": "Unix time in milliseconds of the next restart attempt." },
           "stats": { "oneOf": [{ "$ref": "#/components/schemas/Stats" }, { "type": "null" }] },
           "task": { "oneOf": [{ "$ref": "#/components/schemas/TaskRun" }, { "type": "null" }] },
-          "issue": { "oneOf": [{ "$ref": "#/components/schemas/AppIssue" }, { "type": "null" }], "description": "Errors in the output of the current run. Null when there are none, when the app is stopped, or when watch_errors is off." }
+          "issue": { "oneOf": [{ "$ref": "#/components/schemas/AppIssue" }, { "type": "null" }], "description": "Errors in the output of the current run. Null when there are none, when the app is stopped, or when watch_errors is off." },
+          "env_file_status": { "oneOf": [{ "$ref": "#/components/schemas/EnvFileStatus" }, { "type": "null" }], "description": "The linked env file as the agent sees it now. Null when the app has no env file." }
+        }
+      },
+      "EnvFileStatus": {
+        "type": "object",
+        "description": "The linked env file. Keys only, never values.",
+        "required": ["keys", "changed"],
+        "properties": {
+          "keys": { "type": "array", "items": { "type": "string" }, "description": "Keys in the file now." },
+          "port": { "type": ["integer", "null"], "description": "PORT in the file." },
+          "changed": { "type": "array", "items": { "type": "string" }, "description": "Keys added, removed or changed since the running process started. Restart to apply. Empty when the app is not running." },
+          "error": { "type": ["string", "null"], "description": "Why the file cannot be read, such as that it was deleted. The app still starts, without it." }
         }
       },
       "AppIssue": {

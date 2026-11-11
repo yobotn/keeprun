@@ -40,6 +40,8 @@ NewApp = {
   restart?: "never" | "on-failure" | "always";       // default "on-failure"
   max_restarts?: number;                             // default 5, 0 = no limit
   watch_errors?: boolean;                            // default true
+  env_file?: string | null;                          // e.g. ".env.local", read on every start;
+                                                     // env overrides it. PATCH "" unlinks it.
 }
 AppView = NewApp & {
   id: string;
@@ -49,7 +51,11 @@ AppView = NewApp & {
   restarts: number; next_restart_at: number | null;
   stats: { cpu_percent: number; memory_bytes: number; processes: number; ports: number[] } | null;
   issue: AppIssue | null;                            // errors while running, see below
+  env_file_status: EnvFileStatus | null;             // null without a linked env file
 }
+// Keys only, never values. changed: keys that differ from what the running process got,
+// so a restart applies them. error: the file cannot be read; the app starts without it.
+EnvFileStatus = { keys: string[]; port: number | null; changed: string[]; error: string | null }
 // First error and its output once, repeats only raise count. Cleared by a new run, a
 // successful request or build after the errors stop, or 15 minutes without a new error.
 AppIssue = { first_at: number; last_at: number; count: number; summary: string; excerpt: string[] }

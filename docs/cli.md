@@ -9,17 +9,21 @@ keeprun list                           Apps with status, PID, CPU, memory and po
 keeprun detect [folder]                What Keeprun would run in a folder
 
 keeprun add [name] [--cwd <folder>]    Add an app. Without a command, the best detected one.
-    [-e KEY=VALUE]... [--env-file f]   Variables. A .env in the folder is imported by default.
+    [-e KEY=VALUE]... [--env-file f]   Variables, and an env file read on every start. Without
+    [--no-env-file]                    --env-file the folder's .env is linked, else its first
+                                       .env.* file that is not a template like .env.example.
     [-t tag]... [--restart never|on-failure|always] [--no-autostart] [--start]
     [--port n]                         Sets PORT. Defaults to the detected port.
     [-- <command line>]
 
 keeprun set <app> [--name] [--cwd] [--command] [--restart] [--max-restarts n] [--watch-errors false]
                   [--autostart true|false] [--tags a,b] [--port n, 0 removes it]
-keeprun env <app>                      Show variables (secrets masked, --reveal to show)
+                  [--env-file .env.local, none unlinks it]
+keeprun env <app>                      Show variables (secrets masked, --reveal to show), the
+                                       env file keys, and keys changed since the app started
 keeprun env <app> -e K=V [--secret]    Set variables
 keeprun env <app> --unset K            Remove a variable
-keeprun env <app> --import .env        Import a file
+keeprun env <app> --import .env        Copy a file's values into Keeprun
 
 keeprun start|stop|restart <app>
 keeprun tasks <app>                    Saved tasks and the last run

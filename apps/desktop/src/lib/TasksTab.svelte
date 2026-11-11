@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Pencil, Play, Plus, Square, Trash2 } from "@lucide/svelte";
-  import { api, formatDuration, formatTime, type AppView, type TaskSpec } from "./api";
+  import { api, desktop, formatDuration, formatTime, type AppView, type Suggestion, type TaskSpec } from "./api";
   import { t } from "./i18n/index.svelte";
   import LogPanel from "./LogPanel.svelte";
 
@@ -12,6 +12,28 @@
   // Row being edited: index into app.tasks, or -1 for a new task.
   let editing = $state<number | null>(null);
   let draft = $state<TaskSpec>({ name: "", command: "" });
+
+  // Job scripts found in the app folder (build, test, migrate, install), so nobody has to guess.
+  let found = $state<Suggestion[]>([]);
+  // The app list is polled and each poll is a new object. Rescan only when the folder changes.
+  const folder = $derived(app.cwd);
+  $effect(() => {
+    const cwd = folder;
+    let stale = false;
+    desktop
+      .detect(cwd)
+      .then((d) => {
+        // Only one-off jobs. Server scripts (start, dev, serve) are the app's own command.
+        if (!stale) found = d.tasks;
+      })
+      .catch(() => {
+        if (!stale) found = [];
+      });
+    return () => {
+      stale = true;
+    };
+  });
+  const available = $derived(found.filter((s) => !app.tasks.some((task) => task.command === s.command)));
 
   const run = $derived(app.task);
   const running = $derived(run?.running ?? false);
@@ -59,6 +81,14 @@
     });
   }
 
+  const runFound = (s: Suggestion) => act(() => api.runTask(app.id, { command: s.command }));
+
+  function saveFound(s: Suggestion) {
+    let name = s.name;
+    for (let n = 2; app.tasks.some((task) => task.name === name); n++) name = `${s.name} ${n}`;
+    act(() => api.update(app.id, { tasks: [...app.tasks, { name, command: s.command }] }));
+  }
+
   function removeTask(i: number) {
     act(() => api.update(app.id, { tasks: app.tasks.filter((_, j) => j !== i) }));
   }
@@ -99,6 +129,22 @@
       </ul>
     {:else}
       <p class="text-[13px] text-fg-muted">{t("tasks.none")}</p>
+    {/if}
+
+    {#if available.length}
+      <h3 class="mt-4 mb-2 text-xs font-medium text-fg-muted">{t("tasks.available")}</h3>
+      <ul class="flex flex-col overflow-hidden rounded-md border border-border">
+        {#each available as s (s.command)}
+          <li class="flex items-center gap-3 border-b border-border px-3 py-1.5 last:border-0 hover:bg-bg-hover">
+            <span class="w-40 shrink-0 truncate font-mono text-[13px]" title={s.label}>{s.name}</span>
+            <span class="selectable min-w-0 flex-1 truncate font-mono text-xs text-fg-muted" title={s.detail ?? s.label}>{s.detail ?? s.label}</span>
+            <button class="btn-icon" onclick={() => saveFound(s)} title={t("tasks.saveName", { name: s.name })} disabled={busy}><Plus size={14} /></button>
+            <button class="btn !h-7" onclick={() => runFound(s)} disabled={busy || running} title={running ? t("tasks.aTaskRunning") : t("tasks.runName", { name: s.label })}>
+              <Play size={12} class="flip-rtl" /> {t("common.run")}
+            </button>
+          </li>
+        {/each}
+      </ul>
     {/if}
 
     <div class="mt-3 flex items-center gap-2">
