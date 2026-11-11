@@ -7,7 +7,7 @@ name: Website
 on:
   push:
     branches: [main]
-    paths: ["site/**", "docs/**", "scripts/build-site.mjs", ".github/workflows/pages.yml"]
+    paths: ["site/**", "docs/**", "scripts/build-site.mjs", "scripts/site.test.mjs", ".github/workflows/pages.yml"]
   release:
     types: [published]
   workflow_dispatch:
@@ -46,6 +46,9 @@ jobs:
         run: |
           npm install --no-save --no-package-lock marked@15
           node scripts/build-site.mjs
+
+      - name: Test site
+        run: node --test scripts/site.test.mjs
 
       - uses: actions/configure-pages@v5
 

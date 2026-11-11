@@ -175,8 +175,8 @@ Read the [security model](docs/security.md).
 | [Getting started](docs/getting-started.md) | Install and add your first app |
 | [Deployment](docs/deployment.md) | Silent install, upgrades, repair, access, updates, signing |
 | [Configuration](docs/configuration.md) | Settings, dev and prod environments |
-| [CLI](docs/cli.md) | Every command, tasks, JSON output |
-| [Agent API](docs/api.md) | Local HTTP and WebSocket API |
+| [Keeprun CLI](docs/cli.md) | Every command, tasks, JSON output |
+| [Keeprun Agent API](docs/api.md) | Local HTTP and WebSocket API |
 | [Security](docs/security.md) | Threat model and design choices |
 | [Troubleshooting](docs/troubleshooting.md) | Common problems and fixes |
 | [Roadmap](docs/roadmap.md) | What is planned next. Vote on GitHub |

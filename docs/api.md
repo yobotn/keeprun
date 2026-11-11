@@ -1,4 +1,4 @@
-# Agent API
+# Keeprun Agent API
 
 Local HTTP and WebSocket API on `127.0.0.1:7171` (prod) or `:7181` (dev). Every route except
 `/health` needs the token from `<data>\agent.token`:

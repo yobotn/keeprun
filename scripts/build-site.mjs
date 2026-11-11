@@ -78,17 +78,9 @@ const org = {
     availableLanguage: "English",
   },
 };
-// Product terms that also appear on the home page, for search and AI answers.
-const keywords = [
-  "Windows process manager",
-  "Windows service manager",
-  "run Node.js as a Windows service",
-  "run .NET app as a Windows service",
-  "run Python as a Windows service",
-  "NSSM alternative",
-  "PM2 for Windows",
-  "Docker alternative for Windows Server",
-];
+// Product terms for search and AI answers, main term first. Each must appear on the home page;
+// scripts/site.test.mjs checks that.
+const keywords = ["Windows process manager", "Windows service", "Node.js", ".NET", "Python", "NSSM", "PM2"];
 
 // Landing page. Its JSON-LD is built from the page itself, so the FAQ and features never drift.
 const landing = fill(readFileSync(join(root, "site", "index.html"), "utf8"));
@@ -118,7 +110,7 @@ const landingLd = jsonld([
     url: `${site}/`,
     description,
     applicationCategory: "DeveloperApplication",
-    applicationSubCategory: "Process manager and service supervisor",
+    applicationSubCategory: "Windows process manager",
     operatingSystem: "Windows 10, Windows 11, Windows Server 2016, 2019, 2022 and 2025 (64-bit)",
     softwareRequirements: "Microsoft Edge WebView2 for the desktop app",
     ...(version && { softwareVersion: version }),

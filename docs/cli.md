@@ -1,4 +1,4 @@
-# CLI
+# Keeprun CLI
 
 `keeprun` talks to the local agent. Add `--env dev` to use the dev agent and `--json` for
 machine-readable output.

@@ -14,6 +14,7 @@
     "smoke:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-install.ps1",
     "test": "cargo test --workspace",
     "lint": "cargo clippy --workspace -- -D warnings && cargo fmt --all --check && node scripts/text-lint.mjs && npm --prefix apps/desktop run check",
-    "lint:text": "node scripts/text-lint.mjs"
+    "lint:text": "node scripts/text-lint.mjs",
+    "test:site": "node scripts/build-site.mjs && node --test scripts/site.test.mjs"
   }
 }

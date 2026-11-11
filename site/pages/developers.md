@@ -48,7 +48,7 @@ Invoke-RestMethod http://127.0.0.1:7171/apps -Headers @{ Authorization = "Bearer
 
 - [OpenAPI 3.1 specification](/openapi.json): every operation with an operationId, typed
   parameters and response schemas, ready for function calling.
-- [Agent API docs](/docs/api.html)
+- [Keeprun Agent API docs](/docs/api.html)
 
 ## MCP server
 
