@@ -1,0 +1,58 @@
+<!doctype html>
+<!-- Social preview image (1280x640) for link shares and the GitHub repository.
+     Render it to docs/assets/social-card.png with headless Edge or Chrome:
+     msedge --headless=new --hide-scrollbars --window-size=1280,640 --screenshot=<png> <this file> -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 1280px; height: 640px; overflow: hidden; }
+  body {
+    font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    color: #f4f4f5;
+    background:
+      radial-gradient(700px 420px at 88% 18%, rgb(34 197 94 / 0.22), transparent 70%),
+      radial-gradient(520px 360px at 8% 110%, rgb(34 197 94 / 0.10), transparent 70%),
+      #0b0b0d;
+    display: grid; grid-template-columns: 1fr 410px; align-items: center; gap: 36px;
+    padding: 0 88px; box-sizing: border-box;
+  }
+  .brand { display: flex; align-items: center; gap: 18px; font-size: 40px; font-weight: 700; letter-spacing: -0.02em; }
+  .brand svg { width: 64px; height: 64px; }
+  h1 { margin: 40px 0 0; font-size: 68px; line-height: 1.05; font-weight: 750; letter-spacing: -0.035em; }
+  h1 span { color: #22c55e; }
+  p { margin: 26px 0 0; font-size: 28px; line-height: 1.4; color: #a1a1aa; max-width: 30ch; }
+  .tags { display: flex; gap: 12px; margin-top: 36px; }
+  .tags b { font-weight: 600; font-size: 20px; padding: 8px 16px; border-radius: 999px; border: 1px solid #26262c; background: #17171b; color: #e4e4e7; }
+  .term { background: #0f0f12; border: 1px solid #26262c; border-radius: 18px; padding: 26px 28px; white-space: nowrap; font: 19px/1.7 "Cascadia Mono", Consolas, monospace; color: #e4e4e7; box-shadow: 0 30px 80px rgb(0 0 0 / 0.6); }
+  .term i { font-style: normal; color: #7c7c86; }
+  .ok { color: #22c55e; }
+  .bad { color: #f87171; }
+</style>
+</head>
+<body>
+  <div>
+    <div class="brand">
+      <svg viewBox="0 0 1024 1024" aria-hidden="true">
+        <rect width="1024" height="1024" rx="224" fill="#18181b"/>
+        <path d="M714.3 383.1A250 250 0 1 1 503.3 280.2" fill="none" stroke="#22c55e" stroke-width="84" stroke-linecap="round"/>
+        <path d="M500.0 186.2L625.2 275.9L506.6 374.1Z" fill="#22c55e" stroke="#22c55e" stroke-width="24" stroke-linejoin="round"/>
+        <path d="M461.3 432.0L637.3 530L461.3 628.0Z" fill="#fafafa" stroke="#fafafa" stroke-width="44" stroke-linejoin="round"/>
+      </svg>
+      Keeprun
+    </div>
+    <h1>Keep apps running<br>on <span>Windows.</span></h1>
+    <p>Node, .NET and Python as one Windows service. Restarts on crash, survives reboots.</p>
+    <div class="tags"><b>No Docker</b><b>Desktop app + CLI</b><b>Open source</b></div>
+  </div>
+  <div class="term">
+    <i>&gt;</i> keeprun list<br>
+    hr-portal &nbsp;&nbsp;<span class="ok">Running</span><br>
+    sales-api &nbsp;&nbsp;<span class="ok">Running</span><br>
+    reports &nbsp;&nbsp;&nbsp;&nbsp;<span class="ok">Running</span><br>
+    legacy-bot &nbsp;<span class="bad">Failed</span><br>
+    <i>&gt;</i> keeprun restart legacy-bot<br>
+    <span class="ok">legacy-bot started</span>
+  </div>
+</body>
+</html>

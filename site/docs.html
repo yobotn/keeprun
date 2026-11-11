@@ -4,10 +4,29 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>%TITLE% | Keeprun docs</title>
+  <meta name="description" content="%DESCRIPTION%">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <link rel="canonical" href="%URL%">
+  <link rel="alternate" type="text/markdown" href="%MD_URL%" title="%TITLE% in Markdown">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Keeprun">
+  <meta property="og:title" content="%TITLE% | Keeprun docs">
+  <meta property="og:description" content="%DESCRIPTION%">
+  <meta property="og:url" content="%URL%">
+  <meta property="og:image" content="{{SITE}}/assets/social-card.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="%TITLE% | Keeprun docs">
+  <meta name="twitter:description" content="%DESCRIPTION%">
+  <meta name="twitter:image" content="{{SITE}}/assets/social-card.png">
+  <meta name="theme-color" content="#111113">
   <link rel="icon" href="../logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="../style.css">
+  %JSONLD%
 </head>
 <body>
+  <a class="skip" href="#main">Skip to content</a>
   <header class="nav">
     <div class="wrap nav-inner">
       <a class="brand" href="../"><img src="../logo.svg" alt="" width="28" height="28"> Keeprun</a>
@@ -24,10 +43,10 @@
         <p>Documentation</p>
         %MENU%
     </aside>
-    <article class="prose">
+    <main class="prose" id="main">
 %BODY%
-      <p class="meta"><a href="https://github.com/{{REPO}}/tree/main/docs">Edit on GitHub</a></p>
-    </article>
+      <p class="meta"><a href="%MD_URL%">View as Markdown</a> &middot; <a href="https://github.com/{{REPO}}/blob/main/docs/%NAME%.md">Edit on GitHub</a></p>
+    </main>
   </div>
 </body>
 </html>

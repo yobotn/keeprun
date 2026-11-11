@@ -1,5 +1,5 @@
-// Build the website into _site/: the landing page, docs rendered from docs/*.md, and the
-// update manifest of the latest published release.
+// Build the website into _site/: the landing page, docs rendered from docs/*.md, files for
+// search engines and AI agents, and the update manifest of the latest published release.
 //
 //   npm install --no-save marked@15
 //   node scripts/build-site.mjs
@@ -15,9 +15,11 @@ import { marked } from "marked";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const out = join(root, "_site");
-const repo = process.env.GITHUB_REPOSITORY || "keeprun/keeprun";
+const repo = process.env.GITHUB_REPOSITORY || "yobotn/keeprun";
+const site = "https://keeprun.app";
 const tag = process.env.KEEPRUN_TAG || "";
 const version = tag.replace(/^v/, "");
+const today = new Date().toISOString().slice(0, 10);
 
 rmSync(out, { recursive: true, force: true });
 mkdirSync(join(out, "docs"), { recursive: true });
@@ -25,6 +27,7 @@ mkdirSync(join(out, "docs"), { recursive: true });
 const releases = `https://github.com/${repo}/releases`;
 const asset = (name) => (tag ? `${releases}/download/${tag}/${name}` : releases);
 const vars = {
+  SITE: site,
   REPO: repo,
   VERSION: version || "x.y.z",
   VERSION_LINE: version ? `Version ${version}.` : "First release coming soon.",
@@ -47,16 +50,115 @@ const fill = (text) =>
     .replace(/\{\{icon:([\w-]+)\}\}/g, (_, name) => icon(name))
     .replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars ? vars[k] : m));
 
-// Landing page and static files.
-writeFileSync(join(out, "index.html"), fill(readFileSync(join(root, "site", "index.html"), "utf8")));
+// Plain text from a snippet of HTML, for structured data.
+const text = (html) =>
+  html
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&middot;/g, "·")
+    .replace(/\s+/g, " ")
+    .trim();
+// schema.org JSON-LD, safe to inline in a <script>.
+const jsonld = (graph) =>
+  `<script type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@graph": graph }).replace(/</g, "\\u003c")}</script>`;
+const org = {
+  "@type": "Organization",
+  "@id": `${site}/#org`,
+  name: "Keeprun",
+  url: `${site}/`,
+  logo: `${site}/logo.svg`,
+  sameAs: [`https://github.com/${repo}`],
+};
+
+// Landing page. Its JSON-LD is built from the page itself, so the FAQ and features never drift.
+const landing = fill(readFileSync(join(root, "site", "index.html"), "utf8"));
+const description = landing.match(/<meta name="description" content="([^"]+)"/)[1];
+const faq = [...landing.matchAll(/<details>\s*<summary>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/g)].map((m) => ({
+  q: text(m[1]),
+  a: text(m[2]),
+}));
+const features = [...landing.matchAll(/<article>[\s\S]*?<h3>([\s\S]*?)<\/h3><p>([\s\S]*?)<\/p><\/article>/g)].map(
+  (m) => `${text(m[1])}: ${text(m[2])}`,
+);
+const landingLd = jsonld([
+  org,
+  {
+    "@type": "WebSite",
+    "@id": `${site}/#website`,
+    url: `${site}/`,
+    name: "Keeprun",
+    description,
+    publisher: { "@id": `${site}/#org` },
+    inLanguage: "en",
+  },
+  {
+    "@type": "SoftwareApplication",
+    "@id": `${site}/#app`,
+    name: "Keeprun",
+    url: `${site}/`,
+    description,
+    applicationCategory: "DeveloperApplication",
+    applicationSubCategory: "Process manager and service supervisor",
+    operatingSystem: "Windows 10, Windows 11, Windows Server 2016, 2019, 2022 and 2025 (64-bit)",
+    softwareRequirements: "Microsoft Edge WebView2 for the desktop app",
+    ...(version && { softwareVersion: version }),
+    downloadUrl: vars.MSI_URL,
+    installUrl: `${site}/#download`,
+    releaseNotes: releases,
+    screenshot: [`${site}/assets/screenshot-light.png`, `${site}/assets/screenshot-dark.png`],
+    image: `${site}/assets/social-card.png`,
+    featureList: features,
+    license: "https://www.apache.org/licenses/LICENSE-2.0",
+    isAccessibleForFree: true,
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    publisher: { "@id": `${site}/#org` },
+    sameAs: [`https://github.com/${repo}`],
+  },
+  {
+    "@type": "SoftwareSourceCode",
+    name: "Keeprun source code",
+    codeRepository: `https://github.com/${repo}`,
+    programmingLanguage: ["Rust", "TypeScript", "Svelte"],
+    license: "https://www.apache.org/licenses/LICENSE-2.0",
+    targetProduct: { "@id": `${site}/#app` },
+  },
+  {
+    "@type": "FAQPage",
+    "@id": `${site}/#faq`,
+    mainEntity: faq.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+  },
+]);
+writeFileSync(join(out, "index.html"), landing.replace("{{JSONLD}}", () => landingLd));
+// GitHub Pages serves this with a real 404 status for any missing path.
+writeFileSync(join(out, "404.html"), fill(readFileSync(join(root, "site", "404.html"), "utf8")));
+
+// Static files.
 copyFileSync(join(root, "site", "style.css"), join(out, "style.css"));
 copyFileSync(join(root, "apps", "desktop", "app-icon.svg"), join(out, "logo.svg"));
 writeFileSync(join(out, ".nojekyll"), "");
-// Screenshots live in docs/assets so the README on GitHub can show them too.
+// Screenshots and the social card live in docs/assets so the README on GitHub can show them too.
 cpSync(join(root, "docs", "assets"), join(out, "assets"), { recursive: true });
 
 // Docs. Order of the side menu; other files follow alphabetically.
 const order = ["getting-started", "deployment", "configuration", "cli", "api", "security", "troubleshooting", "roadmap", "releasing"];
+// One-line summaries for search results, link previews and llms.txt.
+const summaries = {
+  "getting-started":
+    "Install Keeprun on Windows, add your first Node, .NET or Python app from a folder and keep it running as a Windows service.",
+  deployment:
+    "Install Keeprun silently with the MSI on many machines with Intune, SCCM or Group Policy: properties, upgrades, repair, user access and updates.",
+  configuration: "Keeprun settings, the dev and prod environments, ports, data folders and service names.",
+  cli: "Reference for the keeprun command line: add, start, stop, logs, environment variables, tasks and JSON output for scripts.",
+  api: "The local HTTP and WebSocket API of the Keeprun agent, with token authentication.",
+  security:
+    "Keeprun security model: local-only API, token access, DPAPI-encrypted secrets, Job Object isolation and signed updates.",
+  troubleshooting: "Fixes for common Keeprun problems: the service does not start, ports in use, apps that crash or do not stop.",
+  roadmap:
+    "Planned Keeprun features, such as an MCP server for coding agents, per-app accounts and a reverse proxy. Vote on GitHub.",
+  releasing: "How Keeprun versions are built, signed and published, and how the website and update manifest are deployed.",
+};
 const files = readdirSync(join(root, "docs"))
   .filter((f) => f.endsWith(".md"))
   .map((f) => f.slice(0, -3))
@@ -64,10 +166,14 @@ const files = readdirSync(join(root, "docs"))
 const pages = files.map((name) => {
   const md = readFileSync(join(root, "docs", `${name}.md`), "utf8");
   const title = md.match(/^#\s+(.+)$/m)?.[1] ?? name;
-  return { name, title, md };
+  const summary = summaries[name];
+  if (!summary) throw new Error(`Add a summary for docs/${name}.md to scripts/build-site.mjs.`);
+  return { name, title, md, summary };
 });
 const template = readFileSync(join(root, "site", "docs.html"), "utf8");
 for (const p of pages) {
+  const url = `${site}/docs/${p.name}.html`;
+  const mdUrl = `${site}/docs/${p.name}.md`;
   const menu = pages
     .map((q) => `<a href="${q.name}.html"${q.name === p.name ? ' aria-current="page"' : ""}>${q.title}</a>`)
     .join("\n        ");
@@ -76,12 +182,97 @@ for (const p of pages) {
     .parse(p.md)
     .replace(/href="(?!https?:)([\w-]+)\.md(#[\w-]*)?"/g, 'href="$1.html$2"')
     .replace(/href="(?!https?:|#)([^"]+\.md)"/g, `href="https://github.com/${repo}/blob/main/$1"`);
+  const ld = jsonld([
+    org,
+    {
+      "@type": "TechArticle",
+      headline: p.title,
+      description: p.summary,
+      url,
+      inLanguage: "en",
+      dateModified: today,
+      isPartOf: { "@type": "WebSite", "@id": `${site}/#website`, name: "Keeprun", url: `${site}/` },
+      about: { "@type": "SoftwareApplication", "@id": `${site}/#app`, name: "Keeprun" },
+      publisher: { "@id": `${site}/#org` },
+      encoding: { "@type": "MediaObject", encodingFormat: "text/markdown", contentUrl: mdUrl },
+    },
+    {
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Keeprun", item: `${site}/` },
+        { "@type": "ListItem", position: 2, name: "Docs", item: `${site}/docs/getting-started.html` },
+        { "@type": "ListItem", position: 3, name: p.title, item: url },
+      ],
+    },
+  ]);
   const html = fill(template)
     .replaceAll("%TITLE%", p.title)
+    .replaceAll("%DESCRIPTION%", p.summary.replace(/"/g, "&quot;"))
+    .replaceAll("%URL%", url)
+    .replaceAll("%MD_URL%", mdUrl)
+    .replaceAll("%NAME%", p.name)
+    .replace("%JSONLD%", () => ld)
     .replace("%MENU%", () => menu)
     .replace("%BODY%", () => body);
   writeFileSync(join(out, "docs", `${p.name}.html`), html);
+  // The same page as Markdown for agents, with links that work outside the repo.
+  writeFileSync(
+    join(out, "docs", `${p.name}.md`),
+    p.md
+      .replace(/\]\((?!https?:|#)([\w-]+)\.md(#[\w-]*)?\)/g, (_, n, h = "") => `](${site}/docs/${n}.md${h})`)
+      .replace(/\]\((?!https?:|#)([^)]+)\)/g, (_, path) => `](https://github.com/${repo}/blob/main/docs/${path})`),
+  );
 }
+
+// For AI agents and search engines: llms.txt, the full docs in one file, a Markdown home page,
+// the sitemap and robots.txt.
+const summaryLine =
+  "Keeprun keeps internal Node, .NET and Python apps running on Windows 10, 11 and Windows Server as one Windows service, with no Docker, WSL or Hyper-V. Open source, Apache 2.0.";
+const llms = `# Keeprun
+
+> ${summaryLine}
+
+Point Keeprun at a folder. It detects how to run the app (npm, pnpm, yarn or bun scripts, .NET projects and builds, Python with venv, uvicorn, Flask or Django, or any command line), runs it under the Keeprun Windows service, restarts it with backoff when it crashes and starts it again after a reboot. A desktop app and the \`keeprun\` CLI show live logs, CPU, memory, ports and crash history. Secrets are encrypted with Windows DPAPI. The local API listens on 127.0.0.1 only. A silent MSI deploys it with Intune, SCCM or Group Policy.
+
+Typical uses: internal web apps and APIs on Windows Server VMs; replacing .bat files, Scheduled Tasks and per-app service wrappers such as NSSM or WinSW; PM2 on Windows; keeping local dev servers running while you work in a terminal or with a coding agent.
+
+## Docs
+
+${pages.map((p) => `- [${p.title}](${site}/docs/${p.name}.md): ${p.summary}`).join("\n")}
+
+## Download
+
+- [Latest release](${releases}/latest): MSI for silent installs and a setup .exe. Windows 10, 11 and Server 2016 or later, 64-bit.
+
+## Optional
+
+- [Source code](https://github.com/${repo}): Rust agent and CLI, Tauri and Svelte desktop app.
+- [Roadmap votes](https://github.com/${repo}/issues?q=is%3Aissue+label%3Aroadmap+sort%3Areactions-%2B1-desc): planned features, ordered by votes.
+- [Full docs in one file](${site}/llms-full.txt)
+`;
+writeFileSync(join(out, "llms.txt"), llms);
+writeFileSync(join(out, "index.md"), llms);
+writeFileSync(
+  join(out, "llms-full.txt"),
+  `# Keeprun documentation\n\n> ${summaryLine}\n\nSource: ${site}/\n\n` +
+    pages.map((p) => `<!-- ${site}/docs/${p.name}.md -->\n\n${p.md.trim()}\n`).join("\n---\n\n"),
+);
+const urls = [`${site}/`, ...pages.map((p) => `${site}/docs/${p.name}.html`)];
+writeFileSync(
+  join(out, "sitemap.xml"),
+  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+    urls.map((u) => `  <url><loc>${u}</loc><lastmod>${today}</lastmod></url>`).join("\n") +
+    "\n</urlset>\n",
+);
+writeFileSync(
+  join(out, "robots.txt"),
+  `# Search engines and AI agents are welcome. Summary for agents: ${site}/llms.txt
+User-agent: *
+Allow: /
+
+Sitemap: ${site}/sitemap.xml
+`,
+);
 
 // Update manifest for the desktop updater (https://<domain>/latest.json).
 const manifest = process.env.KEEPRUN_MANIFEST;

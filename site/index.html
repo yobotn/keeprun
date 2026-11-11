@@ -5,13 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Keeprun | Run internal apps on Windows, no Docker needed</title>
   <meta name="description" content="Keeprun runs and supervises Node, .NET and Python apps on Windows 10, 11 and Windows Server as a Windows service. No Docker, WSL or Hyper-V. Desktop app, CLI and silent MSI. Open source, Apache 2.0.">
-  <meta property="og:title" content="Keeprun">
-  <meta property="og:description" content="Run and supervise internal apps on any Windows machine or server. No Docker needed. Restarts on crash, survives reboots, logs in one place.">
-  <meta property="og:image" content="https://keeprun.app/assets/screenshot-dark.png">
-  <meta property="og:url" content="https://keeprun.app/">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <link rel="canonical" href="{{SITE}}/">
+  <link rel="alternate" type="text/markdown" href="{{SITE}}/index.md" title="Keeprun in Markdown">
+  <link rel="alternate" type="application/atom+xml" href="https://github.com/{{REPO}}/releases.atom" title="Keeprun releases">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Keeprun">
+  <meta property="og:title" content="Keeprun: keep internal apps running on Windows, no Docker needed">
+  <meta property="og:description" content="Run and supervise Node, .NET and Python apps on any Windows machine or server. Restarts on crash, survives reboots, logs in one place. Open source.">
+  <meta property="og:url" content="{{SITE}}/">
+  <meta property="og:image" content="{{SITE}}/assets/social-card.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="Keeprun: keep apps running on Windows. Node, .NET and Python as one Windows service.">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Keeprun: keep internal apps running on Windows">
+  <meta name="twitter:description" content="Run and supervise Node, .NET and Python apps on Windows as one service. No Docker, WSL or Hyper-V. Open source.">
+  <meta name="twitter:image" content="{{SITE}}/assets/social-card.png">
   <meta name="theme-color" content="#111113">
   <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="sitemap" type="application/xml" href="{{SITE}}/sitemap.xml">
+  {{JSONLD}}
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -259,6 +273,14 @@ Applied 2 migrations
         <details>
           <summary>Which account do apps run as?</summary>
           <p>The agent runs as LocalSystem and apps run under it, like other Windows services. Running each app as its own account is on the <a href="docs/roadmap.html">roadmap</a>.</p>
+        </details>
+        <details>
+          <summary>How is it different from NSSM or WinSW?</summary>
+          <p>NSSM and WinSW wrap one app in one Windows service, configured by hand. Keeprun is one service that supervises every app on the machine, detects how to run Node, .NET and Python apps, and gives you live logs, health and crash history in a desktop app and a CLI.</p>
+        </details>
+        <details>
+          <summary>Can I use it instead of PM2 on Windows?</summary>
+          <p>Yes. Keeprun covers what PM2 is usually used for, restart on crash, start on boot and logs, and runs as a real Windows service, so it starts with the machine without a startup script. It also runs .NET, Python and any other command, not only Node.</p>
         </details>
         <details>
           <summary>Does it replace IIS?</summary>
