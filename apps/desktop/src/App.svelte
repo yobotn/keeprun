@@ -100,6 +100,8 @@
         // Open the app the user looked at last, as long as it still exists.
         const last = prefs.lastApp && apps.some((a) => a.id === prefs.lastApp) ? prefs.lastApp : null;
         selectedId = last ?? ordered[0]?.id ?? apps[0]?.id ?? null;
+        // The error belonged to the app that is gone, not to the one shown now.
+        actionError = "";
       }
     } catch (e) {
       agentError = (e as Error).message;
