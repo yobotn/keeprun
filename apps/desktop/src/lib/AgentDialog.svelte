@@ -2,6 +2,7 @@
   import { X } from "@lucide/svelte";
   import { connection, desktop, type Connection } from "./api";
   import { checkForUpdates, updates } from "./updates.svelte";
+  import { t } from "./i18n/index.svelte";
 
   let {
     conn,
@@ -48,52 +49,49 @@
 <dialog bind:this={dialog} {onclose} class="dialog w-[520px] max-w-[calc(100vw-32px)]">
   <div class="flex flex-col gap-4 p-5">
     <div class="flex items-center justify-between">
-      <h2 class="text-base font-semibold">Agent</h2>
-      <button type="button" class="btn-icon" onclick={() => dialog.close()} title="Close (Esc)"><X size={16} /></button>
+      <h2 class="text-base font-semibold">{t("agent.title")}</h2>
+      <button type="button" class="btn-icon" onclick={() => dialog.close()} title={t("common.close")}><X size={16} /></button>
     </div>
 
     {#if conn}
-      <dl class="selectable grid grid-cols-[110px_1fr] gap-y-1.5 text-[13px]">
-        <dt class="text-fg-muted">Environment</dt>
+      <dl class="selectable grid grid-cols-[minmax(110px,auto)_1fr] gap-x-4 gap-y-1.5 text-[13px]">
+        <dt class="text-fg-muted">{t("agent.environment")}</dt>
         <dd>{conn.env}</dd>
-        <dt class="text-fg-muted">Address</dt>
+        <dt class="text-fg-muted">{t("agent.address")}</dt>
         <dd class="font-mono">{conn.baseUrl}</dd>
-        <dt class="text-fg-muted">Data folder</dt>
+        <dt class="text-fg-muted">{t("agent.dataFolder")}</dt>
         <dd class="truncate font-mono" title={conn.dataDir}>{conn.dataDir}</dd>
-        <dt class="text-fg-muted">Version</dt>
+        <dt class="text-fg-muted">{t("agent.version")}</dt>
         <dd class="flex items-center gap-3">
           {conn.version}
           {#if updates.available}
-            <button type="button" class="text-accent hover:underline" onclick={onupdate}>Update to {updates.available.version}</button>
+            <button type="button" class="text-accent hover:underline" onclick={onupdate}>{t("agent.updateTo", { version: updates.available.version })}</button>
           {:else if updates.policy && !updates.policy.enabled}
             <span class="text-fg-muted">{updates.policy.reason}</span>
           {:else}
             <button type="button" class="text-accent hover:underline disabled:opacity-60" disabled={updates.checking} onclick={() => checkForUpdates(true)}>
-              {updates.checking ? "Checking" : "Check for updates"}
+              {t(updates.checking ? "agent.checking" : "agent.check")}
             </button>
-            {#if updates.upToDate}<span class="text-fg-muted">Up to date</span>{/if}
+            {#if updates.upToDate}<span class="text-fg-muted">{t("agent.upToDate")}</span>{/if}
           {/if}
         </dd>
       </dl>
     {/if}
 
     <form onsubmit={change} class="flex flex-col gap-2 border-t border-border pt-4">
-      <label class="label !mb-0" for="agent-port">Port</label>
+      <label class="label !mb-0" for="agent-port">{t("agent.port")}</label>
       <div class="flex gap-2">
         <input id="agent-port" class="input w-32 tabular-nums" bind:value={port} inputmode="numeric" maxlength="5" />
         <button type="submit" class="btn btn-primary" disabled={busy || !valid || Number(port) === currentPort}>
-          {busy ? "Changing" : "Change port"}
+          {t(busy ? "agent.changing" : "agent.changePort")}
         </button>
       </div>
       {#if conn?.env === "dev"}
-        <p class="hint">Saved to config/dev.local.toml. Restart the dev agent to use it.</p>
+        <p class="hint">{t("agent.devHint")}</p>
       {:else}
-        <p class="hint">
-          Windows asks for administrator approval. The agent restarts on the new port, and apps that were running
-          start again. The CLI follows automatically.
-        </p>
+        <p class="hint">{t("agent.prodHint")}</p>
       {/if}
-      <p class="hint">From a terminal: <span class="selectable font-mono">keeprun-agent set-port {valid ? port : "7272"}</span></p>
+      <p class="hint">{t("agent.terminal")} <span class="selectable font-mono">keeprun-agent set-port {valid ? port : "7272"}</span></p>
       {#if error}<p class="selectable alert" role="alert">{error}</p>{/if}
       {#if updates.error && !updates.installing}<p class="selectable alert" role="alert">{updates.error}</p>{/if}
       {#if message}<p class="selectable whitespace-pre-line text-[13px] text-fg-muted">{message}</p>{/if}

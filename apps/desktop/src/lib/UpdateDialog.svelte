@@ -1,6 +1,7 @@
 <script lang="ts">
   import { X } from "@lucide/svelte";
-  import { formatBytes } from "./api";
+  import { formatBytes, formatDate } from "./api";
+  import { t } from "./i18n/index.svelte";
   import { installUpdate, updates } from "./updates.svelte";
 
   let { onclose }: { onclose: () => void } = $props();
@@ -12,23 +13,22 @@
 
   const info = $derived(updates.available);
   const percent = $derived(updates.total ? Math.min(100, Math.round((updates.downloaded / updates.total) * 100)) : null);
-  const date = $derived(info?.date ? new Date(info.date).toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" }) : "");
+  const date = $derived(info?.date ? formatDate(info.date) : "");
 </script>
 
 <dialog bind:this={dialog} {onclose} class="dialog w-[520px] max-w-[calc(100vw-32px)]">
   <div class="flex flex-col gap-4 p-5">
     <div class="flex items-center justify-between">
-      <h2 class="text-base font-semibold">Update Keeprun</h2>
-      <button type="button" class="btn-icon" onclick={() => dialog.close()} title="Close (Esc)" disabled={updates.installing}>
+      <h2 class="text-base font-semibold">{t("update.title")}</h2>
+      <button type="button" class="btn-icon" onclick={() => dialog.close()} title={t("common.close")} disabled={updates.installing}>
         <X size={16} />
       </button>
     </div>
 
     {#if info}
       <p class="text-[13px]">
-        Version <span class="font-semibold">{info.version}</span> is available. You have {info.currentVersion}.{date
-          ? ` Released ${date}.`
-          : ""}
+        {t("update.available", { version: info.version, current: info.currentVersion })}
+        {#if date}{t("update.released", { date })}{/if}
       </p>
       {#if info.notes}
         <div class="selectable max-h-60 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-bg-subtle px-3 py-2 text-[13px]">
@@ -36,11 +36,10 @@
         </div>
       {/if}
       <p class="hint !mt-0">
-        Windows asks for administrator approval. The installer updates the desktop app, the agent service and the CLI,
-        then restarts the service. Apps that were running start again.
+        {t("update.hint")}
       </p>
     {:else if !updates.error}
-      <p class="text-[13px] text-fg-muted">No update available.</p>
+      <p class="text-[13px] text-fg-muted">{t("update.none")}</p>
     {/if}
 
     {#if updates.phase}
@@ -53,9 +52,11 @@
         </div>
         <p class="text-xs text-fg-muted">
           {#if updates.phase === "installing"}
-            Starting the installer. Keeprun closes while it runs.
+            {t("update.installing")}
           {:else}
-            Downloading {formatBytes(updates.downloaded)}{updates.total ? ` of ${formatBytes(updates.total)}` : ""}
+            {updates.total
+              ? t("update.downloadingOf", { done: formatBytes(updates.downloaded), total: formatBytes(updates.total) })
+              : t("update.downloading", { done: formatBytes(updates.downloaded) })}
           {/if}
         </p>
       </div>
@@ -64,9 +65,9 @@
     {#if updates.error}<p class="selectable alert" role="alert">{updates.error}</p>{/if}
 
     <div class="flex justify-end gap-2">
-      <button type="button" class="btn" onclick={() => dialog.close()} disabled={updates.installing}>Later</button>
+      <button type="button" class="btn" onclick={() => dialog.close()} disabled={updates.installing}>{t("update.later")}</button>
       <button type="button" class="btn btn-primary" onclick={installUpdate} disabled={!info || updates.installing}>
-        {updates.installing ? "Updating" : "Install and restart"}
+        {t(updates.installing ? "update.updating" : "update.install")}
       </button>
     </div>
   </div>

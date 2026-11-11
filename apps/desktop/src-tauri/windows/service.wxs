@@ -44,8 +44,26 @@
       </Component>
     </DirectoryRef>
 
+    <!-- Explorer "Open with Keeprun" on folders and on the empty space inside a folder. On
+         Windows 11 it is under "Show more options" (Shift+F10). Removed on uninstall. -->
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="KeeprunFolderMenu" Guid="C3D1E8A2-5F47-4B6E-8A19-0E2B7D4C6F58" Win64="yes">
+        <RegistryKey Root="HKLM" Key="Software\Classes\Directory\shell\Keeprun">
+          <RegistryValue Type="string" Value="Open with Keeprun" KeyPath="yes" />
+          <RegistryValue Name="Icon" Type="string" Value="&quot;[INSTALLDIR]keeprun-desktop.exe&quot;,0" />
+          <RegistryValue Key="command" Type="string" Value="&quot;[INSTALLDIR]keeprun-desktop.exe&quot; &quot;%V&quot;" />
+        </RegistryKey>
+        <RegistryKey Root="HKLM" Key="Software\Classes\Directory\Background\shell\Keeprun">
+          <RegistryValue Type="string" Value="Open with Keeprun" />
+          <RegistryValue Name="Icon" Type="string" Value="&quot;[INSTALLDIR]keeprun-desktop.exe&quot;,0" />
+          <RegistryValue Key="command" Type="string" Value="&quot;[INSTALLDIR]keeprun-desktop.exe&quot; &quot;%V&quot;" />
+        </RegistryKey>
+      </Component>
+    </DirectoryRef>
+
     <ComponentGroup Id="KeeprunServiceActions">
       <ComponentRef Id="KeeprunServiceRegistration" />
+      <ComponentRef Id="KeeprunFolderMenu" />
       <ComponentRef Id="KeeprunPolicyDisableUpdates" />
       <ComponentRef Id="KeeprunPolicyUpdateUrl" />
     </ComponentGroup>

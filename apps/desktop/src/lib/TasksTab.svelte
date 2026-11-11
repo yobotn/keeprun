@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Pencil, Play, Plus, Square, Trash2 } from "@lucide/svelte";
   import { api, formatDuration, formatTime, type AppView, type TaskSpec } from "./api";
+  import { t } from "./i18n/index.svelte";
   import LogPanel from "./LogPanel.svelte";
 
   let { app, now, onchanged }: { app: AppView; now: number; onchanged: () => void } = $props();
@@ -64,34 +65,32 @@
 
   const status = $derived.by(() => {
     if (!run) return "";
-    if (run.running) return `Running for ${formatDuration(now - run.started_at)}`;
-    const took = run.finished_at ? ` in ${formatDuration(run.finished_at - run.started_at)}` : "";
-    if (run.exit_code === 0) return `Finished${took}`;
-    if (run.exit_code === null) return `Stopped${took}`;
-    return `Failed with exit code ${run.exit_code}${took}`;
+    if (run.running) return t("tasks.runningFor", { duration: formatDuration(now - run.started_at) });
+    const duration = run.finished_at ? formatDuration(run.finished_at - run.started_at) : null;
+    if (run.exit_code === 0) return duration ? t("tasks.finishedIn", { duration }) : t("tasks.finished");
+    if (run.exit_code === null) return duration ? t("tasks.stoppedIn", { duration }) : t("tasks.stopped");
+    const code = run.exit_code;
+    return duration ? t("tasks.failedIn", { code, duration }) : t("tasks.failed", { code });
   });
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col">
   <div class="max-h-[50%] shrink-0 overflow-auto border-b border-border px-6 py-4">
-    <p class="hint !mt-0 mb-3">
-      Tasks are one-off commands, such as migrations or installs. They run in the app folder with the app
-      environment, and do not start or stop the app.
-    </p>
+    <p class="hint !mt-0 mb-3">{t("tasks.intro")}</p>
 
     {#if app.tasks.length || editing === -1}
       <ul class="flex flex-col overflow-hidden rounded-md border border-border">
-        {#each app.tasks as t, i (t.name)}
+        {#each app.tasks as task, i (task.name)}
           {#if editing === i}
             {@render editor()}
           {:else}
             <li class="flex items-center gap-3 border-b border-border px-3 py-1.5 last:border-0 hover:bg-bg-hover">
-              <span class="w-40 shrink-0 truncate text-[13px] font-medium" title={t.name}>{t.name}</span>
-              <span class="selectable min-w-0 flex-1 truncate font-mono text-xs text-fg-muted" title={t.command}>{t.command}</span>
-              <button class="btn-icon" onclick={() => edit(i)} title="Edit {t.name}" disabled={busy}><Pencil size={14} /></button>
-              <button class="btn-icon" onclick={() => removeTask(i)} title="Remove {t.name}" disabled={busy}><Trash2 size={14} /></button>
-              <button class="btn !h-7" onclick={() => runSaved(t.name)} disabled={busy || running} title={running ? "A task is running" : `Run ${t.name}`}>
-                <Play size={12} /> Run
+              <span class="w-40 shrink-0 truncate text-[13px] font-medium" title={task.name}>{task.name}</span>
+              <span class="selectable min-w-0 flex-1 truncate font-mono text-xs text-fg-muted" title={task.command}>{task.command}</span>
+              <button class="btn-icon" onclick={() => edit(i)} title={t("tasks.edit", { name: task.name })} disabled={busy}><Pencil size={14} /></button>
+              <button class="btn-icon" onclick={() => removeTask(i)} title={t("tasks.remove", { name: task.name })} disabled={busy}><Trash2 size={14} /></button>
+              <button class="btn !h-7" onclick={() => runSaved(task.name)} disabled={busy || running} title={running ? t("tasks.aTaskRunning") : t("tasks.runName", { name: task.name })}>
+                <Play size={12} class="flip-rtl" /> {t("common.run")}
               </button>
             </li>
           {/if}
@@ -99,22 +98,22 @@
         {#if editing === -1}{@render editor()}{/if}
       </ul>
     {:else}
-      <p class="text-[13px] text-fg-muted">No saved tasks.</p>
+      <p class="text-[13px] text-fg-muted">{t("tasks.none")}</p>
     {/if}
 
     <div class="mt-3 flex items-center gap-2">
       {#if editing === null}
-        <button class="btn" onclick={() => edit(-1)} disabled={busy}><Plus size={14} /> Add task</button>
+        <button class="btn" onclick={() => edit(-1)} disabled={busy}><Plus size={14} /> {t("tasks.add")}</button>
       {/if}
       <form class="flex flex-1 gap-2" onsubmit={runOneOff}>
         <input
           class="input font-mono"
           bind:value={oneOff}
-          placeholder="Run a command once, e.g. npm run seed"
+          placeholder={t("tasks.oneOffPlaceholder")}
           spellcheck="false"
-          aria-label="Command to run once"
+          aria-label={t("tasks.oneOffLabel")}
         />
-        <button class="btn" type="submit" disabled={busy || running || !oneOff.trim()}><Play size={12} /> Run</button>
+        <button class="btn" type="submit" disabled={busy || running || !oneOff.trim()}><Play size={12} class="flip-rtl" /> {t("common.run")}</button>
       </form>
     </div>
 
@@ -126,18 +125,18 @@
       <span class="min-w-0 truncate font-medium" title={run.command}>{run.name ?? run.command}</span>
       <span
         class={running ? "text-accent" : run.exit_code === 0 ? "text-fg-muted" : "text-danger"}
-        title="Started {formatTime(run.started_at, true)}">{status}</span
+        title={t("tasks.started", { time: formatTime(run.started_at, true) })}>{status}</span
       >
       <div class="flex-1"></div>
       {#if running}
-        <button class="btn !h-7" onclick={stopTask} disabled={busy}><Square size={12} /> Stop task</button>
+        <button class="btn !h-7" onclick={stopTask} disabled={busy}><Square size={12} /> {t("tasks.stop")}</button>
       {/if}
     </div>
     {#key run.started_at}
       <LogPanel appId={app.id} taskSince={run.started_at} />
     {/key}
   {:else}
-    <p class="px-6 py-4 text-[13px] text-fg-muted">Task output shows here.</p>
+    <p class="px-6 py-4 text-[13px] text-fg-muted">{t("tasks.outputHere")}</p>
   {/if}
 </div>
 
@@ -145,17 +144,17 @@
   <li class="border-b border-border bg-bg-subtle px-3 py-2 last:border-0">
     <form class="flex items-center gap-2" onsubmit={saveTask}>
       <!-- svelte-ignore a11y_autofocus -->
-      <input class="input w-40 shrink-0" bind:value={draft.name} placeholder="migrate" required aria-label="Task name" autofocus />
+      <input class="input w-40 shrink-0" bind:value={draft.name} placeholder="migrate" required aria-label={t("tasks.nameLabel")} autofocus />
       <input
         class="input flex-1 font-mono"
         bind:value={draft.command}
         placeholder="npm run db:migrate"
         required
         spellcheck="false"
-        aria-label="Task command"
+        aria-label={t("tasks.commandLabel")}
       />
-      <button type="button" class="btn" onclick={() => (editing = null)}>Cancel</button>
-      <button type="submit" class="btn btn-primary" disabled={busy}>Save</button>
+      <button type="button" class="btn" onclick={() => (editing = null)}>{t("common.cancel")}</button>
+      <button type="submit" class="btn btn-primary" disabled={busy}>{t("common.save")}</button>
     </form>
   </li>
 {/snippet}

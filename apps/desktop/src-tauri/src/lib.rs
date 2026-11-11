@@ -7,8 +7,10 @@ use keeprun_core::{Env, Settings};
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use tauri::Manager;
+use std::sync::Mutex;
+use tauri::{Emitter, Manager};
 
+mod tray;
 mod update;
 
 #[derive(Serialize)]
@@ -128,13 +130,42 @@ fn looks_secret(key: String) -> bool {
     keeprun_core::model::looks_secret(&key)
 }
 
+/// Folder passed on the command line by the Explorer "Open with Keeprun" menu.
+#[derive(Default)]
+struct LaunchFolder(Mutex<Option<String>>);
+
+/// The first argument, when it is an existing folder.
+fn folder_arg(args: &[String]) -> Option<String> {
+    let arg = args.get(1)?.trim().trim_matches('"');
+    std::path::Path::new(arg).is_dir().then(|| arg.to_string())
+}
+
+/// The folder this process was started with, once. The UI asks when it is ready.
+#[tauri::command]
+fn take_launch_folder(state: tauri::State<LaunchFolder>) -> Option<String> {
+    state.0.lock().unwrap().take()
+}
+
 pub fn run() {
     tauri::Builder::default()
+        // A second launch (Start menu, shortcut, Explorer menu) brings back the running window,
+        // which may be hidden in the notification area, and hands it the folder if there is one.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            tray::show_window(app);
+            if let Some(folder) = folder_arg(&args) {
+                let _ = app.emit("open-folder", folder);
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(update::Pending::default())
+        .manage(tray::Tray::default())
+        .manage(LaunchFolder(Mutex::new(folder_arg(
+            &std::env::args().collect::<Vec<_>>(),
+        ))))
         .setup(|app| {
+            tray::setup(app.handle())?;
             if let (Ok(env), Some(w)) = (Env::detect(), app.get_webview_window("main")) {
                 if env == Env::Dev {
                     let _ = w.set_title("Keeprun (dev)");
@@ -142,12 +173,24 @@ pub fn run() {
             }
             Ok(())
         })
+        .on_window_event(|window, event| {
+            // With the notification area icon on, closing the window hides it instead.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" && window.state::<tray::Tray>().enabled() {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             agent_connection,
             detect,
             read_env_file,
             looks_secret,
+            take_launch_folder,
             set_agent_port,
+            tray::set_tray_enabled,
+            tray::set_tray_text,
             update::update_policy,
             update::check_update,
             update::install_update

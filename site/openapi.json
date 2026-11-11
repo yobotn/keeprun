@@ -103,7 +103,7 @@
         "operationId": "startApp",
         "tags": ["Control"],
         "summary": "Start an app",
-        "description": "Returns 409 if it is already running, and 400 with the reason if it cannot start, such as a port in use or a missing folder.",
+        "description": "Returns 409 if it is already running or disabled, and 400 with the reason if it cannot start, such as a port in use or a missing folder.",
         "responses": {
           "200": { "description": "The app is starting.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppView" } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
@@ -288,7 +288,8 @@
           "autostart": { "type": "boolean" },
           "restart": { "$ref": "#/components/schemas/RestartPolicy" },
           "max_restarts": { "type": "integer", "minimum": 0 },
-          "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } }
+          "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } },
+          "disabled": { "type": "boolean", "description": "true switches the app off: it cannot start and does not start with the agent. Stop it first, or the change returns 409." }
         }
       },
       "RunTask": {
@@ -332,6 +333,7 @@
           "secrets": { "type": "array", "items": { "type": "string" } },
           "tags": { "type": "array", "items": { "type": "string" } },
           "autostart": { "type": "boolean" },
+          "disabled": { "type": "boolean", "description": "Switched off. Starting it returns 409." },
           "restart": { "$ref": "#/components/schemas/RestartPolicy" },
           "max_restarts": { "type": "integer" },
           "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } },

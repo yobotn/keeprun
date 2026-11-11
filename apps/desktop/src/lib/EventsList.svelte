@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api, formatTime, type AppEvent, type EventKind } from "./api";
+  import { t } from "./i18n/index.svelte";
 
   let { appId, limit = 100, compact = false }: { appId: string; limit?: number; compact?: boolean } = $props();
 
@@ -40,13 +41,13 @@
 {#if error}
   <p class="alert" role="alert">{error}</p>
 {:else if events.length === 0}
-  <p class="text-sm text-fg-muted">No events yet.</p>
+  <p class="text-sm text-fg-muted">{t("events.none")}</p>
 {:else}
   <ol class="selectable flex flex-col">
     {#each events as e (e.id)}
       <li class="flex gap-4 py-1.5 text-[13px] {compact ? '' : 'border-b border-border last:border-0'}">
         <time class="w-28 shrink-0 tabular-nums text-fg-muted">{formatTime(e.ts, true)}</time>
-        <span class={tone[e.kind] ?? ""}>{e.message}</span>
+        <span class={tone[e.kind] ?? ""} dir="auto">{e.message}</span>
       </li>
     {/each}
   </ol>

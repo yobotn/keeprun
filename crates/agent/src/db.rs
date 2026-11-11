@@ -224,6 +224,7 @@ mod tests {
             restart: Default::default(),
             max_restarts: 5,
             tasks: vec![],
+            disabled: false,
         };
         db.insert_app(&spec).unwrap();
         let raw: String = db

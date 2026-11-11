@@ -2,8 +2,10 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { FolderOpen, TriangleAlert, X } from "@lucide/svelte";
   import { api, desktop, type AppView, type Detection } from "./api";
+  import { t } from "./i18n/index.svelte";
 
-  let { onclose, onadded }: { onclose: () => void; onadded: (app: AppView) => void } = $props();
+  // `folder` comes from the Explorer menu: skip the picker and detect it right away.
+  let { folder, onclose, onadded }: { folder?: string; onclose: () => void; onadded: (app: AppView) => void } = $props();
 
   let dialog: HTMLDialogElement;
   let cwd = $state("");
@@ -20,11 +22,12 @@
   $effect(() => {
     dialog.showModal();
     // Open the folder picker right away: it is the first step for almost everyone.
-    pickFolder();
+    if (folder) useFolder(folder);
+    else pickFolder();
   });
 
   async function pickFolder() {
-    const dir = await open({ directory: true, multiple: false, title: "Choose the app folder" });
+    const dir = await open({ directory: true, multiple: false, title: t("common.chooseFolder") });
     if (typeof dir === "string") await useFolder(dir);
   }
 
@@ -82,18 +85,18 @@
     }
   }
 
-  const kindLabel = { node: "Node.js", dotnet: ".NET", python: "Python", custom: "Custom" };
+  const kindLabel = $derived({ node: "Node.js", dotnet: ".NET", python: "Python", custom: t("add.kindCustom") });
 </script>
 
 <dialog bind:this={dialog} {onclose} class="dialog w-[580px] max-w-[calc(100vw-32px)]">
   <form onsubmit={submit} class="flex flex-col gap-4 p-5">
     <div class="flex items-center justify-between">
-      <h2 class="text-base font-semibold">Add app</h2>
-      <button type="button" class="btn-icon" onclick={() => dialog.close()} title="Close (Esc)"><X size={16} /></button>
+      <h2 class="text-base font-semibold">{t("add.title")}</h2>
+      <button type="button" class="btn-icon" onclick={() => dialog.close()} title={t("common.close")}><X size={16} /></button>
     </div>
 
     <div>
-      <label class="label" for="a-cwd">Folder</label>
+      <label class="label" for="a-cwd">{t("add.folder")}</label>
       <div class="flex gap-2">
         <input
           id="a-cwd"
@@ -102,13 +105,15 @@
           placeholder="D:\apps\hr-portal"
           onchange={() => cwd && useFolder(cwd)}
         />
-        <button type="button" class="btn" onclick={pickFolder}><FolderOpen size={14} /> Browse</button>
+        <button type="button" class="btn" onclick={pickFolder}><FolderOpen size={14} /> {t("common.browse")}</button>
       </div>
     </div>
 
     {#if detection}
       <p class="-mt-1 text-xs text-fg-muted">
-        Detected {kindLabel[detection.kind]}{detection.port ? `, port ${detection.port}` : ""}.
+        {detection.port
+          ? t("add.detectedPort", { kind: kindLabel[detection.kind], port: detection.port })
+          : t("add.detected", { kind: kindLabel[detection.kind] })}
       </p>
 
       {#each detection.warnings as w}
@@ -117,11 +122,11 @@
 
       <div class="flex gap-3">
         <div class="flex-1">
-          <label class="label" for="a-name">Name</label>
+          <label class="label" for="a-name">{t("add.name")}</label>
           <input id="a-name" class="input" bind:value={name} required />
         </div>
         <div class="w-28">
-          <label class="label" for="a-port">Port</label>
+          <label class="label" for="a-port">{t("add.port")}</label>
           <input
             id="a-port"
             class="input tabular-nums"
@@ -129,14 +134,14 @@
             inputmode="numeric"
             pattern="\d{'{'}1,5{'}'}"
             maxlength="5"
-            placeholder="None"
-            title="Sets the PORT variable"
+            placeholder={t("common.none")}
+            title={t("add.portHint")}
           />
         </div>
       </div>
 
       <fieldset>
-        <legend class="label">Command</legend>
+        <legend class="label">{t("add.command")}</legend>
         <div class="flex max-h-56 flex-col overflow-auto rounded-md border border-border">
           {#each detection.suggestions as s}
             <label class="flex cursor-default items-start gap-3 border-b border-border px-3 py-2 last:border-0 hover:bg-bg-hover">
@@ -158,7 +163,7 @@
           {/each}
           <label class="flex cursor-default items-center gap-3 px-3 py-2 hover:bg-bg-hover">
             <input type="radio" name="cmd" class="accent-[var(--accent)]" checked={custom} onchange={() => (custom = true)} />
-            <span class="text-[13px] font-medium">Custom command</span>
+            <span class="text-[13px] font-medium">{t("add.customCommand")}</span>
           </label>
         </div>
         {#if custom}
@@ -170,31 +175,33 @@
 
       {#if detection.tasks.length}
         <p class="hint !mt-0">
-          Also found {detection.tasks.length === 1 ? "1 task" : `${detection.tasks.length} tasks`}:
-          {detection.tasks.map((t) => t.name || t.label).join(", ")}. They are saved, not run. Run them from the Tasks tab.
+          {t("add.tasksFound", {
+            count: detection.tasks.length,
+            names: detection.tasks.map((task) => task.name || task.label).join(", "),
+          })}
         </p>
       {/if}
 
       {#if Object.keys(detection.dotenv).length}
         <label class="flex items-center gap-2 text-[13px]">
           <input type="checkbox" class="accent-[var(--accent)]" bind:checked={importEnv} />
-          Import {Object.keys(detection.dotenv).length} variables from .env (secrets are encrypted)
+          {t("add.importEnv", { count: Object.keys(detection.dotenv).length })}
         </label>
       {/if}
       <label class="flex items-center gap-2 text-[13px]">
         <input type="checkbox" class="accent-[var(--accent)]" bind:checked={startNow} />
-        Start now
+        {t("add.startNow")}
       </label>
     {:else if !error}
-      <p class="py-4 text-center text-sm text-fg-muted">Choose the folder that contains the app.</p>
+      <p class="py-4 text-center text-sm text-fg-muted">{t("add.chooseFolder")}</p>
     {/if}
 
     {#if error}<p class="alert" role="alert">{error}</p>{/if}
 
     <div class="flex justify-end gap-2">
-      <button type="button" class="btn" onclick={() => dialog.close()}>Cancel</button>
+      <button type="button" class="btn" onclick={() => dialog.close()}>{t("common.cancel")}</button>
       <button type="submit" class="btn btn-primary" disabled={busy || !detection || !command.trim()}>
-        {busy ? "Saving" : startNow ? "Save and start" : "Save"}
+        {t(busy ? "common.saving" : startNow ? "add.saveAndStart" : "common.save")}
       </button>
     </div>
   </form>

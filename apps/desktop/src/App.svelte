@@ -1,17 +1,27 @@
 <script lang="ts">
+  import { listen } from "@tauri-apps/api/event";
   import { openPath, openUrl } from "@tauri-apps/plugin-opener";
-  import { ArrowUpCircle, Monitor, Moon, Play, Plus, RotateCw, Search, Server, Square, Sun, TriangleAlert } from "@lucide/svelte";
   import {
-    api,
-    appUrl,
-    config,
-    connection,
-    isActive,
-    stateLabel,
-    type AppView,
-    type Connection,
-  } from "./lib/api";
+    ArrowUpCircle,
+    Ban,
+    ChevronDown,
+    CirclePower,
+    Monitor,
+    Moon,
+    Play,
+    Plus,
+    RotateCw,
+    Search,
+    Server,
+    Settings2,
+    Square,
+    Sun,
+    TriangleAlert,
+  } from "@lucide/svelte";
+  import { api, appUrl, config, connection, desktop, isActive, samePath, stateText, type AppView, type Connection } from "./lib/api";
   import { cycleTheme, applyTheme, theme } from "./lib/theme.svelte";
+  import { languages, locale, setLocale, t, type Key } from "./lib/i18n/index.svelte";
+  import { prefs, rememberSelection, setTray, syncTrayText, toggleSection } from "./lib/prefs.svelte";
   import StatusDot from "./lib/StatusDot.svelte";
   import Overview from "./lib/Overview.svelte";
   import LogPanel from "./lib/LogPanel.svelte";
@@ -20,31 +30,29 @@
   import EventsList from "./lib/EventsList.svelte";
   import AddAppDialog from "./lib/AddAppDialog.svelte";
   import AgentDialog from "./lib/AgentDialog.svelte";
+  import PreferencesDialog from "./lib/PreferencesDialog.svelte";
   import TasksTab from "./lib/TasksTab.svelte";
   import UpdateDialog from "./lib/UpdateDialog.svelte";
   import { checkForUpdates, scheduleUpdateChecks, updates } from "./lib/updates.svelte";
   import CommandPalette, { type Command } from "./lib/CommandPalette.svelte";
 
   type Tab = "overview" | "logs" | "tasks" | "environment" | "settings" | "events";
-  const tabs: [Tab, string][] = [
-    ["overview", "Overview"],
-    ["logs", "Logs"],
-    ["tasks", "Tasks"],
-    ["environment", "Environment"],
-    ["settings", "Settings"],
-    ["events", "Events"],
-  ];
+  const tabs: Tab[] = ["overview", "logs", "tasks", "environment", "settings", "events"];
+  const tabLabel = (tab: Tab) => t(`tab.${tab}`);
 
   let conn = $state<Connection | null>(null);
   let apps = $state<AppView[]>([]);
   let selectedId = $state<string | null>(null);
-  let tab = $state<Tab>("overview");
+  let tab = $state<Tab>(tabs.includes(prefs.lastTab as Tab) ? (prefs.lastTab as Tab) : "overview");
   let agentError = $state("");
   let actionError = $state("");
   let busy = $state(false);
   let adding = $state(false);
+  /** Folder to add, from the Explorer menu. */
+  let addFolder = $state<string | undefined>();
   let palette = $state(false);
   let agentOpen = $state(false);
+  let prefsOpen = $state(false);
   let updateOpen = $state(false);
 
   $effect(() => scheduleUpdateChecks());
@@ -53,24 +61,46 @@
 
   const selected = $derived(apps.find((a) => a.id === selectedId) ?? null);
 
-  // Group by first tag. Untagged apps come first, without a header.
-  const groups = $derived.by(() => {
+  // Sidebar: running, off and disabled apps in separate sections. Inside a section, apps are
+  // grouped by first tag (untagged first), then sorted by name.
+  type SectionId = "running" | "off" | "disabled";
+  const sectionOf = (a: AppView): SectionId => (a.disabled ? "disabled" : isActive(a.state) ? "running" : "off");
+
+  function byTag(list: AppView[]): [string, AppView[]][] {
     const map = new Map<string, AppView[]>();
-    for (const a of [...apps].sort((x, y) => x.name.localeCompare(y.name))) {
+    for (const a of [...list].sort((x, y) => x.name.localeCompare(y.name, locale.lang.code))) {
       const g = a.tags[0] ?? "";
       if (!map.has(g)) map.set(g, []);
       map.get(g)!.push(a);
     }
-    return [...map.entries()].sort(([a], [b]) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b)));
-  });
-  const ordered = $derived(groups.flatMap(([, list]) => list));
+    return [...map.entries()].sort(([a], [b]) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b, locale.lang.code)));
+  }
+
+  const sections = $derived(
+    (["running", "off", "disabled"] as SectionId[])
+      .map((id) => {
+        const list = apps.filter((a) => sectionOf(a) === id);
+        return { id, count: list.length, groups: byTag(list) };
+      })
+      // An empty Disabled section is noise. Running and Off always show, so apps have a place to move to.
+      .filter((s) => s.id !== "disabled" || s.count > 0),
+  );
+  const ordered = $derived(
+    sections.flatMap((s) => (prefs.collapsed.includes(s.id) ? [] : s.groups.flatMap(([, list]) => list))),
+  );
+  const sectionLabel: Record<SectionId, Key> = { running: "sidebar.running", off: "sidebar.off", disabled: "sidebar.disabled" };
+  const sectionEmpty: Partial<Record<SectionId, Key>> = { running: "sidebar.noneRunning", off: "sidebar.noneOff" };
 
   async function refresh() {
     try {
       conn = await connection();
       apps = await api.list();
       agentError = "";
-      if (!selectedId || !apps.some((a) => a.id === selectedId)) selectedId = ordered[0]?.id ?? null;
+      if (!selectedId || !apps.some((a) => a.id === selectedId)) {
+        // Open the app the user looked at last, as long as it still exists.
+        const last = prefs.lastApp && apps.some((a) => a.id === prefs.lastApp) ? prefs.lastApp : null;
+        selectedId = last ?? ordered[0]?.id ?? apps[0]?.id ?? null;
+      }
     } catch (e) {
       agentError = (e as Error).message;
     } finally {
@@ -86,6 +116,49 @@
       clearInterval(poll);
       clearInterval(tick);
     };
+  });
+
+  // Explorer "Open with Keeprun": run the app in that folder, or add it if it is new.
+  async function openFolder(path: string) {
+    await refresh();
+    const app = apps.find((a) => samePath(a.cwd, path));
+    if (!app) {
+      palette = agentOpen = updateOpen = prefsOpen = false;
+      addFolder = path;
+      adding = true;
+      return;
+    }
+    select(app.id, "logs");
+    // A disabled app shows its notice instead. A running one is already where it should be.
+    if (!app.disabled && !isActive(app.state)) await start(app.id);
+  }
+
+  $effect(() => {
+    let stop: (() => void) | undefined;
+    let closed = false;
+    listen<string>("open-folder", (e) => openFolder(e.payload)).then((un) => (closed ? un() : (stop = un)));
+    desktop
+      .takeLaunchFolder()
+      .then((path) => {
+        if (path) openFolder(path);
+      })
+      .catch(() => {});
+    return () => {
+      closed = true;
+      stop?.();
+    };
+  });
+
+  // Remember the selection once apps loaded, so a failed first load does not forget it.
+  $effect(() => {
+    if (loaded && selectedId) rememberSelection(selectedId, tab);
+  });
+
+  // The shell draws the notification area icon. Give it the setting and translated text.
+  $effect(() => setTray(prefs.tray));
+  $effect(() => {
+    locale.lang;
+    syncTrayText(apps.length);
   });
 
   async function run(fn: () => Promise<unknown>) {
@@ -104,15 +177,21 @@
   const start = (id: string) => run(() => api.start(id));
   const stop = (id: string) => run(() => api.stop(id));
   const restart = (id: string) => run(() => api.restart(id));
+  const disable = (a: AppView) =>
+    run(async () => {
+      if (isActive(a.state)) await api.stop(a.id);
+      await api.update(a.id, { disabled: true });
+    });
+  const enable = (id: string) => run(() => api.update(id, { disabled: false }));
 
-  function select(id: string, t?: Tab) {
+  function select(id: string, to?: Tab) {
     if (id !== selectedId) actionError = "";
     selectedId = id;
-    if (t) tab = t;
+    if (to) tab = to;
   }
 
   function onKey(e: KeyboardEvent) {
-    if (adding || palette || agentOpen || updateOpen) return;
+    if (adding || palette || agentOpen || updateOpen || prefsOpen) return;
     const k = e.key.toLowerCase();
     if (e.ctrlKey && k === "k") {
       e.preventDefault();
@@ -126,7 +205,7 @@
     }
     if (e.ctrlKey && e.key >= "1" && e.key <= String(tabs.length)) {
       e.preventDefault();
-      tab = tabs[Number(e.key) - 1][0];
+      tab = tabs[Number(e.key) - 1];
       return;
     }
     if (e.altKey && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
@@ -136,7 +215,7 @@
       if (next) select(next.id);
       return;
     }
-    if (!selected || busy) return;
+    if (!selected || busy || selected.disabled) return;
     if (e.ctrlKey && e.key === "Enter") {
       e.preventDefault();
       isActive(selected.state) ? stop(selected.id) : start(selected.id);
@@ -150,44 +229,55 @@
     const out: Command[] = [];
     if (selected) {
       const s = selected;
-      if (isActive(s.state)) {
-        out.push({ id: "stop", group: s.name, label: `Stop ${s.name}`, hint: "Ctrl+Enter", run: () => stop(s.id) });
-        out.push({ id: "restart", group: s.name, label: `Restart ${s.name}`, hint: "Ctrl+Shift+R", run: () => restart(s.id) });
+      const name = s.name;
+      if (s.disabled) {
+        out.push({ id: "enable", group: name, label: t("cmd.enable", { name }), run: () => enable(s.id) });
+      } else if (isActive(s.state)) {
+        out.push({ id: "stop", group: name, label: t("cmd.stop", { name }), hint: "Ctrl+Enter", run: () => stop(s.id) });
+        out.push({ id: "restart", group: name, label: t("cmd.restart", { name }), hint: "Ctrl+Shift+R", run: () => restart(s.id) });
       } else {
-        out.push({ id: "start", group: s.name, label: `Start ${s.name}`, hint: "Ctrl+Enter", run: () => start(s.id) });
+        out.push({ id: "start", group: name, label: t("cmd.start", { name }), hint: "Ctrl+Enter", run: () => start(s.id) });
       }
-      tabs.forEach(([t, label], i) =>
-        out.push({ id: `tab-${t}`, group: s.name, label: `Open ${label}`, hint: `Ctrl+${i + 1}`, run: () => (tab = t) }),
+      if (!s.disabled) out.push({ id: "disable", group: name, label: t("cmd.disable", { name }), run: () => disable(s) });
+      tabs.forEach((tb, i) =>
+        out.push({ id: `tab-${tb}`, group: name, label: t("cmd.openTab", { tab: tabLabel(tb) }), hint: `Ctrl+${i + 1}`, run: () => (tab = tb) }),
       );
       if (!s.task?.running) {
-        for (const t of s.tasks) {
+        for (const task of s.tasks) {
           out.push({
-            id: `task-${t.name}`,
-            group: s.name,
-            label: `Run task ${t.name}`,
-            run: () => run(() => api.runTask(s.id, { name: t.name })).then(() => (tab = "tasks")),
+            id: `task-${task.name}`,
+            group: name,
+            label: t("cmd.runTask", { name: task.name }),
+            run: () => run(() => api.runTask(s.id, { name: task.name })).then(() => (tab = "tasks")),
           });
         }
       }
       const url = appUrl(s);
-      if (url) out.push({ id: "url", group: s.name, label: `Open ${url}`, run: () => openUrl(url) });
-      out.push({ id: "folder", group: s.name, label: "Open folder", run: () => openPath(s.cwd) });
+      if (url) out.push({ id: "url", group: name, label: t("cmd.openUrl", { url }), run: () => openUrl(url) });
+      out.push({ id: "folder", group: name, label: t("cmd.openFolder"), run: () => openPath(s.cwd) });
     }
+    const appsGroup = t("palette.groupApps");
     for (const a of ordered) {
-      out.push({ id: `go-${a.id}`, group: "Apps", label: `${a.name}  (${stateLabel[a.state]})`, run: () => select(a.id) });
-      out.push({ id: `logs-${a.id}`, group: "Apps", label: `${a.name} logs`, run: () => select(a.id, "logs") });
+      const state = a.disabled ? t("state.disabled") : stateText(a.state);
+      out.push({ id: `go-${a.id}`, group: appsGroup, label: `${a.name}  (${state})`, run: () => select(a.id) });
+      out.push({ id: `logs-${a.id}`, group: appsGroup, label: t("cmd.appLogs", { name: a.name }), run: () => select(a.id, "logs") });
     }
-    out.push({ id: "add", group: "General", label: "Add app", hint: "Ctrl+N", run: () => (adding = true) });
-    out.push({ id: "agent", group: "General", label: "Agent settings (port)", run: () => (agentOpen = true) });
+    const general = t("palette.groupGeneral");
+    out.push({ id: "add", group: general, label: t("cmd.add"), hint: "Ctrl+N", run: () => (adding = true) });
+    out.push({ id: "prefs", group: general, label: t("cmd.preferences"), run: () => (prefsOpen = true) });
+    out.push({ id: "agent", group: general, label: t("cmd.agent"), run: () => (agentOpen = true) });
     if (updates.available) {
-      const v = updates.available.version;
-      out.push({ id: "update", group: "General", label: `Update to ${v}`, run: () => (updateOpen = true) });
+      const version = updates.available.version;
+      out.push({ id: "update", group: general, label: t("cmd.update", { version }), run: () => (updateOpen = true) });
     } else if (updates.policy?.enabled !== false) {
-      out.push({ id: "check-update", group: "General", label: "Check for updates", run: () => (agentOpen = true, checkForUpdates(true)) });
+      out.push({ id: "check-update", group: general, label: t("cmd.checkUpdate"), run: () => ((agentOpen = true), checkForUpdates(true)) });
     }
-    out.push({ id: "theme-system", group: "General", label: "Theme: follow system", run: () => applyTheme("system") });
-    out.push({ id: "theme-light", group: "General", label: "Theme: light", run: () => applyTheme("light") });
-    out.push({ id: "theme-dark", group: "General", label: "Theme: dark", run: () => applyTheme("dark") });
+    out.push({ id: "theme-system", group: general, label: t("cmd.themeSystem"), run: () => applyTheme("system") });
+    out.push({ id: "theme-light", group: general, label: t("cmd.themeLight"), run: () => applyTheme("light") });
+    out.push({ id: "theme-dark", group: general, label: t("cmd.themeDark"), run: () => applyTheme("dark") });
+    for (const l of languages) {
+      out.push({ id: `lang-${l.code}`, group: general, label: t("cmd.language", { language: l.name }), run: () => setLocale(l.code) });
+    }
     return out;
   });
 
@@ -206,7 +296,7 @@
     {#if conn?.env === "dev"}
       <span
         class="rounded bg-warn/15 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-warn"
-        title="Agent {conn.baseUrl}, data in {conn.dataDir}">dev</span
+        title={t("header.devBadgeHint", { url: conn.baseUrl, dir: conn.dataDir })}>dev</span
       >
     {/if}
     <button
@@ -214,26 +304,39 @@
       onclick={() => (palette = true)}
     >
       <Search size={14} />
-      <span class="flex-1 text-left">Search</span>
-      <span class="kbd">Ctrl K</span>
+      <span class="flex-1 text-start">{t("header.search")}</span>
+      <span class="kbd" dir="ltr">Ctrl K</span>
     </button>
     {#if updates.available}
-      <button class="btn !border-accent !text-accent" onclick={() => (updateOpen = true)} title="Version {updates.available.version} is available">
-        <ArrowUpCircle size={15} /> Update
+      <button
+        class="btn !border-accent !text-accent"
+        onclick={() => (updateOpen = true)}
+        title={t("header.updateAvailable", { version: updates.available.version })}
+      >
+        <ArrowUpCircle size={15} />
+        {t("header.update")}
       </button>
     {/if}
-    <button class="btn-icon" onclick={() => (agentOpen = true)} title="Agent: {conn?.baseUrl ?? 'not connected'}. Change port.">
+    <button
+      class="btn-icon"
+      onclick={() => (agentOpen = true)}
+      title={t("header.agent", { url: conn?.baseUrl ?? t("header.agentNotConnected") })}
+    >
       <Server size={16} />
     </button>
     <button
       class="btn-icon"
       onclick={cycleTheme}
-      title="Theme: {theme.value === 'system' ? 'follow system' : theme.value}. Click to change."
+      title={t("theme.title", { theme: t(`theme.${theme.value}`) })}
     >
       {#if theme.value === "light"}<Sun size={16} />{:else if theme.value === "dark"}<Moon size={16} />{:else}<Monitor size={16} />{/if}
     </button>
-    <button class="btn btn-primary" onclick={() => (adding = true)} title="Add app (Ctrl+N)">
-      <Plus size={15} /> Add app
+    <button class="btn-icon" onclick={() => (prefsOpen = true)} title={t("header.preferences")}>
+      <Settings2 size={16} />
+    </button>
+    <button class="btn btn-primary" onclick={() => (adding = true)} title={t("header.addAppHint")}>
+      <Plus size={15} />
+      {t("header.addApp")}
     </button>
   </header>
 
@@ -245,32 +348,60 @@
   {/if}
 
   <div class="flex min-h-0 flex-1">
-    <nav class="flex w-60 shrink-0 flex-col overflow-auto border-r border-border bg-bg-subtle py-2" aria-label="Apps">
-      {#each groups as [group, list]}
-        <p class="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-fg-muted">{group || "Apps"}</p>
-        {#each list as app (app.id)}
-          <button
-            class="mx-2 flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[13px] hover:bg-bg-hover {app.id ===
-            selectedId
-              ? '!bg-bg-active font-medium'
-              : ''}"
-            onclick={() => select(app.id)}
-            title="{app.name}: {stateLabel[app.state]}"
-            aria-current={app.id === selectedId}
-          >
-            <StatusDot state={app.state} />
-            <span class="flex-1 truncate">{app.name}</span>
-            {#if app.state === "running" && app.stats?.ports[0]}
-              <span class="text-[11px] tabular-nums text-fg-muted">:{app.stats.ports[0]}</span>
-            {/if}
-          </button>
-        {/each}
-      {/each}
+    <nav class="flex w-64 shrink-0 flex-col overflow-auto border-e border-border bg-bg-subtle py-2" aria-label={t("sidebar.label")}>
       {#if loaded && apps.length === 0 && !agentError}
-        <p class="px-4 pt-3 text-xs text-fg-muted">No apps yet.</p>
+        <p class="px-4 pt-3 text-xs text-fg-muted">{t("sidebar.noApps")}</p>
+      {:else if apps.length}
+        {#each sections as section (section.id)}
+          {@const collapsed = prefs.collapsed.includes(section.id)}
+          {@const label = t(sectionLabel[section.id])}
+          <button
+            class="mx-2 mt-2 flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-fg-muted hover:bg-bg-hover hover:text-fg"
+            onclick={() => toggleSection(section.id)}
+            aria-expanded={!collapsed}
+            title={t(collapsed ? "sidebar.expand" : "sidebar.collapse", { section: label })}
+          >
+            <ChevronDown size={13} class="shrink-0 transition-transform {collapsed ? 'chevron-collapsed' : ''}" />
+            <span class="flex-1 text-start">{label}</span>
+            <span class="tabular-nums font-normal">{section.count}</span>
+          </button>
+          {#if !collapsed}
+            {#if section.count === 0 && sectionEmpty[section.id]}
+              <p class="px-4 pb-1 pt-0.5 text-xs text-fg-muted">{t(sectionEmpty[section.id]!)}</p>
+            {/if}
+            {#each section.groups as [group, list] (group)}
+              {#if group}
+                <p class="truncate px-5 pb-0.5 pt-1.5 text-[11px] text-fg-muted">{group}</p>
+              {/if}
+              {#each list as app (app.id)}
+                {@const state = app.disabled ? t("state.disabled") : stateText(app.state)}
+                <button
+                  class="mx-2 flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-start text-[13px] hover:bg-bg-hover {app.id ===
+                  selectedId
+                    ? '!bg-bg-active font-medium'
+                    : ''} {app.disabled ? 'text-fg-muted' : ''}"
+                  onclick={() => select(app.id)}
+                  title="{app.name}: {state}"
+                  aria-current={app.id === selectedId}
+                >
+                  {#if app.disabled}
+                    <Ban size={10} class="shrink-0 text-fg-muted" aria-hidden="true" />
+                  {:else}
+                    <StatusDot state={app.state} />
+                  {/if}
+                  <span class="flex-1 truncate">{app.name}</span>
+                  {#if app.state === "running" && app.stats?.ports[0]}
+                    <span class="text-[11px] tabular-nums text-fg-muted" dir="ltr">:{app.stats.ports[0]}</span>
+                  {/if}
+                </button>
+              {/each}
+            {/each}
+          {/if}
+        {/each}
       {/if}
       <div class="mt-auto px-4 pt-4 text-[11px] text-fg-muted">
-        <span class="kbd">Alt</span> + <span class="kbd">Up</span>/<span class="kbd">Down</span> to switch
+        <span dir="ltr"><span class="kbd">Alt</span> + <span class="kbd">Up</span>/<span class="kbd">Down</span></span>
+        {t("sidebar.switchHint")}
       </div>
     </nav>
 
@@ -280,43 +411,65 @@
           <div class="flex items-center gap-3">
             <h1 class="truncate text-lg font-semibold">{selected.name}</h1>
             <span class="inline-flex items-center gap-1.5 text-[13px] text-fg-muted">
-              <StatusDot state={selected.state} />
-              {stateLabel[selected.state]}{selected.state === "exited" && selected.exit_code !== null
-                ? ` (code ${selected.exit_code})`
-                : ""}{restartCountdown !== null ? ` in ${restartCountdown}s` : ""}
+              {#if selected.disabled}
+                <Ban size={12} />
+                {t("state.disabled")}
+              {:else}
+                <StatusDot state={selected.state} />
+                {stateText(selected.state)}
+                {#if selected.state === "exited" && selected.exit_code !== null}{t("app.exitCode", { code: selected.exit_code })}{/if}
+                {#if restartCountdown !== null}{t("app.restartIn", { seconds: restartCountdown })}{/if}
+              {/if}
             </span>
             <div class="flex-1"></div>
-            {#if isActive(selected.state)}
-              <button class="btn" disabled={busy} onclick={() => stop(selected!.id)} title="Stop (Ctrl+Enter)">
-                <Square size={13} /> Stop
-              </button>
-              <button
-                class="btn"
-                disabled={busy || selected.state === "restarting"}
-                onclick={() => restart(selected!.id)}
-                title="Restart (Ctrl+Shift+R)"
-              >
-                <RotateCw size={13} /> Restart
+            {#if selected.disabled}
+              <button class="btn btn-primary" disabled={busy} onclick={() => enable(selected!.id)} title={t("app.enableHint")}>
+                <CirclePower size={13} />
+                {t("app.enable")}
               </button>
             {:else}
-              <button class="btn btn-primary" disabled={busy} onclick={() => start(selected!.id)} title="Start (Ctrl+Enter)">
-                <Play size={13} /> Start
+              {#if isActive(selected.state)}
+                <button class="btn" disabled={busy} onclick={() => stop(selected!.id)} title={t("app.stopHint")}>
+                  <Square size={13} />
+                  {t("app.stop")}
+                </button>
+                <button
+                  class="btn"
+                  disabled={busy || selected.state === "restarting"}
+                  onclick={() => restart(selected!.id)}
+                  title={t("app.restartHint")}
+                >
+                  <RotateCw size={13} />
+                  {t("app.restart")}
+                </button>
+              {:else}
+                <button class="btn btn-primary" disabled={busy} onclick={() => start(selected!.id)} title={t("app.startHint")}>
+                  <Play size={13} class="flip-rtl" />
+                  {t("app.start")}
+                </button>
+              {/if}
+              <button class="btn" disabled={busy} onclick={() => disable(selected!)} title={t("app.disableHint")}>
+                <Ban size={13} />
+                {t("app.disable")}
               </button>
             {/if}
           </div>
           {#if actionError}
             <p class="selectable alert mt-3" role="alert">{actionError}</p>
           {/if}
+          {#if selected.disabled}
+            <p class="alert alert-warn mt-3" role="status">{t("app.disabledNotice")}</p>
+          {/if}
           <div class="mt-3 flex gap-1" role="tablist">
-            {#each tabs as [t, label], i}
+            {#each tabs as tb, i}
               <button
                 role="tab"
-                aria-selected={tab === t}
-                class="-mb-px border-b-2 px-3 py-2 text-[13px] {tab === t
+                aria-selected={tab === tb}
+                class="-mb-px border-b-2 px-3 py-2 text-[13px] {tab === tb
                   ? 'border-accent font-medium text-fg'
                   : 'border-transparent text-fg-muted hover:text-fg'}"
-                onclick={() => (tab = t)}
-                title="Ctrl+{i + 1}">{label}</button
+                onclick={() => (tab = tb)}
+                title="Ctrl+{i + 1}">{tabLabel(tb)}</button
               >
             {/each}
           </div>
@@ -339,10 +492,12 @@
         {/key}
       {:else if loaded && !agentError}
         <div class="m-auto flex flex-col items-center gap-3 text-center">
-          <p class="text-base font-semibold">No apps yet</p>
-          <p class="max-w-xs text-[13px] text-fg-muted">Pick a folder. Keeprun detects how to run it and keeps it running.</p>
-          <button class="btn btn-primary mt-1" onclick={() => (adding = true)}><Plus size={15} /> Add your first app</button>
-          <p class="mt-2 text-xs text-fg-muted"><span class="kbd">Ctrl N</span> add app, <span class="kbd">Ctrl K</span> search</p>
+          <p class="text-base font-semibold">{t("app.emptyTitle")}</p>
+          <p class="max-w-xs text-[13px] text-fg-muted">{t("app.emptyBody")}</p>
+          <button class="btn btn-primary mt-1" onclick={() => (adding = true)}><Plus size={15} /> {t("app.emptyAction")}</button>
+          <p class="mt-2 text-xs text-fg-muted">
+            {t("app.emptyKeys", { addKey: "Ctrl N", searchKey: "Ctrl K" })}
+          </p>
         </div>
       {/if}
     </main>
@@ -351,9 +506,11 @@
 
 {#if adding}
   <AddAppDialog
-    onclose={() => (adding = false)}
+    folder={addFolder}
+    onclose={() => ((adding = false), (addFolder = undefined))}
     onadded={(app) => {
       adding = false;
+      addFolder = undefined;
       select(app.id, "logs");
       refresh();
     }}
@@ -362,6 +519,10 @@
 
 {#if agentOpen}
   <AgentDialog {conn} onclose={() => (agentOpen = false)} onchanged={refresh} onupdate={() => ((agentOpen = false), (updateOpen = true))} />
+{/if}
+
+{#if prefsOpen}
+  <PreferencesDialog onclose={() => (prefsOpen = false)} />
 {/if}
 
 {#if updateOpen}

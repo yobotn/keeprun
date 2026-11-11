@@ -72,6 +72,9 @@ pub struct AppSpec {
     /// One-off commands run on demand, e.g. a database migration.
     #[serde(default)]
     pub tasks: Vec<TaskSpec>,
+    /// Kept but switched off: cannot start, never autostarts. The UI lists it apart.
+    #[serde(default)]
+    pub disabled: bool,
 }
 
 /// A saved one-off command for an app. Runs in the app folder with the app environment.
@@ -136,6 +139,7 @@ pub struct UpdateApp {
     pub restart: Option<RestartPolicy>,
     pub max_restarts: Option<u32>,
     pub tasks: Option<Vec<TaskSpec>>,
+    pub disabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

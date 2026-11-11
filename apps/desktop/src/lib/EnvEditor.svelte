@@ -2,6 +2,7 @@
   import { open } from "@tauri-apps/plugin-dialog";
   import { Eye, EyeOff, FileInput, Lock, LockOpen, Plus, Trash2 } from "@lucide/svelte";
   import { api, desktop, isActive, type AppView } from "./api";
+  import { t } from "./i18n/index.svelte";
 
   let { app, onsaved }: { app: AppView; onsaved: () => void } = $props();
 
@@ -54,7 +55,7 @@
 
   async function importFile() {
     error = "";
-    const file = await open({ multiple: false, title: "Import .env file", defaultPath: app.cwd });
+    const file = await open({ multiple: false, title: t("env.importTitle"), defaultPath: app.cwd });
     if (typeof file !== "string") return;
     try {
       const vars = await desktop.readEnvFile(file);
@@ -71,7 +72,7 @@
   async function save() {
     error = "";
     if (duplicate) {
-      error = `${duplicate} is listed twice. Keep one.`;
+      error = t("env.duplicate", { name: duplicate });
       return;
     }
     const clean = rows.filter((r) => r.key.trim());
@@ -101,20 +102,18 @@
 
 <div class="flex min-h-0 flex-1 flex-col">
   <div class="flex items-center gap-2 border-b border-border px-6 py-2.5">
-    <p class="flex-1 text-xs text-fg-muted">
-      Passed to the app on start. Secret values are encrypted on disk with Windows DPAPI.
-    </p>
-    <button class="btn" onclick={importFile}><FileInput size={14} /> Import .env</button>
-    <button class="btn" onclick={addRow}><Plus size={14} /> Add variable</button>
+    <p class="flex-1 text-xs text-fg-muted">{t("env.intro")}</p>
+    <button class="btn" onclick={importFile}><FileInput size={14} /> {t("env.import")}</button>
+    <button class="btn" onclick={addRow}><Plus size={14} /> {t("env.add")}</button>
   </div>
 
   <div class="flex-1 overflow-auto px-6 py-3">
     {#if rows.length === 0}
-      <p class="py-6 text-sm text-fg-muted">No variables. Add one or import a .env file.</p>
+      <p class="py-6 text-sm text-fg-muted">{t("env.none")}</p>
     {:else}
       <div class="grid grid-cols-[minmax(140px,1fr)_2fr_auto] items-center gap-x-2 gap-y-1.5">
-        <span class="text-xs font-medium text-fg-muted">Name</span>
-        <span class="text-xs font-medium text-fg-muted">Value</span>
+        <span class="text-xs font-medium text-fg-muted">{t("env.name")}</span>
+        <span class="text-xs font-medium text-fg-muted">{t("env.value")}</span>
         <span></span>
         {#each rows as row, i}
           <input
@@ -123,29 +122,29 @@
             bind:value={row.key}
             placeholder="NAME"
             spellcheck="false"
-            aria-label="Variable name"
+            aria-label={t("env.nameLabel")}
           />
           <input
             class="input font-mono"
             type={row.secret && !row.reveal ? "password" : "text"}
             bind:value={row.value}
             spellcheck="false"
-            aria-label="Value of {row.key || 'new variable'}"
+            aria-label={t("env.valueLabel", { name: row.key || t("env.newVariable") })}
           />
           <div class="flex items-center">
             {#if row.secret}
-              <button class="btn-icon" onclick={() => (row.reveal = !row.reveal)} title={row.reveal ? "Hide value" : "Show value"}>
+              <button class="btn-icon" onclick={() => (row.reveal = !row.reveal)} title={t(row.reveal ? "env.hide" : "env.show")}>
                 {#if row.reveal}<EyeOff size={14} />{:else}<Eye size={14} />{/if}
               </button>
             {/if}
             <button
               class="btn-icon {row.secret ? '!text-accent' : ''}"
               onclick={() => (row.secret = !row.secret)}
-              title={row.secret ? "Secret. Click to store as plain text." : "Plain text. Click to mark as secret."}
+              title={t(row.secret ? "env.secret" : "env.plain")}
             >
               {#if row.secret}<Lock size={14} />{:else}<LockOpen size={14} />{/if}
             </button>
-            <button class="btn-icon hover:!text-danger" onclick={() => rows.splice(i, 1)} title="Remove variable">
+            <button class="btn-icon hover:!text-danger" onclick={() => rows.splice(i, 1)} title={t("env.removeVar")}>
               <Trash2 size={14} />
             </button>
           </div>
@@ -160,14 +159,14 @@
         <p class="alert flex-1" role="alert">{error}</p>
       {:else if saved}
         <p class="flex-1 text-sm text-fg-muted">
-          Saved.{isActive(app.state) ? " Restart the app to apply." : ""}
+          {t("common.saved")}{isActive(app.state) ? ` ${t("env.restartToApply")}` : ""}
         </p>
       {:else}
-        <p class="flex-1 text-sm text-fg-muted">Unsaved changes</p>
+        <p class="flex-1 text-sm text-fg-muted">{t("common.unsaved")}</p>
       {/if}
       {#if dirty}
-        <button class="btn" onclick={discard}>Discard</button>
-        <button class="btn btn-primary" onclick={save} disabled={saving}>{saving ? "Saving" : "Save"}</button>
+        <button class="btn" onclick={discard}>{t("common.discard")}</button>
+        <button class="btn btn-primary" onclick={save} disabled={saving}>{t(saving ? "common.saving" : "common.save")}</button>
       {/if}
     </div>
   {/if}

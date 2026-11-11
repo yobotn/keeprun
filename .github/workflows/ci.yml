@@ -47,6 +47,9 @@ jobs:
       - name: UI type check
         run: npm --prefix apps/desktop run check
 
+      - name: Translations
+        run: node scripts/i18n-check.mjs
+
       - name: Rust format
         run: cargo fmt --all --check
 

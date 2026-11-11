@@ -275,6 +275,9 @@ fn mb(bytes: u64) -> String {
 }
 
 fn status_text(a: &AppView) -> String {
+    if a.spec.disabled {
+        return "Disabled".into();
+    }
     match (a.state, a.exit_code) {
         (AppState::Exited, Some(c)) => format!("Exited {c}"),
         (AppState::Restarting, _) => format!("Restarting ({})", a.restarts),

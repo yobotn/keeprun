@@ -6,6 +6,12 @@
 
 !include "FileFunc.nsh"
 
+!macro KEEPRUN_FOLDER_MENU KEY
+  WriteRegStr HKLM "Software\Classes\${KEY}" "" "Open with Keeprun"
+  WriteRegStr HKLM "Software\Classes\${KEY}" "Icon" '"$INSTDIR\keeprun-desktop.exe",0'
+  WriteRegStr HKLM "Software\Classes\${KEY}\command" "" '"$INSTDIR\keeprun-desktop.exe" "%V"'
+!macroend
+
 !macro NSIS_HOOK_PREINSTALL
   ; Stop a running agent so its files can be replaced on upgrade. Apps restart with it.
   nsExec::ExecToLog '"$SYSDIR\net.exe" stop KeeprunAgent'
@@ -27,6 +33,11 @@
     SetRegView 64
     WriteRegDWORD HKLM "SOFTWARE\Policies\Keeprun" "DisableUpdates" 1
   ${EndIf}
+  ; Explorer "Open with Keeprun" on folders and on the empty space inside a folder.
+  ; On Windows 11 it is under "Show more options" (Shift+F10).
+  SetRegView 64
+  !insertmacro KEEPRUN_FOLDER_MENU "Directory\shell\Keeprun"
+  !insertmacro KEEPRUN_FOLDER_MENU "Directory\Background\shell\Keeprun"
   nsExec::ExecToLog '"$INSTDIR\keeprun-agent.exe" install --env prod --port "$R1"'
   Pop $0
   ${If} $0 != 0
@@ -38,4 +49,7 @@
   ; Stops and removes the service and the PATH entry. Data in C:\ProgramData\Keeprun is kept.
   nsExec::ExecToLog '"$INSTDIR\keeprun-agent.exe" uninstall --env prod'
   Pop $0
+  SetRegView 64
+  DeleteRegKey HKLM "Software\Classes\Directory\shell\Keeprun"
+  DeleteRegKey HKLM "Software\Classes\Directory\Background\shell\Keeprun"
 !macroend

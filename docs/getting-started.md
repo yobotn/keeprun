@@ -5,6 +5,7 @@
 Run `Keeprun_<version>_x64-setup.exe` or `Keeprun_<version>_x64_en-US.msi`. The installer:
 
 - installs the desktop app, the `keeprun-agent` service and the `keeprun` CLI,
+- adds **Open with Keeprun** to the Explorer menu for folders,
 - registers the **Keeprun Agent** service (starts on boot, restarts itself if it crashes),
 - gives the installing user access to the agent, and adds the CLI to PATH.
 
@@ -24,6 +25,11 @@ For silent installs, see [deployment.md](deployment.md).
    like secrets (`PASSWORD`, `TOKEN`, `API_KEY` and so on) are encrypted.
 4. Click **Save and start**. The Logs tab opens.
 
+You can also right-click a folder in Explorer, or the empty space inside one, and choose
+**Open with Keeprun** (on Windows 11 it is under **Show more options**). If the folder is already
+an app, Keeprun starts it and shows its logs. If not, the Add app dialog opens for that folder so
+you can pick what to run.
+
 Commands use full paths (for example `"C:\Program Files\nodejs\npm.cmd" run start`), so they
 work when the service runs as LocalSystem, which does not see per-user tools on PATH.
 
@@ -36,16 +42,32 @@ work when the service runs as LocalSystem, which does not see per-user tools on 
 | You click Stop | Ctrl+Break is sent, then the whole process tree is ended after the stop timeout. It stays stopped, also after a reboot. |
 | The server reboots | The service starts and starts every app that was running, if "Start with the agent" is on. |
 | The agent crashes | Windows ends every app tree (Job Objects), then restarts the service, which starts the apps again. |
+| You click Disable | The app is stopped and moved to the **Disabled** section. It cannot be started and does not start on boot until you click **Enable**. |
+
+## The window
+
+- The sidebar lists apps in three sections: **Running**, **Off** and **Disabled** (shown when an
+  app is disabled). Click a section heading to collapse it. Keeprun reopens the app and tab you
+  had open last.
+- Keeprun opens maximized. Closing the window keeps it in the notification area, where its icon
+  shows app health: green when all is well, yellow while apps start or stop, orange while an app
+  crashes and restarts, red when an app failed or the agent cannot be reached. No dot means
+  nothing is running. Turn this off in **Preferences** (the gear button) to quit on close.
+- **Preferences** also sets the language and theme. The UI is available in Arabic, Chinese
+  (Simplified), Dutch, English, French, German, Hebrew, Italian, Japanese, Korean, Polish,
+  Portuguese (Brazil), Russian, Spanish, Turkish and Ukrainian, and follows the Windows language by
+  default. Arabic and Hebrew use a right-to-left layout. Messages from the agent, such as events
+  and errors, stay in English.
 
 ## Keyboard
 
 | Keys | Action |
 |---|---|
-| Ctrl+K | Command palette: jump to an app, start, stop, open logs, change theme |
+| Ctrl+K | Command palette: jump to an app, start, stop, disable, open logs, change theme or language |
 | Ctrl+N | Add app |
 | Ctrl+Enter | Start or stop the selected app |
 | Ctrl+Shift+R | Restart the selected app |
-| Ctrl+1 to Ctrl+5 | Overview, Logs, Environment, Settings, Events |
+| Ctrl+1 to Ctrl+6 | Overview, Logs, Tasks, Environment, Settings, Events |
 | Alt+Up, Alt+Down | Previous or next app |
 | / or Ctrl+F | Search logs |
 | P, E, Shift+G | Logs: pause, errors only, jump to latest |

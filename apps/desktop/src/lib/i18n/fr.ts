@@ -1,0 +1,351 @@
+import type { Catalog } from "./en";
+
+// French (France). "vous", infinitive for commands. A no-break space ( ) goes before
+// ":" and inside « », as in Microsoft French.
+const catalog: Catalog = {
+  // General
+  "common.close": "Fermer (Esc)",
+  "common.cancel": "Annuler",
+  "common.save": "Enregistrer",
+  "common.saving": "Enregistrement",
+  "common.saved": "Enregistré.",
+  "common.discard": "Ignorer",
+  "common.unsaved": "Modifications non enregistrées",
+  "common.browse": "Parcourir",
+  "common.copied": "Copié",
+  "common.none": "Aucun",
+  "common.run": "Exécuter",
+  "common.remove": "Supprimer",
+  "common.chooseFolder": "Choisir le dossier de l'application",
+  "common.yes": "Oui",
+  "common.no": "Non",
+
+  // App states
+  "state.running": "En cours d'exécution",
+  "state.starting": "Démarrage",
+  "state.stopping": "Arrêt",
+  "state.stopped": "Arrêtée",
+  "state.exited": "Terminée",
+  "state.restarting": "Redémarrage",
+  "state.failed": "Échec",
+  "state.disabled": "Désactivée",
+
+  // Header
+  "header.search": "Rechercher",
+  "header.update": "Mettre à jour",
+  "header.updateAvailable": "La version {version} est disponible",
+  "header.agent": "Agent : {url}. Changer de port.",
+  "header.agentNotConnected": "non connecté",
+  "header.preferences": "Préférences",
+  "header.addApp": "Ajouter une application",
+  "header.addAppHint": "Ajouter une application (Ctrl+N)",
+  "header.devBadgeHint": "Agent {url}, données dans {dir}",
+
+  // Sidebar
+  "sidebar.label": "Applications",
+  "sidebar.running": "En cours",
+  "sidebar.off": "Arrêtées",
+  "sidebar.disabled": "Désactivées",
+  "sidebar.noneRunning": "Rien n'est en cours d'exécution.",
+  "sidebar.noneOff": "Toutes les applications sont en cours d'exécution.",
+  "sidebar.noApps": "Aucune application pour l'instant.",
+  "sidebar.untagged": "Sans étiquette",
+  "sidebar.switchHint": "pour basculer",
+  "sidebar.collapse": "Réduire {section}",
+  "sidebar.expand": "Développer {section}",
+
+  // Main app header
+  "app.exitCode": "(code {code})",
+  "app.restartIn": "dans {seconds} s",
+  "app.stop": "Arrêter",
+  "app.stopHint": "Arrêter (Ctrl+Enter)",
+  "app.restart": "Redémarrer",
+  "app.restartHint": "Redémarrer (Ctrl+Shift+R)",
+  "app.start": "Démarrer",
+  "app.startHint": "Démarrer (Ctrl+Enter)",
+  "app.disable": "Désactiver",
+  "app.disableHint":
+    "Arrête l'application et la place dans Désactivées. Elle ne démarre pas tant que vous ne l'avez pas activée.",
+  "app.enable": "Activer",
+  "app.enableHint": "Remet l'application dans la liste. Elle reste arrêtée jusqu'à ce que vous la démarriez.",
+  "app.disabledNotice":
+    "Cette application est désactivée. Elle ne peut pas être démarrée et ne démarre pas avec l'agent. Activez-la pour l'utiliser à nouveau.",
+  "app.emptyTitle": "Aucune application pour l'instant",
+  "app.emptyBody":
+    "Choisissez un dossier. Keeprun détecte comment l'exécuter et le maintient en cours d'exécution.",
+  "app.emptyAction": "Ajouter votre première application",
+  "app.emptyKeys": "{addKey} ajouter une application, {searchKey} rechercher",
+
+  // Tabs
+  "tab.overview": "Vue d'ensemble",
+  "tab.logs": "Journaux",
+  "tab.tasks": "Tâches",
+  "tab.environment": "Environnement",
+  "tab.settings": "Paramètres",
+  "tab.events": "Événements",
+
+  // Command palette
+  "palette.placeholder": "Rechercher des applications et des actions",
+  "palette.noMatches": "Aucun résultat.",
+  "palette.groupApps": "Applications",
+  "palette.groupGeneral": "Général",
+  "cmd.stop": "Arrêter {name}",
+  "cmd.restart": "Redémarrer {name}",
+  "cmd.start": "Démarrer {name}",
+  "cmd.disable": "Désactiver {name}",
+  "cmd.enable": "Activer {name}",
+  "cmd.openTab": "Ouvrir {tab}",
+  "cmd.runTask": "Exécuter la tâche {name}",
+  "cmd.openUrl": "Ouvrir {url}",
+  "cmd.openFolder": "Ouvrir le dossier",
+  "cmd.appLogs": "Journaux de {name}",
+  "cmd.add": "Ajouter une application",
+  "cmd.agent": "Paramètres de l'agent (port)",
+  "cmd.preferences": "Préférences (langue, thème, zone de notification)",
+  "cmd.update": "Mettre à jour vers {version}",
+  "cmd.checkUpdate": "Rechercher des mises à jour",
+  "cmd.themeSystem": "Thème : utiliser le paramètre système",
+  "cmd.themeLight": "Thème : clair",
+  "cmd.themeDark": "Thème : sombre",
+  "cmd.language": "Langue : {language}",
+
+  // Theme button
+  "theme.title": "Thème : {theme}. Cliquez pour le changer.",
+  "theme.system": "paramètre système",
+  "theme.light": "clair",
+  "theme.dark": "sombre",
+
+  // Preferences dialog
+  "prefs.title": "Préférences",
+  "prefs.language": "Langue",
+  "prefs.languageSystem": "Utiliser la langue de Windows ({language})",
+  "prefs.theme": "Thème",
+  "prefs.themeSystem": "Système",
+  "prefs.themeLight": "Clair",
+  "prefs.themeDark": "Sombre",
+  "prefs.tray": "Conserver Keeprun dans la zone de notification",
+  "prefs.trayHint":
+    "Quand vous fermez la fenêtre, Keeprun reste dans la zone de notification. Son icône indique l'état des applications : vert si tout va bien, jaune pendant le démarrage ou l'arrêt d'applications, orange quand une application plante et redémarre, rouge quand une application est en échec ou que l'agent est inaccessible.",
+  "prefs.trayOffHint":
+    "Quand vous fermez la fenêtre, l'application de bureau se ferme. Les applications continuent de s'exécuter dans le service de l'agent.",
+
+  // Tray (sent to the desktop shell, shown by Windows)
+  "tray.show": "Afficher Keeprun",
+  "tray.quit": "Quitter Keeprun",
+  "tray.summary": "Applications en cours d'exécution : {running} sur {total}",
+  "tray.noApps": "Aucune application",
+  "tray.failed": {
+    one: "{count} application en échec",
+    many: "{count} applications en échec",
+    other: "{count} applications en échec",
+  },
+  "tray.restarting": {
+    one: "{count} application en cours de redémarrage",
+    many: "{count} applications en cours de redémarrage",
+    other: "{count} applications en cours de redémarrage",
+  },
+  "tray.unreachable": "Agent inaccessible",
+
+  // Overview
+  "overview.restarting":
+    "Terminée avec le code {code}. Redémarrage dans {seconds} s (tentative {attempt}).",
+  "overview.restartingOf":
+    "Terminée avec le code {code}. Redémarrage dans {seconds} s (tentative {attempt} sur {max}).",
+  "overview.unknownCode": "inconnu",
+  "overview.failed":
+    "Redémarrages interrompus après {max} plantages consécutifs. Consultez les journaux, corrigez la cause, puis cliquez sur Démarrer.",
+  "overview.cpu": "Processeur",
+  "overview.memory": "Mémoire",
+  "overview.uptime": "Temps d'activité",
+  "overview.processes": "Processus",
+  "overview.cannotOpen": "Impossible d'ouvrir {what} : {error}",
+  "overview.theFolder": "le dossier",
+  "overview.url": "URL",
+  "overview.openBrowser": "Ouvrir dans le navigateur",
+  "overview.copyUrl": "Copier l'URL",
+  "overview.notListening": "issu de PORT, pas en écoute",
+  "overview.folder": "Dossier",
+  "overview.openFolder": "Ouvrir le dossier",
+  "overview.command": "Commande",
+  "overview.pid": "PID",
+  "overview.restart": "Redémarrage",
+  "overview.policyNever": "Jamais",
+  "overview.policyOnFailure": "En cas d'échec",
+  "overview.policyAlways": "Toujours",
+  "overview.upTo": "{policy}, jusqu'à {count} fois consécutives",
+  "overview.upToUnlimited": "{policy}, sans limite de fois consécutives",
+  "overview.autostart": "Démarrer avec l'agent",
+  "overview.autostartYes": "Oui, sauf si un utilisateur l'a arrêtée",
+  "overview.tags": "Étiquettes",
+  "overview.recentEvents": "Événements récents",
+  "overview.allEvents": "Tous les événements",
+
+  // Events
+  "events.none": "Aucun événement pour l'instant.",
+
+  // Logs
+  "logs.search": "Rechercher dans les journaux",
+  "logs.searchTask": "Rechercher dans la sortie de la tâche",
+  "logs.lines": { one: "{count} ligne", many: "{count} lignes", other: "{count} lignes" },
+  "logs.errors": "Erreurs",
+  "logs.errorsHint": "Afficher uniquement stderr (E)",
+  "logs.resume": "Reprendre (P)",
+  "logs.pause": "Suspendre (P)",
+  "logs.copy": "Copier les lignes visibles",
+  "logs.clear": "Effacer l'affichage",
+  "logs.paused": "En pause",
+  "logs.live": "En direct",
+  "logs.connecting": "Connexion",
+  "logs.noMatch": "Aucune ligne ne correspond.",
+  "logs.noOutput": "Aucune sortie pour l'instant.",
+  "logs.noTaskOutput": "Aucune sortie de tâche pour l'instant.",
+  "logs.taskBadge": "tâche",
+  "logs.taskBadgeHint": "Sortie de la tâche",
+  "logs.latest": "Plus récentes",
+
+  // Tasks
+  "tasks.intro":
+    "Les tâches sont des commandes ponctuelles, comme des migrations ou des installations. Elles s'exécutent dans le dossier de l'application avec son environnement, sans démarrer ni arrêter l'application.",
+  "tasks.edit": "Modifier {name}",
+  "tasks.remove": "Supprimer {name}",
+  "tasks.aTaskRunning": "Une tâche est en cours d'exécution",
+  "tasks.runName": "Exécuter {name}",
+  "tasks.none": "Aucune tâche enregistrée.",
+  "tasks.add": "Ajouter une tâche",
+  "tasks.oneOffPlaceholder": "Exécuter une commande une fois, par exemple npm run seed",
+  "tasks.oneOffLabel": "Commande à exécuter une fois",
+  "tasks.started": "Démarrée : {time}",
+  "tasks.stop": "Arrêter la tâche",
+  "tasks.outputHere": "La sortie de la tâche s'affiche ici.",
+  "tasks.nameLabel": "Nom de la tâche",
+  "tasks.commandLabel": "Commande de la tâche",
+  "tasks.runningFor": "En cours d'exécution depuis {duration}",
+  "tasks.finished": "Terminée",
+  "tasks.finishedIn": "Terminée en {duration}",
+  "tasks.stopped": "Arrêtée",
+  "tasks.stoppedIn": "Arrêtée après {duration}",
+  "tasks.failed": "Échec avec le code de sortie {code}",
+  "tasks.failedIn": "Échec avec le code de sortie {code} après {duration}",
+
+  // Environment
+  "env.intro":
+    "Transmises à l'application au démarrage. Les valeurs secrètes sont chiffrées sur le disque avec DPAPI de Windows.",
+  "env.import": "Importer .env",
+  "env.importTitle": "Importer un fichier .env",
+  "env.add": "Ajouter une variable",
+  "env.none": "Aucune variable. Ajoutez-en une ou importez un fichier .env.",
+  "env.name": "Nom",
+  "env.value": "Valeur",
+  "env.nameLabel": "Nom de la variable",
+  "env.valueLabel": "Valeur de {name}",
+  "env.newVariable": "nouvelle variable",
+  "env.hide": "Masquer la valeur",
+  "env.show": "Afficher la valeur",
+  "env.secret": "Secret. Cliquez pour stocker en texte brut.",
+  "env.plain": "Texte brut. Cliquez pour marquer comme secret.",
+  "env.removeVar": "Supprimer la variable",
+  "env.duplicate": "{name} figure deux fois. Conservez-en une seule.",
+  "env.restartToApply": "Redémarrez l'application pour appliquer les modifications.",
+
+  // Settings
+  "settings.name": "Nom",
+  "settings.idHint": "L'ID de l'application reste {id} pour que les scripts continuent de fonctionner.",
+  "settings.folder": "Dossier",
+  "settings.command": "Commande",
+  "settings.detect": "Détecter",
+  "settings.nothingDetected": "Rien à exécuter n'a été détecté dans ce dossier.",
+  "settings.commandHint":
+    "S'exécute via cmd.exe dans le dossier. Les chemins complets fonctionnent quel que soit le compte.",
+  "settings.port": "Port",
+  "settings.portInvalid": "Le port doit être un nombre compris entre 1 et 65535, ou rester vide.",
+  "settings.portHint":
+    "Définit la variable PORT. Les commandes peuvent utiliser {port}, et les applications ASP.NET Core le reçoivent sous la forme {urls}. Deux applications ne peuvent pas partager un port.",
+  "settings.restart": "Redémarrer à la fin",
+  "settings.restartOnFailure": "En cas d'échec (code de sortie différent de 0)",
+  "settings.restartAlways": "Toujours",
+  "settings.restartNever": "Jamais",
+  "settings.maxRestarts": "Redémarrages consécutifs max.",
+  "settings.maxRestartsHint":
+    "Ensuite, l'application passe à l'état Échec. 0 signifie aucune limite. Attentes de 1 s, 2 s, 4 s, jusqu'à 60 s.",
+  "settings.autostart": "Démarrer avec l'agent",
+  "settings.autostartHint":
+    "Après un redémarrage de l'ordinateur ou de l'agent, l'application redémarre si elle était en cours d'exécution. Une application arrêtée reste arrêtée.",
+  "settings.tags": "Étiquettes",
+  "settings.tagsPlaceholder": "finance, interne",
+  "settings.tagsHint": "Séparées par des virgules. Les applications sont regroupées selon leur première étiquette.",
+  "settings.removeTitle": "Supprimer l'application",
+  "settings.removeHint":
+    "Supprime l'application et ses événements. Les journaux et le dossier sont conservés.",
+  "settings.removeName": "Supprimer {name}",
+  "settings.stopFirst": "Arrêtez d'abord l'application",
+  "settings.restartToApply":
+    "Redémarrez pour appliquer les modifications du dossier, de la commande ou du port.",
+
+  // Add app dialog
+  "add.title": "Ajouter une application",
+  "add.folder": "Dossier",
+  "add.detected": "Type détecté : {kind}.",
+  "add.detectedPort": "Type détecté : {kind}, port {port}.",
+  "add.kindCustom": "Personnalisé",
+  "add.name": "Nom",
+  "add.port": "Port",
+  "add.portHint": "Définit la variable PORT",
+  "add.command": "Commande",
+  "add.customCommand": "Commande personnalisée",
+  "add.tasksFound": {
+    one: "{count} tâche également trouvée : {names}. Elle est enregistrée, mais pas exécutée. Exécutez-la depuis l'onglet Tâches.",
+    many: "{count} tâches également trouvées : {names}. Elles sont enregistrées, mais pas exécutées. Exécutez-les depuis l'onglet Tâches.",
+    other:
+      "{count} tâches également trouvées : {names}. Elles sont enregistrées, mais pas exécutées. Exécutez-les depuis l'onglet Tâches.",
+  },
+  "add.importEnv": {
+    one: "Importer {count} variable depuis .env (les secrets sont chiffrés)",
+    many: "Importer {count} variables depuis .env (les secrets sont chiffrés)",
+    other: "Importer {count} variables depuis .env (les secrets sont chiffrés)",
+  },
+  "add.startNow": "Démarrer maintenant",
+  "add.chooseFolder": "Choisissez le dossier qui contient l'application.",
+  "add.saveAndStart": "Enregistrer et démarrer",
+
+  // Agent dialog
+  "agent.title": "Agent",
+  "agent.environment": "Environnement",
+  "agent.address": "Adresse",
+  "agent.dataFolder": "Dossier de données",
+  "agent.version": "Version",
+  "agent.updateTo": "Mettre à jour vers {version}",
+  "agent.checking": "Recherche",
+  "agent.check": "Rechercher des mises à jour",
+  "agent.upToDate": "À jour",
+  "agent.port": "Port",
+  "agent.changing": "Modification",
+  "agent.changePort": "Changer de port",
+  "agent.devHint":
+    "Enregistré dans config/dev.local.toml. Redémarrez l'agent de développement pour l'utiliser.",
+  "agent.prodHint":
+    "Windows demande l'approbation d'un administrateur. L'agent redémarre sur le nouveau port et les applications qui étaient en cours d'exécution redémarrent. La CLI suit automatiquement.",
+  "agent.terminal": "Depuis un terminal :",
+
+  // Update dialog
+  "update.title": "Mettre à jour Keeprun",
+  "update.available": "La version {version} est disponible. Vous avez la version {current}.",
+  "update.released": "Date de publication : {date}.",
+  "update.hint":
+    "Windows demande l'approbation d'un administrateur. Le programme d'installation met à jour l'application de bureau, le service de l'agent et la CLI, puis redémarre le service. Les applications qui étaient en cours d'exécution redémarrent.",
+  "update.none": "Aucune mise à jour disponible.",
+  "update.installing": "Lancement du programme d'installation. Keeprun se ferme pendant son exécution.",
+  "update.downloading": "Téléchargement : {done}",
+  "update.downloadingOf": "Téléchargement : {done} sur {total}",
+  "update.later": "Plus tard",
+  "update.updating": "Mise à jour",
+  "update.install": "Installer et redémarrer",
+
+  // Errors raised in the UI
+  "error.noToken": "Aucun jeton d'agent.",
+  "error.unreachableDev":
+    "Impossible de joindre l'agent de développement à l'adresse {url}. Démarrez-le avec « npm run dev:agent ».",
+  "error.unreachableProd":
+    "Impossible de joindre le service Keeprun à l'adresse {url}. Démarrez le service « Keeprun Agent » dans services.msc.",
+};
+
+export default catalog;

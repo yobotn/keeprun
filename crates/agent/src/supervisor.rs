@@ -250,7 +250,7 @@ impl Supervisor {
     /// Start apps the user left running, when they allow start with the agent.
     pub fn autostart(self: &Arc<Self>) -> Result<()> {
         for stored in self.db.load_apps()? {
-            if stored.desired_running && stored.spec.autostart {
+            if stored.desired_running && stored.spec.autostart && !stored.spec.disabled {
                 if let Ok(m) = self.get(&stored.spec.id) {
                     if let Some(generation) = Self::begin(&m, None, false) {
                         tracing::info!(app = %stored.spec.id, "autostart");
@@ -381,6 +381,7 @@ impl Supervisor {
             restart: new.restart,
             max_restarts: new.max_restarts,
             tasks,
+            disabled: false,
         };
         {
             let mut apps = self.apps.write().unwrap();
@@ -440,6 +441,14 @@ impl Supervisor {
         }
         if let Some(v) = u.tasks {
             spec.tasks = clean_tasks(v)?;
+        }
+        if let Some(v) = u.disabled {
+            if v && !before.disabled && m.state().is_active() {
+                return Err(SupError::Conflict(format!(
+                    "App \"{id}\" is running. Stop it before disabling it."
+                )));
+            }
+            spec.disabled = v;
         }
         Self::validate(&spec.name, &spec.cwd, &spec.command)?;
         if job::port_of(&spec.env) != job::port_of(&before.env) {
@@ -507,6 +516,11 @@ impl Supervisor {
     /// User start. Clears a Failed state and the restart counter.
     pub fn start(self: &Arc<Self>, id: &str) -> Result<AppView, SupError> {
         let m = self.get(id)?;
+        if m.spec.read().unwrap().disabled {
+            return Err(SupError::Conflict(format!(
+                "App \"{id}\" is disabled. Enable it before starting it."
+            )));
+        }
         let Some(generation) = Self::begin(&m, None, true) else {
             let s = m.state().to_string().to_lowercase();
             return Err(SupError::Conflict(format!("App \"{id}\" is already {s}.")));
@@ -1088,6 +1102,16 @@ fn describe_changes(a: &AppSpec, b: &AppSpec) -> String {
     if a.tasks != b.tasks {
         parts.push("tasks".into());
     }
+    if a.disabled != b.disabled {
+        parts.push(
+            if b.disabled {
+                "state to disabled"
+            } else {
+                "state to enabled"
+            }
+            .into(),
+        );
+    }
     parts.join(", ")
 }
 
@@ -1206,6 +1230,48 @@ mod tests {
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
+    }
+
+    #[tokio::test]
+    async fn disabled_apps_do_not_start() {
+        let s = sup("disabled");
+        let id = app(
+            &s,
+            "sleeper",
+            "ping -n 60 127.0.0.1 >nul",
+            RestartPolicy::Never,
+            5,
+        );
+        let disable = || UpdateApp {
+            disabled: Some(true),
+            ..Default::default()
+        };
+
+        // A running app must be stopped first.
+        s.start(&id).unwrap();
+        assert!(matches!(
+            s.update(&id, disable()),
+            Err(SupError::Conflict(_))
+        ));
+        s.stop(&id).await.unwrap();
+        wait_for(&s, &id, AppState::Stopped, 10).await;
+
+        assert!(s.update(&id, disable()).unwrap().spec.disabled);
+        assert!(matches!(s.start(&id), Err(SupError::Conflict(_))));
+
+        let enabled = s
+            .update(
+                &id,
+                UpdateApp {
+                    disabled: Some(false),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert!(!enabled.spec.disabled);
+        assert_eq!(enabled.state, AppState::Stopped);
+        s.start(&id).unwrap();
+        s.stop(&id).await.unwrap();
     }
 
     #[tokio::test]

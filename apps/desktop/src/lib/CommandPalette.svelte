@@ -10,6 +10,7 @@
 
 <script lang="ts">
   import { Search } from "@lucide/svelte";
+  import { t } from "./i18n/index.svelte";
 
   let { commands, onclose }: { commands: Command[]; onclose: () => void } = $props();
 
@@ -70,7 +71,7 @@
       autofocus
       bind:value={query}
       {onkeydown}
-      placeholder="Search apps and actions"
+      placeholder={t("palette.placeholder")}
       class="h-12 flex-1 bg-transparent text-[15px] outline-none placeholder:text-fg-muted focus-visible:outline-none"
       role="combobox"
       aria-expanded="true"
@@ -97,10 +98,10 @@
         onkeydown={() => {}}
       >
         <span class="flex-1">{c.label}</span>
-        {#if c.hint}<span class="kbd">{c.hint}</span>{/if}
+        {#if c.hint}<span class="kbd" dir="ltr">{c.hint}</span>{/if}
       </li>
     {:else}
-      <li class="px-3 py-6 text-center text-sm text-fg-muted">No matches.</li>
+      <li class="px-3 py-6 text-center text-sm text-fg-muted">{t("palette.noMatches")}</li>
     {/each}
   </ul>
 </dialog>

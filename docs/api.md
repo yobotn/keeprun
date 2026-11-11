@@ -16,9 +16,9 @@ The full API is described in the [OpenAPI 3.1 specification](https://keeprun.app
 | GET | `/apps` | | `AppView[]` |
 | POST | `/apps` | `NewApp` | `AppView`, 201 |
 | GET | `/apps/{id}` | | `AppView` |
-| PATCH | `/apps/{id}` | any `NewApp` fields | `AppView` |
+| PATCH | `/apps/{id}` | any `NewApp` fields, and `disabled` | `AppView`. 409 when disabling a running app. |
 | DELETE | `/apps/{id}` | | 204. App must be stopped. |
-| POST | `/apps/{id}/start` | | `AppView`. 409 if running, 400 with the reason if it cannot start (port in use, missing folder). |
+| POST | `/apps/{id}/start` | | `AppView`. 409 if running or disabled, 400 with the reason if it cannot start (port in use, missing folder). |
 | POST | `/apps/{id}/stop` | | `AppView` |
 | POST | `/apps/{id}/restart` | | `AppView` |
 | POST | `/apps/{id}/tasks/run` | `{name}` (saved task) or `{command}` | `AppView` with `task`. Returns once started. 409 if a task is running. |
@@ -40,6 +40,7 @@ NewApp = {
 }
 AppView = NewApp & {
   id: string;
+  disabled: boolean;                                 // switched off: cannot start, never autostarts
   state: "stopped" | "starting" | "running" | "stopping" | "exited" | "restarting" | "failed";
   pid: number | null; exit_code: number | null; started_at: number | null;   // ms
   restarts: number; next_restart_at: number | null;

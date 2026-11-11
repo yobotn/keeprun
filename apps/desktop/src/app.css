@@ -70,8 +70,73 @@
   --color-danger: var(--danger);
   --color-warn: var(--warn);
   --color-log-bg: var(--log-bg);
-  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-sans: var(--ui-font);
   --font-mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+}
+
+/* UI font per script. Segoe UI Variable has no Arabic or Hebrew glyphs, and the browser's
+   fallback picks mismatched fonts, so each script gets the font Windows itself uses for it. */
+:root {
+  --ui-font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+:root:lang(ar) {
+  --ui-font: "Segoe UI", "Segoe UI Variable Text", Tahoma, sans-serif;
+}
+:root:lang(he) {
+  --ui-font: "Segoe UI", "Segoe UI Variable Text", Arial, sans-serif;
+}
+:root:lang(ja) {
+  --ui-font: "Segoe UI Variable Text", "Yu Gothic UI", "Meiryo UI", sans-serif;
+}
+:root:lang(ko) {
+  --ui-font: "Segoe UI Variable Text", "Malgun Gothic", sans-serif;
+}
+:root:lang(zh) {
+  --ui-font: "Segoe UI Variable Text", "Microsoft YaHei UI", sans-serif;
+}
+
+/* Arabic is cursive: letter spacing breaks the joins, and uppercase does nothing. Its glyphs
+   also sit small at Latin sizes, so the UI is set a little larger and looser. */
+:root:lang(ar) * {
+  letter-spacing: 0 !important;
+}
+:root:lang(ar) body {
+  font-size: 15px;
+  line-height: 1.6;
+}
+:root:lang(ar) [class*="text-[11px]"] {
+  font-size: 12px;
+}
+:root:lang(ar) [class*="text-[13px]"],
+:root:lang(ar) .btn,
+:root:lang(ar) .input,
+:root:lang(ar) .label {
+  font-size: 14px;
+}
+:root:lang(he) * {
+  letter-spacing: 0 !important;
+}
+
+/* Code, paths, commands and logs read left to right in every language. */
+.font-mono {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+input.font-mono,
+textarea.font-mono {
+  text-align: left;
+}
+
+/* Icons that point in the reading direction. */
+[dir="rtl"] .flip-rtl {
+  transform: scaleX(-1);
+}
+
+.chevron-collapsed {
+  transform: rotate(-90deg);
+}
+[dir="rtl"] .chevron-collapsed {
+  transform: rotate(90deg);
 }
 
 html,
@@ -203,6 +268,46 @@ select,
     background: color-mix(in srgb, var(--warn) 12%, transparent);
     color: var(--warn);
   }
+  .switch {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+    width: 32px;
+    height: 18px;
+  }
+  .switch input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    margin: 0;
+  }
+  .switch span {
+    width: 100%;
+    height: 100%;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--fg-muted) 45%, transparent);
+    pointer-events: none;
+  }
+  .switch span::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    inset-inline-start: 3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fff;
+  }
+  .switch input:checked + span {
+    background: var(--accent);
+  }
+  .switch input:checked + span::after {
+    inset-inline-start: 17px;
+  }
+  .switch input:focus-visible + span {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
   .dialog {
     margin: auto;
     padding: 0;
@@ -221,5 +326,11 @@ select,
   .btn,
   .btn-icon {
     transition: background-color 80ms ease;
+  }
+  .switch span,
+  .switch span::after {
+    transition:
+      background-color 120ms ease,
+      inset-inline-start 120ms ease;
   }
 }
