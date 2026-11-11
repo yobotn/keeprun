@@ -44,6 +44,11 @@ Keeprun replaces all of it with **one Windows service** that supervises every ap
 Windows 10 and 11 as well as Windows Server, from a developer laptop to a production VM. No
 Docker, no WSL, no cloud.
 
+It also helps while you develop. Add your dev server, API and workers once, and Keeprun keeps them
+running in the background, with no terminal tab per process. Your terminal stays free for the
+work itself, such as a coding agent like Claude Code, which can check `keeprun logs` and run
+`keeprun restart` instead of tying up a shell waiting on a server.
+
 ## Features
 
 <table>

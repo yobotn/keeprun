@@ -232,6 +232,26 @@ Applied 2 migrations
       </div>
     </section>
 
+    <section class="dev wrap" aria-labelledby="dev-h">
+      <div class="split">
+        <div>
+          <p class="kicker">For developers</p>
+          <h2 id="dev-h">Stop babysitting your dev servers</h2>
+          <p class="muted">Add your project once and Keeprun keeps the dev server, API and workers running in the background. No terminal tab per process, and no restarting them after a crash or a reboot.</p>
+          <p class="muted">Your terminal stays free for the work itself, such as a coding agent like Claude Code. It can read the logs and restart the app with the CLI, so it never ties up a shell waiting on a server.</p>
+        </div>
+        <div class="code-card">
+          <div class="code-head">{{icon:terminal}} Your terminal</div>
+<pre><code><span class="p">&gt;</span> keeprun add web --cwd C:\src\shop --start
+<span class="p">&gt;</span> keeprun add api --cwd C:\src\shop\api --start
+
+<span class="c"># Back to work. Check on them when you need to.</span>
+<span class="p">&gt;</span> keeprun logs api -n 50
+<span class="p">&gt;</span> keeprun restart api</code></pre>
+        </div>
+      </div>
+    </section>
+
     <section class="faq wrap" aria-labelledby="faq-h">
       <p class="kicker">FAQ</p>
       <h2 id="faq-h">Questions IT teams ask</h2>

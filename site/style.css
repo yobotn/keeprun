@@ -131,7 +131,7 @@ img { max-width: 100%; height: auto; display: block; }
 section { scroll-margin-top: 72px; }
 .kicker { margin: 0 0 10px; color: var(--accent); font-weight: 650; font-size: 13.5px; letter-spacing: 0.06em; text-transform: uppercase; }
 section h2 { font-size: clamp(28px, 4.2vw, 42px); font-weight: 720; letter-spacing: -0.03em; max-width: 24ch; }
-.problem, .features, .security, .cli, .faq { padding-top: 112px; }
+.problem, .features, .security, .cli, .dev, .faq { padding-top: 112px; }
 
 .cols { display: grid; gap: 20px; margin-top: 36px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 .col { border: 1px solid var(--border); border-radius: 16px; padding: 28px; background: var(--bg-raised); }
