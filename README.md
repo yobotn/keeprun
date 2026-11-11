@@ -1,143 +1,196 @@
 <div align="center">
 
-<img src="apps/desktop/app-icon.svg" width="96" alt="Keeprun logo" />
+<img src="apps/desktop/app-icon.svg" width="88" alt="Keeprun logo">
 
 # Keeprun
 
-### 🚀 Pick a folder. Click Run. It stays up.
+**Keep internal apps running on Windows Server.**
 
-**Run your internal Node, .NET and Python apps on Windows as real services, with no Docker, no WSL and no Hyper-V.**
+Point Keeprun at a folder. It detects Node, .NET or Python, runs the app under a Windows service,
+restarts it when it crashes and brings it back after a reboot.
 
-[🌐 keeprun.app](https://keeprun.app) · [⚡ Get started](docs/getting-started.md) · [📦 Deploy at scale](docs/deployment.md) · [⌨️ CLI](docs/cli.md)
+[Website](https://keeprun.app) &nbsp;&middot;&nbsp; [Download](https://github.com/yobotn/keeprun/releases/latest) &nbsp;&middot;&nbsp; [Getting started](docs/getting-started.md) &nbsp;&middot;&nbsp; [Deploy at scale](docs/deployment.md) &nbsp;&middot;&nbsp; [CLI](docs/cli.md)
 
-![Windows](https://img.shields.io/badge/Windows-10%2B%20%7C%20Server-0078D6?logo=windows&logoColor=white)
-![Rust](https://img.shields.io/badge/Rust-agent-B7410E?logo=rust&logoColor=white)
-![Tauri](https://img.shields.io/badge/Tauri%202-desktop-24C8DB?logo=tauri&logoColor=white)
-![License](https://img.shields.io/badge/license-Apache%202.0-green)
+[![Latest release](https://img.shields.io/github/v/release/yobotn/keeprun?label=release&color=22c55e)](https://github.com/yobotn/keeprun/releases/latest)
+[![CI](https://github.com/yobotn/keeprun/actions/workflows/ci.yml/badge.svg)](https://github.com/yobotn/keeprun/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+![Windows Server 2016+](https://img.shields.io/badge/Windows%20Server-2016%2B-0078D6)
+
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshot-dark.png">
+  <img src="docs/assets/screenshot-light.png" width="900" alt="Keeprun desktop app with HR Portal running: CPU, memory, uptime, URL, folder, command and recent events.">
+</picture>
 
 </div>
 
----
+## Why
 
-## 😩 The problem
+Internal apps on Windows usually run as a `.bat` in a Startup folder, a Scheduled Task, or a
+service wrapper someone set up years ago. A crash goes unnoticed until users call. Logs live in a
+console window nobody sees. Connection strings sit in plain text.
 
-Your company has a dozen internal dashboards, APIs and tools running on Windows Server VMs.
-Today they stay alive thanks to some mix of **NSSM**, **Task Scheduler**, **PM2 hacks** and
-someone RDP-ing in at 2am to restart `node.exe`.
+Keeprun replaces that with **one Windows service** that supervises every app on the server, a
+**desktop app** to see and control them, and a **CLI** for scripts and remote sessions. No Docker,
+no WSL, no cloud.
 
-Docker Desktop? There's no nested virtualization, it needs a license, and IT says no.
+## Features
 
-## ✨ The fix
+<table>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/assets/icons/folder-search.svg" width="20" align="left">&nbsp;<b>Detects how to run it</b><br>
+npm, pnpm, yarn and bun scripts, .NET projects and published builds, Python with venv, uvicorn,
+Flask and Django. Or any command line.
+</td>
+<td width="50%" valign="top">
+<img src="docs/assets/icons/rotate-ccw.svg" width="20" align="left">&nbsp;<b>Restarts on crash</b><br>
+Backoff from 1 second up to 60. After repeated crashes the app is marked Failed instead of
+looping forever.
+</td>
+</tr>
+<tr>
+<td valign="top">
+<img src="docs/assets/icons/power.svg" width="20" align="left">&nbsp;<b>Survives reboots</b><br>
+Apps that were running start with the server. Apps you stopped stay stopped.
+</td>
+<td valign="top">
+<img src="docs/assets/icons/list-tree.svg" width="20" align="left">&nbsp;<b>Ends the whole process tree</b><br>
+Each app runs in a Windows Job Object. Stop ends every child process, so the port is free for
+the next start.
+</td>
+</tr>
+<tr>
+<td valign="top">
+<img src="docs/assets/icons/scroll-text.svg" width="20" align="left">&nbsp;<b>Logs and events</b><br>
+Live output with search, rotated by size, plus a history of starts, stops, crashes and changes.
+</td>
+<td valign="top">
+<img src="docs/assets/icons/gauge.svg" width="20" align="left">&nbsp;<b>Health at a glance</b><br>
+CPU, memory, process count, uptime and the TCP ports each app actually listens on.
+</td>
+</tr>
+<tr>
+<td valign="top">
+<img src="docs/assets/icons/network.svg" width="20" align="left">&nbsp;<b>Ports without surprises</b><br>
+One port per app. Keeprun refuses duplicates and names the process holding a busy port.
+</td>
+<td valign="top">
+<img src="docs/assets/icons/list-checks.svg" width="20" align="left">&nbsp;<b>Tasks on demand</b><br>
+Migrations, seeds and installs are saved as tasks and run when you choose, with the app's
+environment.
+</td>
+</tr>
+<tr>
+<td valign="top">
+<img src="docs/assets/icons/lock-keyhole.svg" width="20" align="left">&nbsp;<b>Encrypted secrets</b><br>
+Secret environment values are stored with Windows DPAPI and masked in the UI. Import a
+<code>.env</code> and keys like <code>PASSWORD</code> and <code>TOKEN</code> are marked secret.
+</td>
+<td valign="top">
+<img src="docs/assets/icons/package.svg" width="20" align="left">&nbsp;<b>Built for IT</b><br>
+Silent MSI for Intune and SCCM, repair and in-place upgrades, signed updates you can turn off
+with Group Policy.
+</td>
+</tr>
+</table>
 
-Keeprun turns any app folder into a supervised, auto-restarting Windows service **in under 60
-seconds**. It comes with a desktop app your team will actually enjoy and a CLI for scripts.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logs-dark.png">
+  <img src="docs/assets/logs-light.png" width="900" alt="Keeprun log view streaming HR Portal request logs live.">
+</picture>
 
-```text
-📁 Pick folder  →  🔍 Stack detected  →  ▶️ Save and start  →  ✅ Running. Forever.
+## Install
+
+Download the MSI or setup.exe from the [latest release](https://github.com/yobotn/keeprun/releases/latest)
+or [keeprun.app](https://keeprun.app), then run it as Administrator. It installs:
+
+- **Keeprun Agent**, a Windows service that starts with the server
+- **Keeprun**, the desktop app
+- **`keeprun`**, the CLI, added to PATH
+
+Then open Keeprun, press **Add app** (`Ctrl+N`), pick the app folder and choose **Save and start**.
+
+### From a terminal
+
+```powershell
+keeprun add --cwd D:\apps\hr-portal --port 4100 --start   # detect, add, start
+keeprun list                                              # status, CPU, memory, ports
+keeprun logs hr-portal -f                                 # follow the logs
+keeprun run hr-portal db:migrate                          # run a saved task
 ```
 
----
+### On a fleet
 
-## 🔥 Features
+```powershell
+msiexec /i Keeprun_<version>_x64_en-US.msi /qn KEEPRUN_PORT=7171 KEEPRUN_DISABLE_UPDATES=1
+```
+
+| MSI property | Effect |
+|---|---|
+| `KEEPRUN_PORT` | Agent API port, default 7171 |
+| `KEEPRUN_USER` | User who may use the desktop app and CLI |
+| `KEEPRUN_DISABLE_UPDATES=1` | No update checks |
+| `KEEPRUN_UPDATE_URL` | Internal update mirror |
+
+Details in the [deployment guide](docs/deployment.md).
+
+## Compared with the usual setup
+
+| | Keeprun | Service wrapper per app (NSSM, WinSW) | Task Scheduler |
+|---|:---:|:---:|:---:|
+| One service for every app on the server | Yes | No, one service per app | No |
+| Detects how to run Node, .NET and Python apps | Yes | No | No |
+| Live logs and health for all apps in one UI | Yes | No | No |
+| Secret environment values encrypted at rest | Yes | No | No |
+| Restart with backoff, then stop retrying | Yes | Configurable | Limited |
+
+## Security
+
+<img src="docs/assets/icons/shield-check.svg" width="18" align="left">&nbsp;The API listens on `127.0.0.1` only and requires a token that only SYSTEM, Administrators and
+the **Keeprun Users** group can read. Secrets are encrypted with DPAPI. There is no telemetry and
+no account. Updates are signed, need administrator approval, and can be turned off by policy.
+Read the [security model](docs/security.md).
+
+## Documentation
 
 | | |
 |---|---|
-| 🔍 **Smart stack detection** | Finds Node (npm, pnpm, yarn, bun), .NET, Python (venv, uvicorn, Flask, Django) and custom `.exe`, `.bat` and `.ps1` apps, then suggests the right command with full paths that work under LocalSystem. |
-| 🛡️ **No zombie processes** | Every app runs in its own Windows Job Object. Stop kills the **whole process tree**, so nothing is left behind holding your port. |
-| ♻️ **Self-healing** | Crashed apps restart with exponential backoff, come back after a reboot, and get marked **Failed** if they keep crashing, so a broken app can't hammer your server. |
-| 📜 **Live logs** | Stream logs in real time with search. No more digging through `C:\whatever\out.log`. |
-| 🔐 **Encrypted secrets** | Environment editor with DPAPI encryption. Import a `.env` and keys like `PASSWORD`, `TOKEN` and `API_KEY` get encrypted automatically. |
-| 📊 **Know what's running** | CPU, memory, listening ports and a full event history: started, crashed, restarted, changed. |
-| 🧰 **Saved tasks** | One-click migrations, seeds and builds that run in the app folder with the app's environment. |
-| 🏢 **Enterprise-ready installers** | MSI and NSIS with silent install for **Intune** and **SCCM**. |
-| ⌨️ **CLI included** | Everything the UI can do, scriptable, with `--json` output. |
+| [Getting started](docs/getting-started.md) | Install and add your first app |
+| [Deployment](docs/deployment.md) | Silent install, upgrades, repair, access, updates, signing |
+| [Configuration](docs/configuration.md) | Settings, dev and prod environments |
+| [CLI](docs/cli.md) | Every command, tasks, JSON output |
+| [Agent API](docs/api.md) | Local HTTP and WebSocket API |
+| [Security](docs/security.md) | Threat model and design choices |
+| [Troubleshooting](docs/troubleshooting.md) | Common problems and fixes |
+| [Releasing](docs/releasing.md) | Versioning, signing keys, website |
 
----
+## Development
 
-## ⚡ 60-second quickstart
+Keeprun is a Rust workspace with a Tauri 2 and Svelte 5 desktop app.
 
-1. 📥 Install `Keeprun_<version>_x64-setup.exe` (or the `.msi`).
-2. 🖱️ Open Keeprun and hit **Add app** (`Ctrl+N`).
-3. 📁 Pick your app folder. Keeprun figures out the rest.
-4. ▶️ Click **Save and start**.
+```
+crates/core      Settings, API types, stack detector, token
+crates/agent     keeprun-agent: Windows service, supervisor, SQLite, HTTP and WebSocket API
+crates/cli       keeprun: command line client
+apps/desktop     Desktop app and installer configuration
+site/            Website (keeprun.app), built with docs/ into GitHub Pages
+```
 
-That's it. 🎉 Reboot the server and it comes back on its own.
-
-### Prefer the terminal? 💻
+You need Windows 10 or later, Rust stable (MSVC), Node.js 20 or later and WebView2.
 
 ```powershell
-keeprun add my-api --cwd C:\apps\my-api --start   # detect, add and start
-keeprun list                                      # status, PID, CPU, memory, ports
-keeprun logs my-api -f                            # follow logs live
-keeprun run my-api migrate                        # run a saved task
+npm run setup    # UI dependencies
+npm run dev      # dev agent on 127.0.0.1:7181 and the desktop app with hot reload
+npm test         # Rust tests
+npm run lint     # clippy, rustfmt, text lint, svelte-check
+npm run build    # release binaries, MSI and setup.exe
 ```
 
----
+Dev and prod use separate ports, data folders and service names, so a dev build never touches
+an installed Keeprun. See [configuration](docs/configuration.md).
 
-## 🤔 Why not...?
+## License
 
-| | Keeprun | NSSM / WinSW | PM2 on Windows | Docker Desktop |
-|---|:---:|:---:|:---:|:---:|
-| Real Windows service | ✅ | ✅ | ⚠️ | ✅ |
-| Desktop UI | ✅ | ❌ | 💰 paid | ✅ |
-| Stack detection | ✅ | ❌ | ❌ | ❌ |
-| Kills the whole process tree | ✅ | ⚠️ | ⚠️ | ✅ |
-| Encrypted secrets | ✅ | ❌ | ❌ | ⚠️ |
-| No WSL or Hyper-V needed | ✅ | ✅ | ✅ | ❌ |
-| Silent install for Intune and SCCM | ✅ | ⚠️ | ❌ | ⚠️ |
-
----
-
-## 📚 Docs
-
-- 🏁 [Getting started](docs/getting-started.md)
-- 📦 [Deployment](docs/deployment.md): installers, silent install, upgrades, access, signing
-- ⚙️ [Configuration and environments](docs/configuration.md)
-- ⌨️ [CLI](docs/cli.md)
-- 🔌 [Agent API](docs/api.md)
-- 🔒 [Security model](docs/security.md)
-- 🩺 [Troubleshooting](docs/troubleshooting.md)
-- 🗺️ [Product plan](PLAN.md)
-
----
-
-## 🛠️ Contributing
-
-### 🏗️ How it's built
-
-```
-crates/core          Settings (dev / prod), API types, detector, token
-crates/agent         keeprun-agent: Windows service, supervisor, SQLite, HTTP + WebSocket API
-crates/cli           keeprun: command line client
-apps/desktop         Tauri 2 + Svelte 5 + Tailwind desktop app and installer config
-config/              Agent settings per environment
-scripts/             dev.ps1, build.ps1, text-lint.mjs
-docs/                Documentation
-tests/fixtures/      Test apps (process tree, crash loop)
-```
-
-### 🧑‍💻 Develop
-
-You need Windows 10+, Rust stable (MSVC), Node.js 20+ and WebView2.
-
-```powershell
-npm run setup        # UI dependencies
-npm run dev          # dev agent on 127.0.0.1:7181 + desktop app with hot reload
-npm run dev:cli -- list
-npm test             # Rust tests
-npm run lint         # clippy, rustfmt, text lint, svelte-check
-npm run build        # release binaries + MSI and NSIS installers (prod)
-```
-
-Dev and prod are fully separate (port, data folder, service name, config). See
-[configuration.md](docs/configuration.md).
-
----
-
-<div align="center">
-
-**📄 Apache 2.0** · Made for everyone who's tired of RDP-ing in to restart `node.exe` 💙
-
-⭐ **Star the repo if Keeprun saved your weekend!** ⭐
-
-</div>
+[Apache 2.0](LICENSE). Icons from [Lucide](https://lucide.dev) (ISC).

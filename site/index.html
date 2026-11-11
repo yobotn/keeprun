@@ -3,146 +3,285 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Keeprun</title>
-  <meta name="description" content="Run and supervise internal Node, .NET and Python apps on Windows Server. A Windows service, a desktop app and a CLI. Open source.">
+  <title>Keeprun | Run internal apps on Windows Server</title>
+  <meta name="description" content="Keeprun runs and supervises internal Node, .NET and Python apps on Windows Server. One Windows service, a desktop app and a CLI. Open source, Apache 2.0.">
   <meta property="og:title" content="Keeprun">
-  <meta property="og:description" content="Run and supervise internal apps on Windows Server.">
+  <meta property="og:description" content="Run and supervise internal apps on Windows Server. Restarts on crash, survives reboots, logs in one place.">
+  <meta property="og:image" content="https://keeprun.app/assets/screenshot-dark.png">
+  <meta property="og:url" content="https://keeprun.app/">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#111113">
   <link rel="icon" href="logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <a class="skip" href="#main">Skip to content</a>
   <header class="nav">
     <div class="wrap nav-inner">
       <a class="brand" href="./"><img src="logo.svg" alt="" width="28" height="28"> Keeprun</a>
       <nav aria-label="Main">
+        <a class="hide-sm" href="#features">Features</a>
+        <a class="hide-sm" href="#how">How it works</a>
+        <a class="hide-sm" href="#security">Security</a>
         <a href="docs/getting-started.html">Docs</a>
-        <a href="#download">Download</a>
-        <a href="https://github.com/{{REPO}}">GitHub</a>
+        <a class="icon-link" href="https://github.com/{{REPO}}" aria-label="GitHub">{{icon:github}}</a>
+        <a class="button small primary" href="#download">{{icon:download}} Download</a>
       </nav>
     </div>
   </header>
 
-  <main>
-    <section class="hero wrap">
-      <p class="eyebrow">Open source. Apache 2.0. For Windows Server.</p>
-      <h1>Keep internal apps running on Windows.</h1>
-      <p class="lead">
-        Point Keeprun at a folder. It detects Node, .NET or Python, runs the app under a Windows service,
-        restarts it when it crashes and starts it again after a reboot. Logs, environment and ports in one place.
-      </p>
-      <div class="cta">
-        <a class="button primary" href="{{MSI_URL}}">Download for Windows</a>
-        <a class="button" href="docs/getting-started.html">Get started</a>
+  <main id="main">
+    <section class="hero">
+      <div class="glow" aria-hidden="true"></div>
+      <div class="wrap">
+        <a class="pill" href="https://github.com/{{REPO}}/releases">{{VERSION_PILL}} {{icon:arrow-right}}</a>
+        <h1>Keep internal apps running on Windows Server.</h1>
+        <p class="lead">
+          Point Keeprun at a folder. It detects Node, .NET or Python, runs the app under a Windows service,
+          restarts it when it crashes and brings it back after a reboot. Logs, environment, ports and health
+          in one place, for every app on the server.
+        </p>
+        <div class="cta">
+          <a class="button primary" href="{{MSI_URL}}">{{icon:download}} Download for Windows</a>
+          <a class="button" href="docs/getting-started.html">Read the docs {{icon:arrow-right}}</a>
+        </div>
+        <ul class="trust" aria-label="Highlights">
+          <li>{{icon:circle-check}} Windows Server 2016 and later</li>
+          <li>{{icon:circle-check}} Silent MSI for Intune and SCCM</li>
+          <li>{{icon:circle-check}} No cloud, no telemetry</li>
+          <li>{{icon:circle-check}} Open source, Apache 2.0</li>
+        </ul>
+        <figure class="shot">
+          <picture>
+            <source srcset="assets/screenshot-dark.png" media="(prefers-color-scheme: dark)">
+            <img src="assets/screenshot-light.png" width="1650" height="1080" alt="Keeprun desktop app showing the HR Portal app running, with CPU, memory, uptime, its URL, folder, command and recent events.">
+          </picture>
+        </figure>
       </div>
-      <p class="meta">{{VERSION_LINE}}</p>
+    </section>
 
-      <div class="window" aria-label="Keeprun desktop app" role="img">
-        <div class="titlebar"><span></span><span></span><span></span></div>
-        <div class="app">
-          <aside>
-            <p class="group">Finance</p>
-            <p class="item active"><i class="dot ok"></i>hr-portal<em>:3001</em></p>
-            <p class="item"><i class="dot ok"></i>sales-api<em>:5080</em></p>
-            <p class="group">Reports</p>
-            <p class="item"><i class="dot"></i>nightly-export</p>
-            <p class="item"><i class="dot bad"></i>legacy-bot</p>
-          </aside>
-          <div class="detail">
-            <div class="head"><b>hr-portal</b><span class="state"><i class="dot ok"></i>Running</span></div>
-            <div class="tabs"><span class="on">Overview</span><span>Logs</span><span>Tasks</span><span>Environment</span><span>Settings</span></div>
-            <div class="stats">
-              <div><small>CPU</small><b>3%</b></div>
-              <div><small>Memory</small><b>142 MB</b></div>
-              <div><small>Uptime</small><b>4d 2h</b></div>
-              <div><small>Port</small><b>3001</b></div>
-            </div>
-            <div class="log">
-              <p><span>09:00:02</span>Started with the agent (PID 4120)</p>
-              <p><span>10:42:17</span>Exited with code 1. Restarting in 1s</p>
-              <p><span>10:42:18</span>Restarted after exit, attempt 1</p>
-              <p><span>10:42:19</span>Listening on http://localhost:3001</p>
-            </div>
+    <section class="problem wrap" aria-labelledby="problem">
+      <p class="kicker">Why Keeprun</p>
+      <h2 id="problem">Most internal apps run on a .bat file and hope.</h2>
+      <div class="cols">
+        <div class="col before">
+          <h3>Today</h3>
+          <ul>
+            <li>A script in a Startup folder, a Scheduled Task, or a service wrapper someone set up years ago.</li>
+            <li>A crash goes unnoticed until users call the help desk.</li>
+            <li>Logs are in a console window on a server nobody logs in to.</li>
+            <li>Connection strings sit in plain text next to the code.</li>
+            <li>One person knows how it all fits together.</li>
+          </ul>
+        </div>
+        <div class="col after">
+          <h3>With Keeprun</h3>
+          <ul>
+            <li>{{icon:check}} One Windows service supervises every app on the server.</li>
+            <li>{{icon:check}} Crashes restart with backoff, and each one is recorded.</li>
+            <li>{{icon:check}} Live logs with search, from the desktop app or the CLI.</li>
+            <li>{{icon:check}} Secrets encrypted with Windows DPAPI and masked in the UI.</li>
+            <li>{{icon:check}} Every app is listed with its folder, command, port and history.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="features wrap" id="features" aria-labelledby="features-h">
+      <p class="kicker">Features</p>
+      <h2 id="features-h">What you get on day one</h2>
+      <div class="grid">
+        <article><span class="ico">{{icon:folder-search}}</span><h3>Detects how to run it</h3><p>npm, pnpm, yarn and bun scripts, .NET projects and published builds, Python with venv, uvicorn, Flask and Django. Or any command line.</p></article>
+        <article><span class="ico">{{icon:rotate-ccw}}</span><h3>Restarts on crash</h3><p>Backoff from 1 second up to 60. After repeated crashes the app is marked Failed instead of looping forever.</p></article>
+        <article><span class="ico">{{icon:power}}</span><h3>Survives reboots</h3><p>Apps that were running start with the server. Apps you stopped stay stopped.</p></article>
+        <article><span class="ico">{{icon:list-tree}}</span><h3>Ends the whole process tree</h3><p>Each app runs in a Windows Job Object. Stop ends every child process, so the port is free for the next start.</p></article>
+        <article><span class="ico">{{icon:scroll-text}}</span><h3>Logs and events</h3><p>Live output with search and an error filter, rotated by size. A history of starts, stops, crashes and config changes.</p></article>
+        <article><span class="ico">{{icon:gauge}}</span><h3>Health at a glance</h3><p>CPU, memory, process count, uptime and the TCP ports each app actually listens on.</p></article>
+        <article><span class="ico">{{icon:network}}</span><h3>Ports without surprises</h3><p>Set a port per app. Keeprun refuses two apps on one port and tells you which process holds a busy one.</p></article>
+        <article><span class="ico">{{icon:list-checks}}</span><h3>Tasks on demand</h3><p>Migrations, seeds and installs are saved as tasks and run when you choose, with the app's folder and environment.</p></article>
+        <article><span class="ico">{{icon:lock-keyhole}}</span><h3>Encrypted secrets</h3><p>Environment values marked secret are stored with DPAPI, masked in the UI and kept out of Keeprun's own logs.</p></article>
+      </div>
+    </section>
+
+    <section class="how" id="how" aria-labelledby="how-h">
+      <div class="wrap">
+        <p class="kicker">How it works</p>
+        <h2 id="how-h">Three steps from folder to running app</h2>
+        <ol class="steps">
+          <li>
+            <span class="num">1</span>
+            <h3>Install once per server</h3>
+            <p>The MSI installs the agent as a Windows service, the desktop app and the <code>keeprun</code> CLI.</p>
+            <pre><code>msiexec /i Keeprun.msi /qn</code></pre>
+          </li>
+          <li>
+            <span class="num">2</span>
+            <h3>Add an app folder</h3>
+            <p>Keeprun reads <code>package.json</code>, the <code>.csproj</code> or the venv, suggests the command and imports <code>.env</code>.</p>
+            <pre><code>keeprun add --cwd D:\apps\hr --start</code></pre>
+          </li>
+          <li>
+            <span class="num">3</span>
+            <h3>It stays running</h3>
+            <p>The service starts it, restarts it after a crash and starts it again after a reboot.</p>
+            <pre><code>keeprun list</code></pre>
+          </li>
+        </ol>
+
+        <div class="arch" role="img" aria-label="Architecture: the desktop app and the CLI talk to the Keeprun agent over a local API with a token. The agent is a Windows service that runs each app in a Job Object.">
+          <div class="arch-col">
+            <div class="box">{{icon:monitor}}<b>Desktop app</b><small>Runs as the user</small></div>
+            <div class="box">{{icon:square-terminal}}<b>CLI</b><small>keeprun</small></div>
+          </div>
+          <div class="arch-link"><span>HTTP and WebSocket<br>127.0.0.1, token</span></div>
+          <div class="box main">{{icon:server-cog}}<b>Keeprun agent</b><small>Windows service, starts with the server</small></div>
+          <div class="arch-link"><span>One Job Object<br>per app</span></div>
+          <div class="arch-col">
+            <div class="box">{{icon:boxes}}<b>hr-portal</b><small>node, :4100</small></div>
+            <div class="box">{{icon:boxes}}<b>sales-api</b><small>dotnet, :5080</small></div>
+            <div class="box">{{icon:boxes}}<b>reports</b><small>python</small></div>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="features wrap" aria-labelledby="features">
-      <h2 id="features">What it does</h2>
-      <div class="grid">
-        <article>
-          <h3>Detects how to run it</h3>
-          <p>npm, pnpm, yarn and bun scripts, .NET projects and published builds, Python with venv, uvicorn, Flask and Django. Or any command line.</p>
-        </article>
-        <article>
-          <h3>Restarts on crash</h3>
-          <p>Backoff from 1 second up to 60. After repeated crashes the app is marked Failed instead of looping forever.</p>
-        </article>
-        <article>
-          <h3>Survives reboots</h3>
-          <p>A Windows service starts the apps that were running. Apps you stopped stay stopped.</p>
-        </article>
-        <article>
-          <h3>Kills the whole tree</h3>
-          <p>Each app runs in a Job Object. Stop ends every child process, so ports are free for the next start.</p>
-        </article>
-        <article>
-          <h3>Logs and health</h3>
-          <p>Live output with search, CPU, memory, listening ports and an event history of starts, stops and crashes.</p>
-        </article>
-        <article>
-          <h3>Secrets encrypted</h3>
-          <p>Environment values marked secret are stored with Windows DPAPI and masked in the UI.</p>
-        </article>
-        <article>
-          <h3>Tasks on demand</h3>
-          <p>Migrations, seeds and installs are saved as tasks and run when you choose, with the app's environment.</p>
-        </article>
-        <article>
-          <h3>Built for IT</h3>
-          <p>Silent MSI for Intune and SCCM, a CLI for scripts, a local API, and update checks you can turn off by policy.</p>
-        </article>
+    <section class="security wrap" id="security" aria-labelledby="sec-h">
+      <div class="split">
+        <div>
+          <p class="kicker">Security</p>
+          <h2 id="sec-h">Built to pass a security review</h2>
+          <p class="muted">Keeprun runs on your servers and talks to nothing outside them unless you allow update checks. Every choice below is documented in the <a href="docs/security.html">security model</a>.</p>
+        </div>
+        <ul class="checks">
+          <li>{{icon:network}}<div><b>Local only</b><span>The API listens on 127.0.0.1. Nothing is exposed to the network.</span></div></li>
+          <li>{{icon:key-round}}<div><b>Token access</b><span>The API token is readable only by SYSTEM, Administrators and the Keeprun Users group.</span></div></li>
+          <li>{{icon:lock-keyhole}}<div><b>Secrets with DPAPI</b><span>Secret values are encrypted at rest with Windows DPAPI.</span></div></li>
+          <li>{{icon:eye-off}}<div><b>No telemetry</b><span>No usage data, no accounts, no cloud service.</span></div></li>
+          <li>{{icon:badge-check}}<div><b>Signed updates</b><span>Installers are verified against a signing key before they run, and only after administrator approval.</span></div></li>
+          <li>{{icon:shield-check}}<div><b>Policy control</b><span>Turn update checks off or point them at an internal mirror with Group Policy.</span></div></li>
+        </ul>
       </div>
     </section>
 
-    <section class="cli wrap" aria-labelledby="cli">
-      <h2 id="cli">Same thing from a terminal</h2>
-      <pre><code><span class="c"># Add the app in the current folder and start it</span>
-keeprun add --start
+    <section class="fleet" aria-labelledby="fleet-h">
+      <div class="wrap split">
+        <div>
+          <p class="kicker">For IT</p>
+          <h2 id="fleet-h">Deploy to every server the way you deploy everything else</h2>
+          <p class="muted">The MSI installs silently, repairs, upgrades in place and keeps apps, logs and settings across versions. Settings are MSI properties, so one command line covers the fleet.</p>
+          <a class="button" href="docs/deployment.html">Deployment guide {{icon:arrow-right}}</a>
+        </div>
+        <div class="code-card">
+          <div class="code-head">{{icon:terminal}} PowerShell, as Administrator</div>
+<pre><code><span class="c"># Install, set the API port, turn off update checks</span>
+msiexec /i Keeprun_{{VERSION}}_x64_en-US.msi /qn `
+  KEEPRUN_PORT=7171 `
+  KEEPRUN_DISABLE_UPDATES=1
 
-<span class="c"># Status, CPU, memory and ports of every app</span>
-keeprun list
-
-<span class="c"># Follow logs, run a migration</span>
-keeprun logs hr-portal -f
-keeprun run hr-portal db:migrate</code></pre>
+<span class="c"># Grant a user the desktop app and CLI</span>
+net localgroup "Keeprun Users" CONTOSO\jdoe /add</code></pre>
+          <table>
+            <tr><th>Property</th><th>Effect</th></tr>
+            <tr><td><code>KEEPRUN_PORT</code></td><td>Agent API port</td></tr>
+            <tr><td><code>KEEPRUN_USER</code></td><td>User who may use the desktop app</td></tr>
+            <tr><td><code>KEEPRUN_DISABLE_UPDATES</code></td><td>No update checks</td></tr>
+            <tr><td><code>KEEPRUN_UPDATE_URL</code></td><td>Internal update mirror</td></tr>
+          </table>
+        </div>
+      </div>
     </section>
 
-    <section class="download wrap" id="download" aria-labelledby="dl">
-      <h2 id="dl">Download</h2>
-      <p>Windows 10, Windows 11 and Windows Server 2016 or later, 64-bit. {{VERSION_LINE}}</p>
-      <div class="cards">
-        <a class="card" href="{{MSI_URL}}">
-          <b>MSI installer</b>
-          <span>For Intune, SCCM and Group Policy. Supports silent install and repair.</span>
-        </a>
-        <a class="card" href="{{EXE_URL}}">
-          <b>Setup (.exe)</b>
-          <span>For installing by hand.</span>
-        </a>
+    <section class="cli wrap" aria-labelledby="cli-h">
+      <div class="split">
+        <div>
+          <p class="kicker">CLI</p>
+          <h2 id="cli-h">Everything in the UI works from a terminal</h2>
+          <p class="muted">Script it, run it over remote PowerShell, or pipe <code>--json</code> into your monitoring. Exit codes are reliable, so it fits in deployment pipelines.</p>
+          <a class="button" href="docs/cli.html">CLI reference {{icon:arrow-right}}</a>
+        </div>
+        <div class="code-card">
+          <div class="code-head">{{icon:terminal}} keeprun</div>
+<pre><code><span class="p">&gt;</span> keeprun list
+ID              STATUS    PID    CPU  MEMORY  PORTS
+hr-portal       Running   9416   3%   142 MB  4100
+sales-api       Running   7720   1%   118 MB  5080
+inventory-sync  Running   6604   0%    61 MB  -
+legacy-bot      Failed    -      -    -       -
+
+<span class="p">&gt;</span> keeprun run hr-portal db:migrate
+<span class="c">-- Task started: npm run db:migrate</span>
+Applied 2 migrations
+<span class="c">-- Task finished with exit code 0</span></code></pre>
+        </div>
       </div>
-      <pre><code>msiexec /i Keeprun_{{VERSION}}_x64_en-US.msi /qn</code></pre>
-      <p class="meta">All releases and checksums on <a href="https://github.com/{{REPO}}/releases">GitHub</a>.</p>
+    </section>
+
+    <section class="faq wrap" aria-labelledby="faq-h">
+      <p class="kicker">FAQ</p>
+      <h2 id="faq-h">Questions IT teams ask</h2>
+      <div class="faq-list">
+        <details>
+          <summary>Which account do apps run as?</summary>
+          <p>The agent runs as LocalSystem and apps run under it, like other Windows services. Running each app as its own account is on the roadmap.</p>
+        </details>
+        <details>
+          <summary>Does it replace IIS?</summary>
+          <p>No. Keeprun runs the app process. Put IIS, nginx or a load balancer in front of it if you need TLS, host names or several instances.</p>
+        </details>
+        <details>
+          <summary>What happens if the agent itself crashes?</summary>
+          <p>Windows restarts the service after 5, 10 and 30 seconds. Each app runs in a Job Object tied to the agent, so no orphaned processes are left holding ports, and apps that were running start again.</p>
+        </details>
+        <details>
+          <summary>Does it need internet access?</summary>
+          <p>No. The only outbound request is the optional update check to keeprun.app, which you can turn off or point at an internal mirror.</p>
+        </details>
+        <details>
+          <summary>Which Windows versions are supported?</summary>
+          <p>Windows Server 2016, 2019, 2022 and 2025, and Windows 10 and 11, 64-bit.</p>
+        </details>
+        <details>
+          <summary>Is it free for commercial use?</summary>
+          <p>Yes. Keeprun is open source under the Apache 2.0 license.</p>
+        </details>
+      </div>
+    </section>
+
+    <section class="final" id="download" aria-labelledby="dl-h">
+      <div class="wrap">
+        <h2 id="dl-h">Install Keeprun on your first server</h2>
+        <p class="muted">{{VERSION_LINE}} Windows 10, 11 and Server 2016 or later, 64-bit.</p>
+        <div class="cards">
+          <a class="card" href="{{MSI_URL}}">
+            <span class="ico">{{icon:package}}</span>
+            <span><b>MSI installer</b><small>For Intune, SCCM and Group Policy. Silent install, repair, upgrade.</small></span>
+            {{icon:download}}
+          </a>
+          <a class="card" href="{{EXE_URL}}">
+            <span class="ico">{{icon:monitor}}</span>
+            <span><b>Setup (.exe)</b><small>For installing by hand.</small></span>
+            {{icon:download}}
+          </a>
+        </div>
+        <p class="meta">All versions and release notes on <a href="https://github.com/{{REPO}}/releases">GitHub</a>.</p>
+      </div>
     </section>
   </main>
 
-  <footer class="wrap foot">
-    <span>Keeprun is open source under the Apache 2.0 license.</span>
-    <nav aria-label="Footer">
-      <a href="docs/getting-started.html">Docs</a>
-      <a href="docs/security.html">Security</a>
-      <a href="https://github.com/{{REPO}}">GitHub</a>
-    </nav>
+  <footer class="foot">
+    <div class="wrap foot-inner">
+      <div>
+        <a class="brand" href="./"><img src="logo.svg" alt="" width="24" height="24"> Keeprun</a>
+        <p class="muted">Open source under the Apache 2.0 license.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="docs/getting-started.html">Getting started</a>
+        <a href="docs/deployment.html">Deployment</a>
+        <a href="docs/security.html">Security</a>
+        <a href="docs/cli.html">CLI</a>
+        <a href="https://github.com/{{REPO}}">GitHub</a>
+      </nav>
+    </div>
   </footer>
 </body>
 </html>

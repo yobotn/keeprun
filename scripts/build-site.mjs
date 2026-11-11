@@ -8,7 +8,7 @@
 //   GITHUB_REPOSITORY  owner/repo, used in links
 //   KEEPRUN_TAG        latest published release tag, e.g. v0.2.0. Empty before the first release.
 //   KEEPRUN_MANIFEST   path to that release's latest.json, if it has one
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { marked } from "marked";
@@ -28,16 +28,32 @@ const vars = {
   REPO: repo,
   VERSION: version || "x.y.z",
   VERSION_LINE: version ? `Version ${version}.` : "First release coming soon.",
+  VERSION_PILL: version ? `Keeprun ${version} is out` : "Open source on GitHub",
   MSI_URL: asset(`Keeprun_${version}_x64_en-US.msi`),
   EXE_URL: asset(`Keeprun_${version}_x64-setup.exe`),
 };
-const fill = (text) => text.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars ? vars[k] : m));
+// Lucide icons (and the GitHub mark), inlined as SVG: {{icon:name}}.
+const icons = JSON.parse(readFileSync(join(root, "site", "icons.json"), "utf8"));
+function icon(name) {
+  const i = icons[name];
+  if (!i) throw new Error(`Unknown icon "${name}". Add it to scripts/gen-site-icons.mjs.`);
+  if (typeof i === "string") {
+    return `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${i}</svg>`;
+  }
+  return `<svg class="i" viewBox="${i.viewBox}" fill="currentColor" aria-hidden="true">${i.body}</svg>`;
+}
+const fill = (text) =>
+  text
+    .replace(/\{\{icon:([\w-]+)\}\}/g, (_, name) => icon(name))
+    .replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars ? vars[k] : m));
 
 // Landing page and static files.
 writeFileSync(join(out, "index.html"), fill(readFileSync(join(root, "site", "index.html"), "utf8")));
 copyFileSync(join(root, "site", "style.css"), join(out, "style.css"));
 copyFileSync(join(root, "apps", "desktop", "app-icon.svg"), join(out, "logo.svg"));
 writeFileSync(join(out, ".nojekyll"), "");
+// Screenshots live in docs/assets so the README on GitHub can show them too.
+cpSync(join(root, "docs", "assets"), join(out, "assets"), { recursive: true });
 
 // Docs. Order of the side menu; other files follow alphabetically.
 const order = ["getting-started", "deployment", "configuration", "cli", "api", "security", "troubleshooting", "releasing"];

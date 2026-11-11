@@ -15,6 +15,17 @@
         : [],
   );
   let copied = $state("");
+  let openError = $state("");
+
+  // A refused or failed open must say so, not do nothing.
+  async function open(fn: () => Promise<void>, what: string) {
+    openError = "";
+    try {
+      await fn();
+    } catch (e) {
+      openError = `Cannot open ${what}: ${e}`;
+    }
+  }
 
   function copy(text: string) {
     navigator.clipboard.writeText(text);
@@ -51,16 +62,18 @@
     {/each}
   </div>
 
+  {#if openError}<p class="selectable alert mt-4" role="alert">{openError}</p>{/if}
+
   <dl class="mt-6 grid grid-cols-[110px_1fr] items-center gap-x-4 gap-y-3 text-[13px]">
     {#if urls.length}
       <dt class="text-fg-muted">URL</dt>
       <dd class="flex flex-wrap items-center gap-3">
         {#each urls as url}
           <span class="inline-flex items-center gap-1">
-            <button class="font-medium text-accent hover:underline" onclick={() => openUrl(url)} title="Open in browser">
+            <button class="font-medium text-accent hover:underline" onclick={() => open(() => openUrl(url), url)} title="Open in browser">
               {url}
             </button>
-            <button class="btn-icon !size-6" onclick={() => openUrl(url)} title="Open in browser"><ExternalLink size={13} /></button>
+            <button class="btn-icon !size-6" onclick={() => open(() => openUrl(url), url)} title="Open in browser"><ExternalLink size={13} /></button>
             <button class="btn-icon !size-6" onclick={() => copy(url)} title="Copy URL"><Copy size={13} /></button>
             {#if copied === url}<span class="text-xs text-fg-muted">Copied</span>{/if}
           </span>
@@ -71,7 +84,7 @@
     <dt class="text-fg-muted">Folder</dt>
     <dd class="flex min-w-0 items-center gap-2">
       <span class="selectable truncate font-mono text-[12.5px]">{app.cwd}</span>
-      <button class="btn-icon !size-6" onclick={() => openPath(app.cwd)} title="Open folder"><FolderOpen size={13} /></button>
+      <button class="btn-icon !size-6" onclick={() => open(() => openPath(app.cwd), "the folder")} title="Open folder"><FolderOpen size={13} /></button>
     </dd>
     <dt class="text-fg-muted">Command</dt>
     <dd class="selectable break-all font-mono text-[12.5px]">{app.command}</dd>

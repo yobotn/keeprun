@@ -79,6 +79,16 @@ pub fn quote(p: &Path) -> String {
     }
 }
 
+/// Read a text file, dropping a UTF-8 byte order mark. Windows tools (PowerShell 5.1, older
+/// Notepad, Visual Studio) often write one, and the JSON parser rejects it. Node accepts it.
+fn read_text(path: impl AsRef<Path>) -> std::io::Result<String> {
+    let text = std::fs::read_to_string(path)?;
+    Ok(match text.strip_prefix('\u{feff}') {
+        Some(rest) => rest.to_string(),
+        None => text,
+    })
+}
+
 fn tool(name: &str, warnings: &mut Vec<String>) -> String {
     match which(name) {
         Some(p) => quote(&p),
@@ -98,7 +108,7 @@ fn folder_name(dir: &Path) -> String {
 }
 
 fn read_dotenv(dir: &Path) -> BTreeMap<String, String> {
-    std::fs::read_to_string(dir.join(".env"))
+    read_text(dir.join(".env"))
         .ok()
         .and_then(|t| crate::model::parse_dotenv(&t).ok())
         .unwrap_or_default()
@@ -164,7 +174,7 @@ fn find_ext(dir: &Path, ext: &str) -> Option<PathBuf> {
 
 fn detect_node(dir: &Path) -> Detection {
     let mut warnings = vec![];
-    let pkg: serde_json::Value = std::fs::read_to_string(dir.join("package.json"))
+    let pkg: serde_json::Value = read_text(dir.join("package.json"))
         .ok()
         .and_then(|t| serde_json::from_str(&t).ok())
         .unwrap_or(serde_json::Value::Null);
@@ -374,7 +384,7 @@ fn detect_dotnet(dir: &Path, proj: &Path) -> Detection {
         detail: None,
         name: "publish".into(),
     }];
-    let proj_text = std::fs::read_to_string(proj).unwrap_or_default();
+    let proj_text = read_text(proj).unwrap_or_default();
     if proj_text.contains("Microsoft.EntityFrameworkCore") {
         tasks.push(Suggestion {
             label: "dotnet ef database update".into(),
@@ -384,7 +394,7 @@ fn detect_dotnet(dir: &Path, proj: &Path) -> Detection {
         });
     }
 
-    let port = std::fs::read_to_string(dir.join("Properties").join("launchSettings.json"))
+    let port = read_text(dir.join("Properties").join("launchSettings.json"))
         .ok()
         .and_then(|t| {
             let i = t.find("applicationUrl")?;
@@ -440,7 +450,7 @@ fn detect_python(dir: &Path) -> Detection {
     };
     let deps = ["requirements.txt", "pyproject.toml", "Pipfile"]
         .iter()
-        .filter_map(|f| std::fs::read_to_string(dir.join(f)).ok())
+        .filter_map(|f| read_text(dir.join(f)).ok())
         .collect::<String>()
         .to_ascii_lowercase();
 
@@ -626,6 +636,17 @@ mod tests {
         assert!(tasks.contains(&"npm run seed"));
         assert!(tasks.contains(&"npm run build-prod"));
         assert!(!tasks.iter().any(|l| l.contains("postinstall")));
+    }
+
+    #[test]
+    fn package_json_with_bom() {
+        let d = tmp("node-bom");
+        std::fs::write(
+            d.join("package.json"),
+            "\u{feff}{\"scripts\":{\"start\":\"node s.js\"}}",
+        )
+        .unwrap();
+        assert_eq!(detect(&d).unwrap().suggestions[0].label, "npm run start");
     }
 
     #[test]
