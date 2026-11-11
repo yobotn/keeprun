@@ -179,6 +179,7 @@ Read the [security model](docs/security.md).
 | [Agent API](docs/api.md) | Local HTTP and WebSocket API |
 | [Security](docs/security.md) | Threat model and design choices |
 | [Troubleshooting](docs/troubleshooting.md) | Common problems and fixes |
+| [Roadmap](docs/roadmap.md) | What is planned next. Vote on GitHub |
 | [Releasing](docs/releasing.md) | Versioning, signing keys, website |
 
 ## Development

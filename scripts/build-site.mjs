@@ -56,7 +56,7 @@ writeFileSync(join(out, ".nojekyll"), "");
 cpSync(join(root, "docs", "assets"), join(out, "assets"), { recursive: true });
 
 // Docs. Order of the side menu; other files follow alphabetically.
-const order = ["getting-started", "deployment", "configuration", "cli", "api", "security", "troubleshooting", "releasing"];
+const order = ["getting-started", "deployment", "configuration", "cli", "api", "security", "troubleshooting", "roadmap", "releasing"];
 const files = readdirSync(join(root, "docs"))
   .filter((f) => f.endsWith(".md"))
   .map((f) => f.slice(0, -3))
