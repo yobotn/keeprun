@@ -268,7 +268,7 @@
         "properties": {
           "ok": { "type": "boolean" },
           "env": { "type": "string", "enum": ["dev", "prod"] },
-          "version": { "type": "string", "examples": ["0.2.0"] }
+          "version": { "type": "string", "examples": ["0.3.0"] }
         }
       },
       "RestartPolicy": {

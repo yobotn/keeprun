@@ -135,7 +135,7 @@ Intune, or at install time:
 | `UpdateUrl` | String | Read the manifest from this URL instead of `https://keeprun.app/latest.json` | MSI `KEEPRUN_UPDATE_URL=https://...` |
 
 ```powershell
-msiexec /i Keeprun_0.2.0_x64_en-US.msi /qn KEEPRUN_DISABLE_UPDATES=1
+msiexec /i Keeprun_0.3.0_x64_en-US.msi /qn KEEPRUN_DISABLE_UPDATES=1
 ```
 
 A mirror serves a copy of `latest.json` with the `url` fields changed to point at the mirrored
