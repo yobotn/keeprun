@@ -187,6 +187,29 @@
         }
       }
     },
+    "/apps/{id}/issue": {
+      "parameters": [{ "$ref": "#/components/parameters/AppId" }],
+      "get": {
+        "operationId": "getAppIssue",
+        "tags": ["Logs and events"],
+        "summary": "Get errors the app printed while running, with a prompt for a coding agent",
+        "responses": {
+          "200": { "description": "The issue and prompt, or nulls when there is no issue.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IssueReport" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "operationId": "clearAppIssue",
+        "tags": ["Logs and events"],
+        "summary": "Dismiss the current issue. A new error starts a new one.",
+        "responses": {
+          "200": { "description": "The app, without an issue.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppView" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
     "/apps/{id}/events": {
       "parameters": [{ "$ref": "#/components/parameters/AppId" }],
       "get": {
@@ -272,7 +295,8 @@
           "autostart": { "type": "boolean", "default": true, "description": "Start with the agent, at boot, unless the user stopped it." },
           "restart": { "$ref": "#/components/schemas/RestartPolicy" },
           "max_restarts": { "type": "integer", "minimum": 0, "default": 5, "description": "Restarts in a row before the app is marked failed. 0 means no limit." },
-          "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } }
+          "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } },
+          "watch_errors": { "type": "boolean", "default": true, "description": "Watch the output for errors while the app runs, and report them as issue." }
         }
       },
       "UpdateApp": {
@@ -289,7 +313,8 @@
           "restart": { "$ref": "#/components/schemas/RestartPolicy" },
           "max_restarts": { "type": "integer", "minimum": 0 },
           "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } },
-          "disabled": { "type": "boolean", "description": "true switches the app off: it cannot start and does not start with the agent. Stop it first, or the change returns 409." }
+          "disabled": { "type": "boolean", "description": "true switches the app off: it cannot start and does not start with the agent. Stop it first, or the change returns 409." },
+          "watch_errors": { "type": "boolean", "description": "Watch the output for errors while the app runs, and report them as issue." }
         }
       },
       "RunTask": {
@@ -334,6 +359,7 @@
           "tags": { "type": "array", "items": { "type": "string" } },
           "autostart": { "type": "boolean" },
           "disabled": { "type": "boolean", "description": "Switched off. Starting it returns 409." },
+          "watch_errors": { "type": "boolean" },
           "restart": { "$ref": "#/components/schemas/RestartPolicy" },
           "max_restarts": { "type": "integer" },
           "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } },
@@ -344,7 +370,28 @@
           "restarts": { "type": "integer", "description": "Restarts in a row since the last stable run." },
           "next_restart_at": { "type": ["integer", "null"], "description": "Unix time in milliseconds of the next restart attempt." },
           "stats": { "oneOf": [{ "$ref": "#/components/schemas/Stats" }, { "type": "null" }] },
-          "task": { "oneOf": [{ "$ref": "#/components/schemas/TaskRun" }, { "type": "null" }] }
+          "task": { "oneOf": [{ "$ref": "#/components/schemas/TaskRun" }, { "type": "null" }] },
+          "issue": { "oneOf": [{ "$ref": "#/components/schemas/AppIssue" }, { "type": "null" }], "description": "Errors in the output of the current run. Null when there are none, when the app is stopped, or when watch_errors is off." }
+        }
+      },
+      "AppIssue": {
+        "type": "object",
+        "description": "Errors an app printed while it kept running, such as a dev server whose build broke. Repeats of the first error raise count instead of adding output. Cleared by a new run, by a successful request or build once the errors stop, or after 15 minutes without a new error.",
+        "required": ["first_at", "last_at", "count", "summary", "excerpt"],
+        "properties": {
+          "first_at": { "type": "integer", "description": "Unix time in milliseconds." },
+          "last_at": { "type": "integer", "description": "Unix time in milliseconds of the latest error line." },
+          "count": { "type": "integer", "description": "Times the first error was printed." },
+          "summary": { "type": "string", "description": "The first error line." },
+          "excerpt": { "type": "array", "items": { "type": "string" }, "description": "Output around the first occurrence, with repeats removed." }
+        }
+      },
+      "IssueReport": {
+        "type": "object",
+        "required": ["issue", "prompt"],
+        "properties": {
+          "issue": { "oneOf": [{ "$ref": "#/components/schemas/AppIssue" }, { "type": "null" }] },
+          "prompt": { "type": ["string", "null"], "description": "Text for a coding agent: the error, the app folder and command, recent events, and the keeprun commands to check a fix." }
         }
       },
       "LogLine": {

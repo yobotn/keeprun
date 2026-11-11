@@ -56,6 +56,7 @@ const he: Catalog = {
   // Main app header
   "app.exitCode": "(קוד {code})",
   "app.restartIn": "בעוד {seconds} שנ׳",
+  "app.printingErrors": "מדפיס שגיאות",
   "app.stop": "עצירה",
   "app.stopHint": "עצירה (Ctrl+Enter)",
   "app.restart": "הפעלה מחדש",
@@ -140,6 +141,14 @@ const he: Catalog = {
     other: "{count} אפליקציות מופעלות מחדש",
   },
   "tray.unreachable": "אין גישה לסוכן",
+  "tray.errors": {
+    one: "אפליקציה אחת מדפיסה שגיאות",
+    two: "{count} אפליקציות מדפיסות שגיאות",
+    other: "{count} אפליקציות מדפיסות שגיאות",
+  },
+  "tray.copyPrompt": "העתקת פרומפט תיקון עבור {name}",
+  "tray.issueTitle": "{name} מדפיס שגיאות",
+  "tray.copied": "הפרומפט הועתק. הדביקו אותו בסוכן הקוד שלכם.",
 
   // Overview
   "overview.restarting": "יצאה עם קוד {code}. הפעלה מחדש בעוד {seconds} שנ׳ (ניסיון {attempt}).",
@@ -171,6 +180,12 @@ const he: Catalog = {
   "overview.tags": "תגיות",
   "overview.recentEvents": "אירועים אחרונים",
   "overview.allEvents": "כל האירועים",
+  "overview.issue": "פועל, אבל הפלט מציג שגיאות",
+  "overview.issueSeen": "נראה {count}×, לאחרונה ב-{time}",
+  "overview.issueOutput": "הצגת פלט השגיאה",
+  "overview.copyPrompt": "העתקת פרומפט תיקון",
+  "overview.copyPromptHint": "מעתיק את השגיאה, התיקייה והפקודות כפרומפט לסוכן קוד",
+  "overview.dismiss": "סגירה",
 
   // Events
   "events.none": "אין עדיין אירועים.",
@@ -260,6 +275,8 @@ const he: Catalog = {
   "settings.autostart": "הפעלה עם הסוכן",
   "settings.autostartHint":
     "אחרי אתחול המחשב או הפעלה מחדש של הסוכן, האפליקציה מופעלת שוב אם פעלה קודם. אפליקציה עצורה נשארת עצורה.",
+  "settings.watchErrors": "מעקב אחר שגיאות בפלט",
+  "settings.watchErrorsHint": "מתריע כשהאפליקציה מדפיסה שגיאות בזמן שהיא ממשיכה לרוץ, למשל build שבור, ומציע פרומפט תיקון לסוכן קוד.",
   "settings.tags": "תגיות",
   "settings.tagsPlaceholder": "כספים, פנימי",
   "settings.tagsHint": "מופרדות בפסיקים. האפליקציות מקובצות לפי התגית הראשונה שלהן.",

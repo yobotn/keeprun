@@ -57,6 +57,10 @@ export function syncTrayText(max: number) {
     unreachable: t("tray.unreachable"),
     failed: Object.fromEntries(counts.map((n) => [n, t("tray.failed", { count: n })])),
     restarting: Object.fromEntries(counts.map((n) => [n, t("tray.restarting", { count: n })])),
+    errors: Object.fromEntries(counts.map((n) => [n, t("tray.errors", { count: n })])),
+    copyPrompt: t("tray.copyPrompt", { name: "{name}" }),
+    issueTitle: t("tray.issueTitle", { name: "{name}" }),
+    copied: t("tray.copied"),
   };
   desktop.setTrayText(text).catch(() => {});
 }

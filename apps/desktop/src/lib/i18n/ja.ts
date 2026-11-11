@@ -58,6 +58,7 @@ const catalog: Catalog = {
   // アプリのヘッダー
   "app.exitCode": "(コード {code})",
   "app.restartIn": "{seconds} 秒後",
+  "app.printingErrors": "エラーを出力中",
   "app.stop": "停止",
   "app.stopHint": "停止 (Ctrl+Enter)",
   "app.restart": "再起動",
@@ -134,6 +135,12 @@ const catalog: Catalog = {
   "tray.failed": { other: "{count} 個のアプリが失敗" },
   "tray.restarting": { other: "{count} 個のアプリが再起動中" },
   "tray.unreachable": "エージェントに接続できません",
+  "tray.errors": {
+    other: "{count} 個のアプリがエラーを出力中",
+  },
+  "tray.copyPrompt": "{name} の修正プロンプトをコピー",
+  "tray.issueTitle": "{name} でエラーが発生しています",
+  "tray.copied": "プロンプトをコピーしました。コーディングエージェントに貼り付けてください。",
 
   // 概要
   "overview.restarting": "コード {code} で終了しました。{seconds} 秒後に再起動します ({attempt} 回目)。",
@@ -165,6 +172,12 @@ const catalog: Catalog = {
   "overview.tags": "タグ",
   "overview.recentEvents": "最近のイベント",
   "overview.allEvents": "すべてのイベント",
+  "overview.issue": "実行中ですが、出力にエラーがあります",
+  "overview.issueSeen": "{count} 回検出、最後は {time}",
+  "overview.issueOutput": "エラー出力を表示",
+  "overview.copyPrompt": "修正プロンプトをコピー",
+  "overview.copyPromptHint": "エラー、フォルダー、コマンドをコーディングエージェント向けのプロンプトとしてコピーします",
+  "overview.dismiss": "閉じる",
 
   // イベント
   "events.none": "イベントはまだありません。",
@@ -253,6 +266,8 @@ const catalog: Catalog = {
   "settings.autostart": "エージェントと同時に開始",
   "settings.autostartHint":
     "PC の再起動後やエージェントの再起動後に、実行中だったアプリを再び開始します。停止したアプリは停止したままです。",
+  "settings.watchErrors": "出力のエラーを監視",
+  "settings.watchErrorsHint": "ビルドの失敗など、アプリが実行を続けたままエラーを出力したときに警告し、コーディングエージェント向けの修正プロンプトを用意します。",
   "settings.tags": "タグ",
   "settings.tagsPlaceholder": "経理, 社内",
   "settings.tagsHint": "コンマ区切りで入力します。アプリは最初のタグでグループ化されます。",

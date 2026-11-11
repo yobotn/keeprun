@@ -56,6 +56,7 @@ const tr: Catalog = {
   // Main app header
   "app.exitCode": "(kod {code})",
   "app.restartIn": "{seconds} sn içinde",
+  "app.printingErrors": "hata veriyor",
   "app.stop": "Durdur",
   "app.stopHint": "Durdur (Ctrl+Enter)",
   "app.restart": "Yeniden başlat",
@@ -132,6 +133,13 @@ const tr: Catalog = {
   "tray.failed": { one: "{count} uygulama başarısız oldu", other: "{count} uygulama başarısız oldu" },
   "tray.restarting": { one: "{count} uygulama yeniden başlatılıyor", other: "{count} uygulama yeniden başlatılıyor" },
   "tray.unreachable": "Aracıya ulaşılamıyor",
+  "tray.errors": {
+    one: "{count} uygulama hata veriyor",
+    other: "{count} uygulama hata veriyor",
+  },
+  "tray.copyPrompt": "{name} için düzeltme istemini kopyala",
+  "tray.issueTitle": "{name} hata veriyor",
+  "tray.copied": "İstem kopyalandı. Kodlama ajanınıza yapıştırın.",
 
   // Overview
   "overview.restarting": "{code} koduyla sonlandı. {seconds} sn içinde yeniden başlatılıyor (deneme {attempt}).",
@@ -164,6 +172,12 @@ const tr: Catalog = {
   "overview.tags": "Etiketler",
   "overview.recentEvents": "Son olaylar",
   "overview.allEvents": "Tüm olaylar",
+  "overview.issue": "Çalışıyor ama çıktıda hatalar var",
+  "overview.issueSeen": "{count}× görüldü, en son {time}",
+  "overview.issueOutput": "Hata çıktısını göster",
+  "overview.copyPrompt": "Düzeltme istemini kopyala",
+  "overview.copyPromptHint": "Hatayı, klasörü ve komutları bir kodlama ajanı için istem olarak kopyalar",
+  "overview.dismiss": "Kapat",
 
   // Events
   "events.none": "Henüz olay yok.",
@@ -253,6 +267,8 @@ const tr: Catalog = {
   "settings.autostart": "Aracıyla başlat",
   "settings.autostartHint":
     "Bilgisayar ya da aracı yeniden başladıktan sonra, uygulama çalışıyorduysa yeniden başlatılır. Durdurulmuş bir uygulama durdurulmuş kalır.",
+  "settings.watchErrors": "Çıktıda hataları izle",
+  "settings.watchErrorsHint": "Uygulama çalışmaya devam ederken hata yazdırdığında (ör. bozuk bir derleme) uyarır ve bir kodlama ajanı için düzeltme istemi sunar.",
   "settings.tags": "Etiketler",
   "settings.tagsPlaceholder": "finans, dahili",
   "settings.tagsHint": "Virgülle ayrılır. Uygulamalar ilk etiketlerine göre gruplanır.",

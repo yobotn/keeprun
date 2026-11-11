@@ -55,6 +55,7 @@ const catalog: Catalog = {
   // Заголовок приложения
   "app.exitCode": "(код {code})",
   "app.restartIn": "через {seconds} с",
+  "app.printingErrors": "выводит ошибки",
   "app.stop": "Остановить",
   "app.stopHint": "Остановить (Ctrl+Enter)",
   "app.restart": "Перезапустить",
@@ -141,6 +142,15 @@ const catalog: Catalog = {
     other: "{count} приложения перезапускаются",
   },
   "tray.unreachable": "Агент недоступен",
+  "tray.errors": {
+    one: "{count} приложение выводит ошибки",
+    few: "{count} приложения выводят ошибки",
+    many: "{count} приложений выводят ошибки",
+    other: "{count} приложения выводят ошибки",
+  },
+  "tray.copyPrompt": "Скопировать промпт для исправления: {name}",
+  "tray.issueTitle": "{name}: ошибки в выводе",
+  "tray.copied": "Промпт скопирован. Вставьте его в своего агента для кода.",
 
   // Обзор
   "overview.restarting": "Завершено с кодом {code}. Перезапуск через {seconds} с (попытка {attempt}).",
@@ -172,6 +182,12 @@ const catalog: Catalog = {
   "overview.tags": "Теги",
   "overview.recentEvents": "Последние события",
   "overview.allEvents": "Все события",
+  "overview.issue": "Работает, но в выводе есть ошибки",
+  "overview.issueSeen": "Замечено {count}×, последний раз в {time}",
+  "overview.issueOutput": "Показать вывод с ошибкой",
+  "overview.copyPrompt": "Скопировать промпт для исправления",
+  "overview.copyPromptHint": "Копирует ошибку, папку и команды в виде промпта для агента для кода",
+  "overview.dismiss": "Скрыть",
 
   // События
   "events.none": "Событий пока нет.",
@@ -265,6 +281,8 @@ const catalog: Catalog = {
   "settings.autostart": "Запускать вместе с агентом",
   "settings.autostartHint":
     "После перезагрузки компьютера или перезапуска агента приложение снова запускается, если оно работало. Остановленное приложение остается остановленным.",
+  "settings.watchErrors": "Следить за ошибками в выводе",
+  "settings.watchErrorsHint": "Предупреждает, когда приложение продолжает работать, но выводит ошибки, например при сломанной сборке, и предлагает промпт для исправления для агента для кода.",
   "settings.tags": "Теги",
   "settings.tagsPlaceholder": "финансы, внутреннее",
   "settings.tagsHint": "Через запятую. Приложения группируются по первому тегу.",

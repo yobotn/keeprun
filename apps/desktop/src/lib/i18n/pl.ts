@@ -55,6 +55,7 @@ const catalog: Catalog = {
   // Main app header
   "app.exitCode": "(kod {code})",
   "app.restartIn": "za {seconds}s",
+  "app.printingErrors": "zgłasza błędy",
   "app.stop": "Zatrzymaj",
   "app.stopHint": "Zatrzymaj (Ctrl+Enter)",
   "app.restart": "Uruchom ponownie",
@@ -142,6 +143,15 @@ const catalog: Catalog = {
     other: "Ponowne uruchamianie: {count} aplikacji",
   },
   "tray.unreachable": "Agent jest nieosiągalny",
+  "tray.errors": {
+    one: "{count} aplikacja zgłasza błędy",
+    few: "{count} aplikacje zgłaszają błędy",
+    many: "{count} aplikacji zgłasza błędy",
+    other: "{count} aplikacji zgłasza błędy",
+  },
+  "tray.copyPrompt": "Kopiuj prompt naprawy dla {name}",
+  "tray.issueTitle": "{name} zgłasza błędy",
+  "tray.copied": "Prompt skopiowany. Wklej go do swojego agenta kodującego.",
 
   // Overview
   "overview.restarting": "Zakończono z kodem {code}. Ponowne uruchomienie za {seconds}s (próba {attempt}).",
@@ -174,6 +184,12 @@ const catalog: Catalog = {
   "overview.tags": "Tagi",
   "overview.recentEvents": "Ostatnie zdarzenia",
   "overview.allEvents": "Wszystkie zdarzenia",
+  "overview.issue": "Działa, ale wyjście pokazuje błędy",
+  "overview.issueSeen": "Widziano {count}×, ostatnio o {time}",
+  "overview.issueOutput": "Pokaż wyjście błędu",
+  "overview.copyPrompt": "Kopiuj prompt naprawy",
+  "overview.copyPromptHint": "Kopiuje błąd, folder i polecenia jako prompt dla agenta kodującego",
+  "overview.dismiss": "Odrzuć",
 
   // Events
   "events.none": "Brak zdarzeń.",
@@ -268,6 +284,8 @@ const catalog: Catalog = {
   "settings.autostart": "Uruchamiaj z agentem",
   "settings.autostartHint":
     "Po ponownym uruchomieniu komputera lub agenta aplikacja zostanie uruchomiona, jeśli wcześniej działała. Zatrzymana aplikacja pozostaje zatrzymana.",
+  "settings.watchErrors": "Obserwuj wyjście pod kątem błędów",
+  "settings.watchErrorsHint": "Ostrzega, gdy aplikacja wypisuje błędy, ale nadal działa, np. przy nieudanej kompilacji, i proponuje prompt naprawy dla agenta kodującego.",
   "settings.tags": "Tagi",
   "settings.tagsPlaceholder": "finanse, wewnętrzne",
   "settings.tagsHint": "Oddzielone przecinkami. Aplikacje są grupowane według pierwszego tagu.",

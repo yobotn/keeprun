@@ -8,7 +8,9 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use keeprun_core::model::{ApiError, AppView, Event, Health, NewApp, RunTask, UpdateApp};
+use keeprun_core::model::{
+    ApiError, AppView, Event, Health, IssueReport, NewApp, RunTask, UpdateApp,
+};
 use keeprun_core::{Env, Settings};
 use serde::Deserialize;
 use std::sync::Arc;
@@ -38,6 +40,7 @@ pub fn router(state: AppState) -> Router {
         .route("/apps/{id}/tasks/stop", post(stop_task))
         .route("/apps/{id}/logs", get(logs_ws))
         .route("/apps/{id}/logs/recent", get(recent_logs))
+        .route("/apps/{id}/issue", get(app_issue).delete(clear_issue))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth));
 
     Router::new()
@@ -184,6 +187,14 @@ async fn run_task(
 
 async fn stop_task(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult<AppView> {
     st.sup.stop_task(&id).map(Json)
+}
+
+async fn app_issue(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult<IssueReport> {
+    st.sup.issue(&id).map(Json)
+}
+
+async fn clear_issue(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult<AppView> {
+    st.sup.clear_issue(&id).map(Json)
 }
 
 #[derive(Deserialize)]

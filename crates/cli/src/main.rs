@@ -5,8 +5,8 @@ use clap::{Parser, Subcommand};
 use futures_util::StreamExt;
 use keeprun_core::detect;
 use keeprun_core::model::{
-    looks_secret, parse_dotenv, ApiError, AppState, AppView, Event, Health, LogLine, NewApp,
-    RestartPolicy, RunTask, Stream, TaskSpec, UpdateApp,
+    looks_secret, parse_dotenv, ApiError, AppState, AppView, Event, Health, IssueReport, LogLine,
+    NewApp, RestartPolicy, RunTask, Stream, TaskSpec, UpdateApp,
 };
 use keeprun_core::{Env, Settings};
 use reqwest::{Method, StatusCode};
@@ -104,6 +104,9 @@ enum Cmd {
         /// Port the app listens on. Sets PORT. 0 removes it.
         #[arg(long)]
         port: Option<u16>,
+        /// Watch the output for errors: true or false.
+        #[arg(long)]
+        watch_errors: Option<bool>,
     },
     /// Show, set or remove environment variables.
     Env {
@@ -147,6 +150,17 @@ enum Cmd {
         /// Number of recent lines to show.
         #[arg(short = 'n', long, default_value_t = 200)]
         tail: usize,
+    },
+    /// Show errors an app printed while running, as a prompt for a coding agent.
+    ///
+    /// Examples:
+    ///   keeprun issue hr-portal
+    ///   keeprun issue hr-portal --clear
+    Issue {
+        app: String,
+        /// Forget the current issue. A new error starts a new one.
+        #[arg(long)]
+        clear: bool,
     },
     /// Show recent events for one app, or all apps.
     Events {
@@ -281,6 +295,7 @@ fn status_text(a: &AppView) -> String {
     match (a.state, a.exit_code) {
         (AppState::Exited, Some(c)) => format!("Exited {c}"),
         (AppState::Restarting, _) => format!("Restarting ({})", a.restarts),
+        (s, _) if a.issue.is_some() => format!("{s}, errors"),
         (s, _) => s.to_string(),
     }
 }
@@ -297,7 +312,7 @@ fn print_apps(apps: &[AppView]) {
         .unwrap_or(2)
         .max(2);
     println!(
-        "{:<w$}  {:<14}  {:>6}  {:>5}  {:>8}  {:<12}  COMMAND",
+        "{:<w$}  {:<16}  {:>6}  {:>5}  {:>8}  {:<12}  COMMAND",
         "ID", "STATUS", "PID", "CPU", "MEMORY", "PORTS"
     );
     for a in apps {
@@ -316,7 +331,7 @@ fn print_apps(apps: &[AppView]) {
         };
         let ports = if ports.is_empty() { "-".into() } else { ports };
         println!(
-            "{:<w$}  {:<14}  {:>6}  {:>5}  {:>8}  {:<12}  {}",
+            "{:<w$}  {:<16}  {:>6}  {:>5}  {:>8}  {:<12}  {}",
             a.spec.id,
             status_text(a),
             pid,
@@ -328,26 +343,8 @@ fn print_apps(apps: &[AppView]) {
     }
 }
 
-/// Format a Unix millisecond timestamp as UTC. Avoids a date library for one call site.
 fn time(ts: u64) -> String {
-    let secs = ts / 1000;
-    let (h, m, s) = ((secs / 3600) % 24, (secs / 60) % 60, secs % 60);
-    let (y, mo, d) = civil_from_days((secs / 86400) as i64);
-    format!("{y:04}-{mo:02}-{d:02} {h:02}:{m:02}:{s:02}Z")
-}
-
-/// Days since 1970-01-01 to (year, month, day). Howard Hinnant's algorithm.
-fn civil_from_days(z: i64) -> (i64, u32, u32) {
-    let z = z + 719468;
-    let era = z.div_euclid(146097);
-    let doe = z.rem_euclid(146097);
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
-    (if m <= 2 { y + 1 } else { y }, m, d)
+    keeprun_core::model::format_utc(ts)
 }
 
 fn parse_vars(vars: &[String]) -> Result<BTreeMap<String, String>> {
@@ -523,6 +520,7 @@ async fn run() -> Result<()> {
                 restart,
                 max_restarts: 5,
                 tasks,
+                watch_errors: true,
             };
             let app: AppView = c.send(Method::POST, "/apps", &body).await?;
             println!("Added {} ({}).", app.spec.id, app.spec.command);
@@ -550,6 +548,7 @@ async fn run() -> Result<()> {
             autostart,
             tags,
             port,
+            watch_errors,
         } => {
             let needs_restart = cwd.is_some() || command.is_some() || port.is_some();
             let env = match port {
@@ -574,6 +573,7 @@ async fn run() -> Result<()> {
                 autostart,
                 tags: tags.map(|t| t.split(',').map(str::to_string).collect()),
                 env,
+                watch_errors,
                 ..Default::default()
             };
             let v: AppView = c.send(Method::PATCH, &format!("/apps/{app}"), &u).await?;
@@ -637,6 +637,22 @@ async fn run() -> Result<()> {
         Cmd::Start { app } => action(&c, &app, "start").await?,
         Cmd::Stop { app } => action(&c, &app, "stop").await?,
         Cmd::Restart { app } => action(&c, &app, "restart").await?,
+        Cmd::Issue { app, clear } => {
+            if clear {
+                c.call::<AppView>(Method::DELETE, &format!("/apps/{app}/issue"), None::<&()>)
+                    .await?;
+                println!("Cleared. A new error starts a new issue.");
+                return Ok(());
+            }
+            let r: IssueReport = c.get(&format!("/apps/{app}/issue")).await?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&r)?);
+            } else if let Some(p) = r.prompt {
+                print!("{p}");
+            } else {
+                println!("No errors in the output of {app}.");
+            }
+        }
         Cmd::Events { app, limit } => {
             let path = match &app {
                 Some(a) => format!("/apps/{a}/events?limit={limit}"),

@@ -55,6 +55,7 @@ const catalog: Catalog = {
   // Main app header
   "app.exitCode": "(Code {code})",
   "app.restartIn": "in {seconds}s",
+  "app.printingErrors": "meldet Fehler",
   "app.stop": "Beenden",
   "app.stopHint": "Beenden (Ctrl+Enter)",
   "app.restart": "Neu starten",
@@ -132,6 +133,13 @@ const catalog: Catalog = {
   "tray.failed": { one: "{count} App fehlgeschlagen", other: "{count} Apps fehlgeschlagen" },
   "tray.restarting": { one: "{count} App wird neu gestartet", other: "{count} Apps werden neu gestartet" },
   "tray.unreachable": "Agent nicht erreichbar",
+  "tray.errors": {
+    one: "{count} App meldet Fehler",
+    other: "{count} Apps melden Fehler",
+  },
+  "tray.copyPrompt": "Prompt zur Fehlerbehebung für {name} kopieren",
+  "tray.issueTitle": "{name} meldet Fehler",
+  "tray.copied": "Prompt kopiert. Füge ihn in deinen Coding-Agenten ein.",
 
   // Overview
   "overview.restarting": "Mit Code {code} beendet. Neustart in {seconds}s (Versuch {attempt}).",
@@ -164,6 +172,12 @@ const catalog: Catalog = {
   "overview.tags": "Tags",
   "overview.recentEvents": "Letzte Ereignisse",
   "overview.allEvents": "Alle Ereignisse",
+  "overview.issue": "Läuft, aber die Ausgabe zeigt Fehler",
+  "overview.issueSeen": "{count}× gesehen, zuletzt um {time}",
+  "overview.issueOutput": "Fehlerausgabe anzeigen",
+  "overview.copyPrompt": "Prompt zur Fehlerbehebung kopieren",
+  "overview.copyPromptHint": "Kopiert Fehler, Ordner und Befehle als Prompt für einen Coding-Agenten",
+  "overview.dismiss": "Ausblenden",
 
   // Events
   "events.none": "Noch keine Ereignisse.",
@@ -253,6 +267,8 @@ const catalog: Catalog = {
   "settings.autostart": "Mit dem Agent starten",
   "settings.autostartHint":
     "Nach einem Neustart des Computers oder des Agents wird die App wieder gestartet, wenn sie ausgeführt wurde. Eine beendete App bleibt beendet.",
+  "settings.watchErrors": "Ausgabe auf Fehler überwachen",
+  "settings.watchErrorsHint": "Warnt, wenn die App Fehler ausgibt, während sie weiterläuft, etwa bei einem fehlgeschlagenen Build, und bietet einen Prompt für einen Coding-Agenten an.",
   "settings.tags": "Tags",
   "settings.tagsPlaceholder": "Finanzen, intern",
   "settings.tagsHint": "Durch Kommas getrennt. Apps werden nach ihrem ersten Tag gruppiert.",

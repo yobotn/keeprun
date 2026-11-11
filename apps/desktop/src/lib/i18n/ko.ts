@@ -57,6 +57,7 @@ const catalog: Catalog = {
   // 앱 헤더
   "app.exitCode": "(코드 {code})",
   "app.restartIn": "{seconds}초 후",
+  "app.printingErrors": "오류 출력 중",
   "app.stop": "중지",
   "app.stopHint": "중지 (Ctrl+Enter)",
   "app.restart": "다시 시작",
@@ -133,6 +134,12 @@ const catalog: Catalog = {
   "tray.failed": { other: "앱 {count}개 실패" },
   "tray.restarting": { other: "앱 {count}개 다시 시작 중" },
   "tray.unreachable": "에이전트에 연결할 수 없음",
+  "tray.errors": {
+    other: "앱 {count}개에서 오류 출력 중",
+  },
+  "tray.copyPrompt": "{name} 수정 프롬프트 복사",
+  "tray.issueTitle": "{name}에서 오류가 발생했습니다",
+  "tray.copied": "프롬프트를 복사했습니다. 코딩 에이전트에 붙여 넣으세요.",
 
   // 개요
   "overview.restarting": "코드 {code}(으)로 종료되었습니다. {seconds}초 후 다시 시작합니다({attempt}번째 시도).",
@@ -164,6 +171,12 @@ const catalog: Catalog = {
   "overview.tags": "태그",
   "overview.recentEvents": "최근 이벤트",
   "overview.allEvents": "모든 이벤트",
+  "overview.issue": "실행 중이지만 출력에 오류가 있습니다",
+  "overview.issueSeen": "{count}회 발생, 마지막 {time}",
+  "overview.issueOutput": "오류 출력 보기",
+  "overview.copyPrompt": "수정 프롬프트 복사",
+  "overview.copyPromptHint": "오류, 폴더, 명령을 코딩 에이전트용 프롬프트로 복사합니다",
+  "overview.dismiss": "닫기",
 
   // 이벤트
   "events.none": "아직 이벤트가 없습니다.",
@@ -252,6 +265,8 @@ const catalog: Catalog = {
   "settings.autostart": "에이전트와 함께 시작",
   "settings.autostartHint":
     "재부팅하거나 에이전트가 다시 시작된 후, 실행 중이던 앱을 다시 시작합니다. 중지된 앱은 중지된 상태로 유지됩니다.",
+  "settings.watchErrors": "출력에서 오류 감시",
+  "settings.watchErrorsHint": "빌드 실패처럼 앱이 계속 실행되면서 오류를 출력하면 경고하고, 코딩 에이전트용 수정 프롬프트를 제공합니다.",
   "settings.tags": "태그",
   "settings.tagsPlaceholder": "재무, 내부",
   "settings.tagsHint": "쉼표로 구분합니다. 앱은 첫 번째 태그별로 그룹화됩니다.",

@@ -75,6 +75,9 @@ pub struct AppSpec {
     /// Kept but switched off: cannot start, never autostarts. The UI lists it apart.
     #[serde(default)]
     pub disabled: bool,
+    /// Watch the output for errors while the app runs, and report them as an issue.
+    #[serde(default = "yes")]
+    pub watch_errors: bool,
 }
 
 /// A saved one-off command for an app. Runs in the app folder with the app environment.
@@ -124,6 +127,8 @@ pub struct NewApp {
     pub max_restarts: u32,
     #[serde(default)]
     pub tasks: Vec<TaskSpec>,
+    #[serde(default = "yes")]
+    pub watch_errors: bool,
 }
 
 /// Body of `PATCH /apps/{id}`. Missing fields keep their value.
@@ -140,6 +145,7 @@ pub struct UpdateApp {
     pub max_restarts: Option<u32>,
     pub tasks: Option<Vec<TaskSpec>>,
     pub disabled: Option<bool>,
+    pub watch_errors: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -211,6 +217,31 @@ pub struct AppView {
     /// The running or most recent task since the agent started.
     #[serde(default)]
     pub task: Option<TaskRun>,
+    /// Errors in the output of the current run. Only while `watch_errors` is on.
+    #[serde(default)]
+    pub issue: Option<AppIssue>,
+}
+
+/// Errors an app printed while it kept running, e.g. a dev server whose build broke.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AppIssue {
+    /// Unix time in milliseconds.
+    pub first_at: u64,
+    pub last_at: u64,
+    /// Times the first error was printed.
+    pub count: u32,
+    /// The first error line.
+    pub summary: String,
+    /// Output around the first occurrence, with repeats removed.
+    pub excerpt: Vec<String>,
+}
+
+/// Body of `GET /apps/{id}/issue`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IssueReport {
+    pub issue: Option<AppIssue>,
+    /// Text for a coding agent, when there is an issue.
+    pub prompt: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -311,6 +342,28 @@ pub struct Health {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiError {
     pub error: String,
+}
+
+/// Format a Unix millisecond timestamp as UTC, like `2026-11-11 18:58:25Z`.
+pub fn format_utc(ts: u64) -> String {
+    let secs = ts / 1000;
+    let (h, m, s) = ((secs / 3600) % 24, (secs / 60) % 60, secs % 60);
+    let (y, mo, d) = civil_from_days((secs / 86400) as i64);
+    format!("{y:04}-{mo:02}-{d:02} {h:02}:{m:02}:{s:02}Z")
+}
+
+/// Days since 1970-01-01 to (year, month, day). Howard Hinnant's algorithm.
+fn civil_from_days(z: i64) -> (i64, u32, u32) {
+    let z = z + 719468;
+    let era = z.div_euclid(146097);
+    let doe = z.rem_euclid(146097);
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
 /// Turn a display name into a URL safe id: "HR Portal" becomes "hr-portal".
@@ -416,5 +469,12 @@ mod tests {
         assert!(s.autostart);
         assert_eq!(s.restart, RestartPolicy::OnFailure);
         assert_eq!(s.max_restarts, 5);
+        assert!(s.watch_errors);
+    }
+
+    #[test]
+    fn utc() {
+        assert_eq!(format_utc(0), "1970-01-01 00:00:00Z");
+        assert_eq!(format_utc(1_709_210_096_000), "2024-02-29 12:34:56Z");
     }
 }

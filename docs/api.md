@@ -25,6 +25,8 @@ The full API is described in the [OpenAPI 3.1 specification](https://keeprun.app
 | POST | `/apps/{id}/tasks/stop` | | `AppView`. Ends the task's process tree. |
 | GET | `/apps/{id}/logs/recent` | `?tail=200` | `LogLine[]` |
 | WS | `/apps/{id}/logs` | `?token=` | Buffered lines, then live `LogLine` JSON messages |
+| GET | `/apps/{id}/issue` | | `{issue, prompt}`: errors the app printed while running, and a prompt for a coding agent. Both null when there are none. |
+| DELETE | `/apps/{id}/issue` | | `AppView`. Dismisses the issue; a new error starts a new one. |
 | GET | `/apps/{id}/events` | `?limit=100` | `Event[]`, newest first |
 | GET | `/events` | `?limit=100` | `Event[]` for all apps |
 
@@ -37,6 +39,7 @@ NewApp = {
   autostart?: boolean;                               // default true
   restart?: "never" | "on-failure" | "always";       // default "on-failure"
   max_restarts?: number;                             // default 5, 0 = no limit
+  watch_errors?: boolean;                            // default true
 }
 AppView = NewApp & {
   id: string;
@@ -45,7 +48,11 @@ AppView = NewApp & {
   pid: number | null; exit_code: number | null; started_at: number | null;   // ms
   restarts: number; next_restart_at: number | null;
   stats: { cpu_percent: number; memory_bytes: number; processes: number; ports: number[] } | null;
+  issue: AppIssue | null;                            // errors while running, see below
 }
+// First error and its output once, repeats only raise count. Cleared by a new run, a
+// successful request or build after the errors stop, or 15 minutes without a new error.
+AppIssue = { first_at: number; last_at: number; count: number; summary: string; excerpt: string[] }
 LogLine = { ts: number; stream: "stdout" | "stderr" | "system"; text: string }
 Event = { id: number; app_id: string; ts: number; kind: string; message: string }
 ```

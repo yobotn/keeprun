@@ -1,24 +1,32 @@
 //! Notification area icon. It shows the health of all apps as a colored dot on the app icon,
 //! and keeps Keeprun running when the window is closed.
 //!
+//! An app that runs but prints errors, such as a dev server whose build broke, turns the dot
+//! orange, gets a "Copy fix prompt" menu item, and shows one Windows notification per issue.
+//!
 //! Health is polled here, not in the webview: a hidden webview throttles its timers, and the
 //! icon must stay current while the window is closed. The UI only sends its translated text.
 
-use keeprun_core::model::{AppState, AppView};
+use keeprun_core::model::{AppState, AppView, IssueReport};
 use keeprun_core::Settings;
 use serde::Deserialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::image::Image;
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, Runtime};
+use tauri_plugin_clipboard_manager::ClipboardExt;
+use tauri_plugin_notification::NotificationExt;
 
 const TRAY_ID: &str = "keeprun";
 const POLL: Duration = Duration::from_secs(2);
 const BASE_ICON: &[u8] = include_bytes!("../icons/32x32.png");
+/// At most one notification per app in this time, so an error that comes and goes stays quiet.
+const NOTIFY_GAP: Duration = Duration::from_secs(5 * 60);
+const ISSUE_ITEM: &str = "issue:";
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Level {
@@ -27,7 +35,7 @@ pub enum Level {
     Good,
     /// Apps are starting or stopping.
     Busy,
-    /// An app crashed and is restarting, or exited with an error.
+    /// An app crashed and is restarting, exited with an error, or prints errors.
     Warning,
     /// An app failed, or the agent cannot be reached.
     Bad,
@@ -47,7 +55,7 @@ impl Level {
 
 /// Translated text from the UI. Plural entries are already chosen per count by the UI.
 #[derive(Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct TrayText {
     show: String,
     quit: String,
@@ -58,6 +66,14 @@ pub struct TrayText {
     /// Count to text, e.g. "1" -> "1 app failed". Covers counts up to the number of apps.
     failed: BTreeMap<u32, String>,
     restarting: BTreeMap<u32, String>,
+    /// "1 app has errors"
+    errors: BTreeMap<u32, String>,
+    /// Menu item, "Copy fix prompt for {name}".
+    copy_prompt: String,
+    /// Notification title, "{name} has errors".
+    issue_title: String,
+    /// Notification after copying from the menu.
+    copied: String,
 }
 
 impl Default for TrayText {
@@ -70,6 +86,10 @@ impl Default for TrayText {
             unreachable: "Agent not reachable".into(),
             failed: BTreeMap::new(),
             restarting: BTreeMap::new(),
+            errors: BTreeMap::new(),
+            copy_prompt: "Copy fix prompt for {name}".into(),
+            issue_title: "{name} has errors".into(),
+            copied: "Fix prompt copied. Paste it into your coding agent.".into(),
         }
     }
 }
@@ -79,6 +99,12 @@ pub struct Tray {
     enabled: AtomicBool,
     text: Mutex<TrayText>,
     last: Mutex<Option<(Level, String)>>,
+    /// Apps with an issue, as (id, name), in the current menu.
+    issue_apps: Mutex<Vec<(String, String)>>,
+    /// Per app: the issue last notified about (its first_at), and when.
+    notified: Mutex<HashMap<String, (u64, Instant)>>,
+    /// Set after the first poll, so issues that existed before the app opened stay quiet.
+    primed: AtomicBool,
 }
 
 impl Default for Tray {
@@ -87,6 +113,9 @@ impl Default for Tray {
             enabled: AtomicBool::new(true),
             text: Mutex::default(),
             last: Mutex::default(),
+            issue_apps: Mutex::default(),
+            notified: Mutex::default(),
+            primed: AtomicBool::new(false),
         }
     }
 }
@@ -97,8 +126,15 @@ impl Tray {
     }
 }
 
+/// A running app that prints errors. Failed or restarting apps count as such instead.
+fn has_issue(a: &AppView) -> bool {
+    a.issue.is_some()
+        && !a.spec.disabled
+        && matches!(a.state, AppState::Running | AppState::Starting)
+}
+
 /// Count apps by health. Disabled apps do not count.
-fn assess(apps: &[AppView]) -> (Level, usize, usize, u32, u32) {
+fn assess(apps: &[AppView]) -> (Level, usize, usize, u32, u32, u32) {
     let apps: Vec<_> = apps.iter().filter(|a| !a.spec.disabled).collect();
     let running = apps.iter().filter(|a| a.state == AppState::Running).count();
     let failed = apps.iter().filter(|a| a.state == AppState::Failed).count() as u32;
@@ -112,9 +148,10 @@ fn assess(apps: &[AppView]) -> (Level, usize, usize, u32, u32) {
     let busy = apps
         .iter()
         .any(|a| matches!(a.state, AppState::Starting | AppState::Stopping));
+    let issues = apps.iter().filter(|a| has_issue(a)).count() as u32;
     let level = if failed > 0 {
         Level::Bad
-    } else if restarting > 0 {
+    } else if restarting > 0 || issues > 0 {
         Level::Warning
     } else if busy {
         Level::Busy
@@ -123,14 +160,14 @@ fn assess(apps: &[AppView]) -> (Level, usize, usize, u32, u32) {
     } else {
         Level::Idle
     };
-    (level, running, apps.len(), failed, restarting)
+    (level, running, apps.len(), failed, restarting, issues)
 }
 
 fn tooltip(text: &TrayText, apps: Option<&[AppView]>) -> (Level, String) {
     let Some(apps) = apps else {
         return (Level::Bad, format!("Keeprun\n{}", text.unreachable));
     };
-    let (level, running, total, failed, restarting) = assess(apps);
+    let (level, running, total, failed, restarting, issues) = assess(apps);
     let mut lines = vec!["Keeprun".to_string()];
     lines.push(if total == 0 {
         text.no_apps.clone()
@@ -146,6 +183,9 @@ fn tooltip(text: &TrayText, apps: Option<&[AppView]>) -> (Level, String) {
     }
     if restarting > 0 {
         lines.push(pick(&text.restarting, restarting));
+    }
+    if issues > 0 {
+        lines.push(pick(&text.errors, issues));
     }
     // Windows cuts tooltips at 127 characters.
     let mut tip = lines.join("\n");
@@ -190,10 +230,36 @@ fn icon(level: Level) -> Image<'static> {
     Image::new_owned(rgba, w, h)
 }
 
-fn menu<R: Runtime>(app: &AppHandle<R>, text: &TrayText) -> tauri::Result<Menu<R>> {
-    let show = MenuItem::with_id(app, "show", &text.show, true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", &text.quit, true, None::<&str>)?;
-    Menu::with_items(app, &[&show, &quit])
+/// Show and Quit, with a "Copy fix prompt" item first for each app that prints errors.
+fn menu<R: Runtime>(
+    app: &AppHandle<R>,
+    text: &TrayText,
+    issues: &[(String, String)],
+) -> tauri::Result<Menu<R>> {
+    let menu = Menu::new(app)?;
+    for (id, name) in issues {
+        let label = text.copy_prompt.replace("{name}", name);
+        let id = format!("{ISSUE_ITEM}{id}");
+        menu.append(&MenuItem::with_id(app, id, label, true, None::<&str>)?)?;
+    }
+    if !issues.is_empty() {
+        menu.append(&PredefinedMenuItem::separator(app)?)?;
+    }
+    menu.append(&MenuItem::with_id(
+        app,
+        "show",
+        &text.show,
+        true,
+        None::<&str>,
+    )?)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        "quit",
+        &text.quit,
+        true,
+        None::<&str>,
+    )?)?;
+    Ok(menu)
 }
 
 pub fn show_window<R: Runtime>(app: &AppHandle<R>) {
@@ -209,12 +275,16 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon(Level::Idle))
         .tooltip("Keeprun")
-        .menu(&menu(app, &text)?)
+        .menu(&menu(app, &text, &[])?)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, e| match e.id.as_ref() {
             "show" => show_window(app),
             "quit" => app.exit(0),
-            _ => {}
+            id => {
+                if let Some(app_id) = id.strip_prefix(ISSUE_ITEM) {
+                    copy_prompt(app.clone(), app_id.to_string());
+                }
+            }
         })
         .on_tray_icon_event(|tray, e| {
             if let TrayIconEvent::Click {
@@ -243,11 +313,11 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
-async fn fetch(http: &reqwest::Client) -> Option<Vec<AppView>> {
+async fn get<T: serde::de::DeserializeOwned>(http: &reqwest::Client, path: &str) -> Option<T> {
     let s = Settings::load().ok()?;
     let token = keeprun_core::token::read(&s.token_path()).ok()?;
     let res = http
-        .get(format!("{}/apps", s.base_url()))
+        .get(format!("{}{path}", s.base_url()))
         .bearer_auth(token)
         .send()
         .await
@@ -258,13 +328,92 @@ async fn fetch(http: &reqwest::Client) -> Option<Vec<AppView>> {
     res.json().await.ok()
 }
 
+async fn fetch(http: &reqwest::Client) -> Option<Vec<AppView>> {
+    get(http, "/apps").await
+}
+
+/// Copy an app's fix prompt from the menu, and confirm with a notification.
+fn copy_prompt<R: Runtime>(app: AppHandle<R>, id: String) {
+    tauri::async_runtime::spawn(async move {
+        let http = reqwest::Client::builder()
+            .timeout(Duration::from_secs(3))
+            .build()
+            .unwrap_or_default();
+        let report: Option<IssueReport> = get(&http, &format!("/apps/{id}/issue")).await;
+        // None: the issue cleared since the menu was built. The next poll removes the item.
+        let Some(prompt) = report.and_then(|r| r.prompt) else {
+            return;
+        };
+        if app.clipboard().write_text(prompt).is_ok() {
+            let body = app.state::<Tray>().text.lock().unwrap().copied.clone();
+            let _ = app
+                .notification()
+                .builder()
+                .title("Keeprun")
+                .body(body)
+                .show();
+        }
+    });
+}
+
+/// Notify once per new issue, and at most once per `NOTIFY_GAP` per app.
+fn notify_issues<R: Runtime>(app: &AppHandle<R>, apps: &[AppView]) {
+    let state = app.state::<Tray>();
+    let primed = state.primed.swap(true, Ordering::Relaxed);
+    let mut notified = state.notified.lock().unwrap();
+    let now = Instant::now();
+    for a in apps.iter().filter(|a| has_issue(a)) {
+        let Some(issue) = &a.issue else { continue };
+        let prev = notified.get(&a.spec.id).copied();
+        if prev.is_some_and(|(first_at, _)| first_at == issue.first_at) {
+            continue;
+        }
+        let quiet = prev.filter(|(_, at)| now.duration_since(*at) < NOTIFY_GAP);
+        let at = quiet.map_or(now, |(_, at)| at);
+        notified.insert(a.spec.id.clone(), (issue.first_at, at));
+        if primed && quiet.is_none() {
+            let title = state
+                .text
+                .lock()
+                .unwrap()
+                .issue_title
+                .replace("{name}", &a.spec.name);
+            let _ = app
+                .notification()
+                .builder()
+                .title(title)
+                .body(&issue.summary)
+                .show();
+        }
+    }
+}
+
 fn tray<R: Runtime>(app: &AppHandle<R>) -> Option<TrayIcon<R>> {
     app.tray_by_id(TRAY_ID)
 }
 
-/// Update the icon and tooltip when they change.
+/// Update the icon, tooltip and menu when they change.
 fn refresh<R: Runtime>(app: &AppHandle<R>, apps: Option<&[AppView]>) {
     let state = app.state::<Tray>();
+    if let Some(apps) = apps {
+        notify_issues(app, apps);
+    }
+    let issues: Vec<(String, String)> = apps
+        .unwrap_or_default()
+        .iter()
+        .filter(|a| has_issue(a))
+        .map(|a| (a.spec.id.clone(), a.spec.name.clone()))
+        .collect();
+    {
+        let mut current = state.issue_apps.lock().unwrap();
+        if *current != issues {
+            let m = menu(app, &state.text.lock().unwrap(), &issues);
+            if let (Some(t), Ok(m)) = (tray(app), m) {
+                let _ = t.set_menu(Some(m));
+            }
+            *current = issues;
+        }
+    }
     let (level, tip) = tooltip(&state.text.lock().unwrap(), apps);
     let mut last = state.last.lock().unwrap();
     if last.as_ref().is_some_and(|(l, t)| *l == level && *t == tip) {
@@ -295,7 +444,7 @@ pub fn set_tray_enabled<R: Runtime>(app: AppHandle<R>, enabled: bool) {
 pub fn set_tray_text<R: Runtime>(app: AppHandle<R>, text: TrayText) {
     let state = app.state::<Tray>();
     if let Some(t) = tray(&app) {
-        if let Ok(m) = menu(&app, &text) {
+        if let Ok(m) = menu(&app, &text, &state.issue_apps.lock().unwrap()) {
             let _ = t.set_menu(Some(m));
         }
     }
@@ -346,6 +495,33 @@ mod tests {
             assess(&[view(Running, None, false), view(Stopped, None, true)]).2,
             1
         );
+    }
+
+    #[test]
+    fn errors_while_running_warn() {
+        let mut broken = view(AppState::Running, None, false);
+        broken.issue = Some(keeprun_core::model::AppIssue {
+            first_at: 1,
+            last_at: 1,
+            count: 3,
+            summary: "Error: x".into(),
+            excerpt: vec![],
+        });
+        let apps = [view(AppState::Running, None, false), broken.clone()];
+        let (level, _, _, _, _, issues) = assess(&apps);
+        assert_eq!((level, issues), (Level::Warning, 1));
+        let text = TrayText {
+            errors: BTreeMap::from([(1, "1 app has errors".into())]),
+            ..Default::default()
+        };
+        assert_eq!(
+            tooltip(&text, Some(&apps)).1,
+            "Keeprun\n2 of 2 apps running\n1 app has errors"
+        );
+        // A failed app is red, and not counted again as an issue.
+        broken.state = AppState::Failed;
+        let (level, _, _, failed, _, issues) = assess(&[broken]);
+        assert_eq!((level, failed, issues), (Level::Bad, 1, 0));
     }
 
     #[test]

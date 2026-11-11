@@ -58,6 +58,7 @@ const catalog: Catalog = {
   // 应用标题
   "app.exitCode": "(代码 {code})",
   "app.restartIn": "{seconds} 秒后",
+  "app.printingErrors": "正在输出错误",
   "app.stop": "停止",
   "app.stopHint": "停止 (Ctrl+Enter)",
   "app.restart": "重启",
@@ -134,6 +135,12 @@ const catalog: Catalog = {
   "tray.failed": { other: "{count} 个应用失败" },
   "tray.restarting": { other: "{count} 个应用正在重启" },
   "tray.unreachable": "无法连接到代理",
+  "tray.errors": {
+    other: "{count} 个应用正在输出错误",
+  },
+  "tray.copyPrompt": "复制 {name} 的修复提示词",
+  "tray.issueTitle": "{name} 出现错误",
+  "tray.copied": "已复制提示词。请粘贴到你的编程智能体中。",
 
   // 概述
   "overview.restarting": "已退出，代码为 {code}。将在 {seconds} 秒后重启(第 {attempt} 次尝试)。",
@@ -165,6 +172,12 @@ const catalog: Catalog = {
   "overview.tags": "标记",
   "overview.recentEvents": "最近的事件",
   "overview.allEvents": "所有事件",
+  "overview.issue": "正在运行，但输出中有错误",
+  "overview.issueSeen": "出现 {count} 次，最近一次在 {time}",
+  "overview.issueOutput": "显示错误输出",
+  "overview.copyPrompt": "复制修复提示词",
+  "overview.copyPromptHint": "将错误、文件夹和命令复制为编程智能体可用的提示词",
+  "overview.dismiss": "忽略",
 
   // 事件
   "events.none": "还没有事件。",
@@ -253,6 +266,8 @@ const catalog: Catalog = {
   "settings.autostart": "随代理启动",
   "settings.autostartHint":
     "重新启动电脑或重启代理后，如果应用之前正在运行，则再次启动它。已停止的应用保持停止状态。",
+  "settings.watchErrors": "监视输出中的错误",
+  "settings.watchErrorsHint": "当应用在继续运行的同时输出错误（例如构建失败）时发出警告，并提供可交给编程智能体的修复提示词。",
   "settings.tags": "标记",
   "settings.tagsPlaceholder": "财务, 内部",
   "settings.tagsHint": "以逗号分隔。应用按第一个标记分组。",

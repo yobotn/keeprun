@@ -56,6 +56,7 @@ const catalog: Catalog = {
   // Main app header
   "app.exitCode": "(codice {code})",
   "app.restartIn": "tra {seconds} s",
+  "app.printingErrors": "mostra errori",
   "app.stop": "Arresta",
   "app.stopHint": "Arresta (Ctrl+Enter)",
   "app.restart": "Riavvia",
@@ -142,6 +143,14 @@ const catalog: Catalog = {
     other: "{count} app in riavvio",
   },
   "tray.unreachable": "Agente non raggiungibile",
+  "tray.errors": {
+    one: "{count} app mostra errori",
+    many: "{count} app mostrano errori",
+    other: "{count} app mostrano errori",
+  },
+  "tray.copyPrompt": "Copia il prompt di correzione per {name}",
+  "tray.issueTitle": "{name} mostra errori",
+  "tray.copied": "Prompt copiato. Incollalo nel tuo agente di programmazione.",
 
   // Overview
   "overview.restarting": "Terminata con codice {code}. Riavvio tra {seconds} s (tentativo {attempt}).",
@@ -175,6 +184,12 @@ const catalog: Catalog = {
   "overview.tags": "Tag",
   "overview.recentEvents": "Eventi recenti",
   "overview.allEvents": "Tutti gli eventi",
+  "overview.issue": "In esecuzione, ma l’output mostra errori",
+  "overview.issueSeen": "Visto {count}×, l’ultima volta alle {time}",
+  "overview.issueOutput": "Mostra l’output dell’errore",
+  "overview.copyPrompt": "Copia prompt di correzione",
+  "overview.copyPromptHint": "Copia l’errore, la cartella e i comandi come prompt per un agente di programmazione",
+  "overview.dismiss": "Ignora",
 
   // Events
   "events.none": "Ancora nessun evento.",
@@ -266,6 +281,8 @@ const catalog: Catalog = {
   "settings.autostart": "Avvia con l'agente",
   "settings.autostartHint":
     "Dopo un riavvio del computer o dell'agente, avvia di nuovo l'app se era in esecuzione. Un'app arrestata resta arrestata.",
+  "settings.watchErrors": "Controlla gli errori nell’output",
+  "settings.watchErrorsHint": "Avvisa quando l’app mostra errori mentre continua a funzionare, ad esempio una build non riuscita, e offre un prompt di correzione per un agente di programmazione.",
   "settings.tags": "Tag",
   "settings.tagsPlaceholder": "finanza, interno",
   "settings.tagsHint": "Separati da virgole. Le app vengono raggruppate in base al primo tag.",

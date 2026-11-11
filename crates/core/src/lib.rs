@@ -2,6 +2,7 @@
 
 pub mod config;
 pub mod detect;
+pub mod issue;
 pub mod model;
 pub mod token;
 

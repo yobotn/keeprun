@@ -389,7 +389,7 @@
                   {#if app.disabled}
                     <Ban size={10} class="shrink-0 text-fg-muted" aria-hidden="true" />
                   {:else}
-                    <StatusDot state={app.state} />
+                    <StatusDot state={app.state} issue={!!app.issue} />
                   {/if}
                   <span class="flex-1 truncate">{app.name}</span>
                   {#if app.state === "running" && app.stats?.ports[0]}
@@ -417,8 +417,9 @@
                 <Ban size={12} />
                 {t("state.disabled")}
               {:else}
-                <StatusDot state={selected.state} />
+                <StatusDot state={selected.state} issue={!!selected.issue} />
                 {stateText(selected.state)}
+                {#if selected.issue && selected.state === "running"}<span class="text-warn">· {t("app.printingErrors")}</span>{/if}
                 {#if selected.state === "exited" && selected.exit_code !== null}{t("app.exitCode", { code: selected.exit_code })}{/if}
                 {#if restartCountdown !== null}{t("app.restartIn", { seconds: restartCountdown })}{/if}
               {/if}

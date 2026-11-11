@@ -56,6 +56,7 @@ const catalog: Catalog = {
   // Main app header
   "app.exitCode": "(código {code})",
   "app.restartIn": "en {seconds} s",
+  "app.printingErrors": "muestra errores",
   "app.stop": "Detener",
   "app.stopHint": "Detener (Ctrl+Enter)",
   "app.restart": "Reiniciar",
@@ -142,6 +143,14 @@ const catalog: Catalog = {
     other: "{count} aplicaciones reiniciándose",
   },
   "tray.unreachable": "No se puede conectar con el agente",
+  "tray.errors": {
+    one: "{count} app muestra errores",
+    many: "{count} apps muestran errores",
+    other: "{count} apps muestran errores",
+  },
+  "tray.copyPrompt": "Copiar prompt de corrección para {name}",
+  "tray.issueTitle": "{name} muestra errores",
+  "tray.copied": "Prompt copiado. Pégalo en tu agente de código.",
 
   // Overview
   "overview.restarting": "Finalizó con el código {code}. Se reiniciará en {seconds} s (intento {attempt}).",
@@ -175,6 +184,12 @@ const catalog: Catalog = {
   "overview.tags": "Etiquetas",
   "overview.recentEvents": "Eventos recientes",
   "overview.allEvents": "Todos los eventos",
+  "overview.issue": "En ejecución, pero la salida muestra errores",
+  "overview.issueSeen": "Visto {count}×, la última a las {time}",
+  "overview.issueOutput": "Mostrar la salida del error",
+  "overview.copyPrompt": "Copiar prompt de corrección",
+  "overview.copyPromptHint": "Copia el error, la carpeta y los comandos como prompt para un agente de código",
+  "overview.dismiss": "Descartar",
 
   // Events
   "events.none": "Todavía no hay eventos.",
@@ -266,6 +281,8 @@ const catalog: Catalog = {
   "settings.autostart": "Iniciar con el agente",
   "settings.autostartHint":
     "Tras reiniciar el equipo o el agente, vuelve a iniciar la aplicación si estaba en ejecución. Una aplicación detenida sigue detenida.",
+  "settings.watchErrors": "Vigilar errores en la salida",
+  "settings.watchErrorsHint": "Avisa cuando la app muestra errores mientras sigue en ejecución, como una compilación rota, y ofrece un prompt de corrección para un agente de código.",
   "settings.tags": "Etiquetas",
   "settings.tagsPlaceholder": "finanzas, interno",
   "settings.tagsHint": "Separadas por comas. Las aplicaciones se agrupan por su primera etiqueta.",

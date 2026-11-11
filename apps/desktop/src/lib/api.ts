@@ -41,6 +41,26 @@ export interface AppSpec {
   tasks: TaskSpec[];
   /** Kept but switched off: cannot start, never autostarts. */
   disabled: boolean;
+  /** Watch the output for errors while the app runs. */
+  watch_errors: boolean;
+}
+
+/** Errors an app printed while it kept running, e.g. a dev server whose build broke. */
+export interface AppIssue {
+  first_at: number;
+  last_at: number;
+  /** Times the first error was printed. */
+  count: number;
+  /** The first error line. */
+  summary: string;
+  /** Output around the first occurrence, with repeats removed. */
+  excerpt: string[];
+}
+
+export interface IssueReport {
+  issue: AppIssue | null;
+  /** Text for a coding agent, when there is an issue. */
+  prompt: string | null;
 }
 
 export interface TaskSpec {
@@ -66,9 +86,10 @@ export interface AppView extends AppSpec {
   next_restart_at: number | null;
   stats: Stats | null;
   task: TaskRun | null;
+  issue: AppIssue | null;
 }
 
-export type NewApp = Omit<AppSpec, "id" | "disabled">;
+export type NewApp = Omit<AppSpec, "id" | "disabled" | "watch_errors"> & { watch_errors?: boolean };
 export type UpdateApp = Partial<NewApp> & { disabled?: boolean };
 
 export interface LogLine {
@@ -173,6 +194,8 @@ export const api = {
   runTask: (id: string, task: { name?: string; command?: string }) =>
     call<AppView>("POST", `/apps/${enc(id)}/tasks/run`, task),
   stopTask: (id: string) => call<AppView>("POST", `/apps/${enc(id)}/tasks/stop`),
+  issue: (id: string) => call<IssueReport>("GET", `/apps/${enc(id)}/issue`),
+  clearIssue: (id: string) => call<AppView>("DELETE", `/apps/${enc(id)}/issue`),
   events: (id: string, limit = 100) => call<AppEvent[]>("GET", `/apps/${enc(id)}/events?limit=${limit}`),
   async logSocket(id: string): Promise<WebSocket> {
     const c = await connection();
@@ -202,6 +225,12 @@ export interface TrayText {
   /** Count to text, e.g. 1 -> "1 app failed". */
   failed: Record<number, string>;
   restarting: Record<number, string>;
+  errors: Record<number, string>;
+  /** "Copy fix prompt for {name}" */
+  copyPrompt: string;
+  /** "{name} has errors" */
+  issueTitle: string;
+  copied: string;
 }
 
 export const config = {

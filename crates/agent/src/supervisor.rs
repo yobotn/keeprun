@@ -7,9 +7,10 @@
 use crate::db::Db;
 use crate::job::{self, Job};
 use anyhow::{anyhow, Context, Result};
+use keeprun_core::issue::{self, IssueTracker};
 use keeprun_core::model::{
-    slugify, AppSpec, AppState, AppView, Event, EventKind, LogLine, NewApp, RestartPolicy, RunTask,
-    Stats, Stream, TaskRun, TaskSpec, UpdateApp,
+    slugify, AppSpec, AppState, AppView, Event, EventKind, IssueReport, LogLine, NewApp,
+    RestartPolicy, RunTask, Stats, Stream, TaskRun, TaskSpec, UpdateApp,
 };
 use keeprun_core::Settings;
 use std::collections::{BTreeMap, HashSet, VecDeque};
@@ -110,6 +111,8 @@ pub struct LogHub {
     tx: broadcast::Sender<LogLine>,
     buffer: Mutex<VecDeque<LogLine>>,
     file: Mutex<Option<(PathBuf, File)>>,
+    /// Errors in the app output of the current run. Task output does not count.
+    issue: Mutex<IssueTracker>,
 }
 
 impl LogHub {
@@ -128,6 +131,7 @@ impl LogHub {
             tx,
             buffer: Mutex::new(VecDeque::with_capacity(LOG_BUFFER_LINES)),
             file: Mutex::new(file),
+            issue: Mutex::default(),
         }
     }
 
@@ -148,6 +152,9 @@ impl LogHub {
                 buf.pop_front();
             }
             buf.push_back(line.clone());
+        }
+        if !task && stream != Stream::System {
+            self.issue.lock().unwrap().feed(&line.text, line.ts);
         }
         self.write_file(&line);
         let _ = self.tx.send(line);
@@ -192,6 +199,17 @@ impl LogHub {
     pub fn subscribe(&self) -> broadcast::Receiver<LogLine> {
         self.tx.subscribe()
     }
+
+    fn clear_issue(&self) {
+        self.issue.lock().unwrap().clear();
+    }
+}
+
+#[cfg(test)]
+impl Supervisor {
+    fn app_logs_feed_for_test(&self, id: &str, text: &str) {
+        self.get(id).unwrap().logs.push(Stream::Stdout, text.into());
+    }
 }
 
 impl Managed {
@@ -202,9 +220,14 @@ impl Managed {
     fn view(&self, stats: Option<Stats>) -> AppView {
         let spec = self.spec.read().unwrap().clone();
         let rt = self.rt.lock().unwrap();
+        let state = rt.state.unwrap_or(AppState::Stopped);
+        // A user stop ends the run; its errors are no longer news.
+        let issue = (spec.watch_errors && state != AppState::Stopped)
+            .then(|| self.logs.issue.lock().unwrap().current(now_ms()))
+            .flatten();
         AppView {
             spec,
-            state: rt.state.unwrap_or(AppState::Stopped),
+            state,
             pid: rt.pid,
             exit_code: rt.exit_code,
             started_at: rt.started_at,
@@ -212,6 +235,7 @@ impl Managed {
             next_restart_at: rt.next_restart_at,
             stats,
             task: self.task.lock().unwrap().run.clone(),
+            issue,
         }
     }
 }
@@ -382,6 +406,7 @@ impl Supervisor {
             max_restarts: new.max_restarts,
             tasks,
             disabled: false,
+            watch_errors: new.watch_errors,
         };
         {
             let mut apps = self.apps.write().unwrap();
@@ -450,6 +475,12 @@ impl Supervisor {
             }
             spec.disabled = v;
         }
+        if let Some(v) = u.watch_errors {
+            spec.watch_errors = v;
+            if !v {
+                m.logs.clear_issue();
+            }
+        }
         Self::validate(&spec.name, &spec.cwd, &spec.command)?;
         if job::port_of(&spec.env) != job::port_of(&before.env) {
             Self::port_taken(&self.apps.read().unwrap(), id, &spec.env)?;
@@ -497,6 +528,26 @@ impl Supervisor {
             self.get(id)?;
         }
         Ok(self.db.events(id, limit.clamp(1, 1000))?)
+    }
+
+    /// Errors the app printed in this run, and a prompt a coding agent can work from.
+    pub fn issue(&self, id: &str) -> Result<IssueReport, SupError> {
+        let view = self.view(id)?;
+        let events = if view.issue.is_some() {
+            self.events(Some(id), 10)?
+        } else {
+            vec![]
+        };
+        Ok(IssueReport {
+            prompt: issue::agent_prompt(&view, &events),
+            issue: view.issue,
+        })
+    }
+
+    /// Forget the current issue. A new error starts a new one.
+    pub fn clear_issue(&self, id: &str) -> Result<AppView, SupError> {
+        self.get(id)?.logs.clear_issue();
+        self.view(id)
     }
 
     pub fn recent_logs(&self, id: &str, tail: usize) -> Result<Vec<LogLine>, SupError> {
@@ -618,6 +669,8 @@ impl Supervisor {
             }
         };
 
+        // A new run starts clean. Errors from the previous one may already be fixed.
+        m.logs.clear_issue();
         m.logs.push(
             Stream::System,
             format!("Started: {} (in {})", spec.command, spec.cwd.display()),
@@ -1102,6 +1155,12 @@ fn describe_changes(a: &AppSpec, b: &AppSpec) -> String {
     if a.tasks != b.tasks {
         parts.push("tasks".into());
     }
+    if a.watch_errors != b.watch_errors {
+        parts.push(format!(
+            "watch for errors to {}",
+            if b.watch_errors { "on" } else { "off" }
+        ));
+    }
     if a.disabled != b.disabled {
         parts.push(
             if b.disabled {
@@ -1204,6 +1263,7 @@ mod tests {
                 name: "hello".into(),
                 command: "echo task-output".into(),
             }],
+            watch_errors: true,
         })
         .unwrap()
         .spec
@@ -1381,6 +1441,61 @@ mod tests {
         );
         assert!(clean_tasks(vec![t("a", "")]).is_err());
         assert!(clean_tasks(vec![t("a", "x"), t("a", "y")]).is_err());
+    }
+
+    #[tokio::test]
+    async fn errors_in_output_become_an_issue() {
+        let s = sup("issue");
+        let id = app(
+            &s,
+            "broken",
+            "echo TypeError: boom& echo TypeError: boom& ping -n 60 127.0.0.1 >nul",
+            RestartPolicy::Never,
+            0,
+        );
+        s.start(&id).unwrap();
+        let mut issue = None;
+        for _ in 0..50 {
+            issue = s.view(&id).unwrap().issue;
+            if issue.as_ref().is_some_and(|i| i.count == 2) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        let issue = issue.expect("no issue from error output");
+        assert_eq!(issue.count, 2);
+        assert_eq!(issue.summary, "TypeError: boom");
+        let report = s.issue(&id).unwrap();
+        let prompt = report.prompt.unwrap();
+        assert!(prompt.contains("TypeError: boom"));
+        assert!(prompt.contains(&format!("keeprun logs {id}")));
+
+        // Task output does not count.
+        s.clear_issue(&id).unwrap();
+        s.run_task(
+            &id,
+            RunTask {
+                name: None,
+                command: Some("echo TypeError: from task".into()),
+            },
+        )
+        .unwrap();
+        tokio::time::sleep(Duration::from_millis(800)).await;
+        assert!(s.view(&id).unwrap().issue.is_none());
+
+        // Muting hides it.
+        s.app_logs_feed_for_test(&id, "ReferenceError: x");
+        assert!(s.view(&id).unwrap().issue.is_some());
+        s.update(
+            &id,
+            UpdateApp {
+                watch_errors: Some(false),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(s.view(&id).unwrap().issue.is_none());
+        s.stop(&id).await.unwrap();
     }
 
     #[tokio::test]

@@ -55,6 +55,7 @@ const catalog: Catalog = {
   // Заголовок програми
   "app.exitCode": "(код {code})",
   "app.restartIn": "через {seconds} с",
+  "app.printingErrors": "виводить помилки",
   "app.stop": "Зупинити",
   "app.stopHint": "Зупинити (Ctrl+Enter)",
   "app.restart": "Перезапустити",
@@ -141,6 +142,15 @@ const catalog: Catalog = {
     other: "{count} програми перезапускаються",
   },
   "tray.unreachable": "Агент недоступний",
+  "tray.errors": {
+    one: "{count} застосунок виводить помилки",
+    few: "{count} застосунки виводять помилки",
+    many: "{count} застосунків виводять помилки",
+    other: "{count} застосунку виводять помилки",
+  },
+  "tray.copyPrompt": "Скопіювати промпт для виправлення: {name}",
+  "tray.issueTitle": "{name}: помилки у виводі",
+  "tray.copied": "Промпт скопійовано. Вставте його у свого агента для коду.",
 
   // Огляд
   "overview.restarting": "Завершено з кодом {code}. Перезапуск через {seconds} с (спроба {attempt}).",
@@ -172,6 +182,12 @@ const catalog: Catalog = {
   "overview.tags": "Теги",
   "overview.recentEvents": "Останні події",
   "overview.allEvents": "Усі події",
+  "overview.issue": "Працює, але у виводі є помилки",
+  "overview.issueSeen": "Помічено {count}×, востаннє о {time}",
+  "overview.issueOutput": "Показати вивід із помилкою",
+  "overview.copyPrompt": "Скопіювати промпт для виправлення",
+  "overview.copyPromptHint": "Копіює помилку, теку й команди як промпт для агента для коду",
+  "overview.dismiss": "Приховати",
 
   // Події
   "events.none": "Подій поки немає.",
@@ -265,6 +281,8 @@ const catalog: Catalog = {
   "settings.autostart": "Запускати разом з агентом",
   "settings.autostartHint":
     "Після перезавантаження комп'ютера або перезапуску агента програма знову запускається, якщо вона працювала. Зупинена програма залишається зупиненою.",
+  "settings.watchErrors": "Стежити за помилками у виводі",
+  "settings.watchErrorsHint": "Попереджає, коли застосунок далі працює, але виводить помилки, наприклад через зламану збірку, і пропонує промпт для виправлення для агента для коду.",
   "settings.tags": "Теги",
   "settings.tagsPlaceholder": "фінанси, внутрішнє",
   "settings.tagsHint": "Через кому. Програми групуються за першим тегом.",

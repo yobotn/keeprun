@@ -55,6 +55,7 @@ const catalog: Catalog = {
   // Main app header
   "app.exitCode": "(code {code})",
   "app.restartIn": "over {seconds}s",
+  "app.printingErrors": "geeft fouten",
   "app.stop": "Stoppen",
   "app.stopHint": "Stoppen (Ctrl+Enter)",
   "app.restart": "Opnieuw starten",
@@ -132,6 +133,13 @@ const catalog: Catalog = {
   "tray.failed": { one: "{count} app mislukt", other: "{count} apps mislukt" },
   "tray.restarting": { one: "{count} app wordt opnieuw gestart", other: "{count} apps worden opnieuw gestart" },
   "tray.unreachable": "Agent niet bereikbaar",
+  "tray.errors": {
+    one: "{count} app geeft fouten",
+    other: "{count} apps geven fouten",
+  },
+  "tray.copyPrompt": "Herstelprompt voor {name} kopiëren",
+  "tray.issueTitle": "{name} geeft fouten",
+  "tray.copied": "Prompt gekopieerd. Plak hem in je codeeragent.",
 
   // Overview
   "overview.restarting": "Afgesloten met code {code}. Opnieuw starten over {seconds}s (poging {attempt}).",
@@ -164,6 +172,12 @@ const catalog: Catalog = {
   "overview.tags": "Tags",
   "overview.recentEvents": "Recente gebeurtenissen",
   "overview.allEvents": "Alle gebeurtenissen",
+  "overview.issue": "Draait, maar de uitvoer toont fouten",
+  "overview.issueSeen": "{count}× gezien, laatst om {time}",
+  "overview.issueOutput": "Foutuitvoer tonen",
+  "overview.copyPrompt": "Herstelprompt kopiëren",
+  "overview.copyPromptHint": "Kopieert de fout, de map en de opdrachten als prompt voor een codeeragent",
+  "overview.dismiss": "Negeren",
 
   // Events
   "events.none": "Nog geen gebeurtenissen.",
@@ -253,6 +267,8 @@ const catalog: Catalog = {
   "settings.autostart": "Starten met de agent",
   "settings.autostartHint":
     "Na het opnieuw opstarten van de computer of de agent wordt de app weer gestart als deze actief was. Een gestopte app blijft gestopt.",
+  "settings.watchErrors": "Uitvoer controleren op fouten",
+  "settings.watchErrorsHint": "Waarschuwt als de app fouten toont terwijl hij blijft draaien, zoals een mislukte build, en biedt een herstelprompt voor een codeeragent.",
   "settings.tags": "Tags",
   "settings.tagsPlaceholder": "financiën, intern",
   "settings.tagsHint": "Gescheiden door komma's. Apps worden gegroepeerd op hun eerste tag.",

@@ -27,6 +27,7 @@
       restart: a.restart as RestartPolicy,
       max_restarts: a.max_restarts,
       autostart: a.autostart,
+      watch_errors: a.watch_errors,
       tags: a.tags.join(", "),
       port: a.env.PORT ?? "",
     };
@@ -81,6 +82,7 @@
         restart: form.restart,
         max_restarts: Number(form.max_restarts) || 0,
         autostart: form.autostart,
+        watch_errors: form.watch_errors,
         tags: splitTags(form.tags),
       });
       form = fresh(v);
@@ -189,6 +191,14 @@
         <span>
           <span class="text-[13px] font-medium">{t("settings.autostart")}</span>
           <span class="hint block">{t("settings.autostartHint")}</span>
+        </span>
+      </label>
+
+      <label class="flex items-start gap-3">
+        <input type="checkbox" class="mt-0.5 size-4 accent-[var(--accent)]" bind:checked={form.watch_errors} />
+        <span>
+          <span class="text-[13px] font-medium">{t("settings.watchErrors")}</span>
+          <span class="hint block">{t("settings.watchErrorsHint")}</span>
         </span>
       </label>
 

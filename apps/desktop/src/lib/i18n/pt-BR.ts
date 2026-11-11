@@ -55,6 +55,7 @@ const catalog: Catalog = {
   // Cabeçalho do aplicativo
   "app.exitCode": "(código {code})",
   "app.restartIn": "em {seconds}s",
+  "app.printingErrors": "mostrando erros",
   "app.stop": "Parar",
   "app.stopHint": "Parar (Ctrl+Enter)",
   "app.restart": "Reiniciar",
@@ -139,6 +140,14 @@ const catalog: Catalog = {
     other: "{count} aplicativos reiniciando",
   },
   "tray.unreachable": "Agente inacessível",
+  "tray.errors": {
+    one: "{count} app mostrando erros",
+    many: "{count} apps mostrando erros",
+    other: "{count} apps mostrando erros",
+  },
+  "tray.copyPrompt": "Copiar prompt de correção para {name}",
+  "tray.issueTitle": "{name} está mostrando erros",
+  "tray.copied": "Prompt copiado. Cole no seu agente de código.",
 
   // Visão geral
   "overview.restarting": "Encerrado com o código {code}. Reiniciando em {seconds}s (tentativa {attempt}).",
@@ -170,6 +179,12 @@ const catalog: Catalog = {
   "overview.tags": "Marcas",
   "overview.recentEvents": "Eventos recentes",
   "overview.allEvents": "Todos os eventos",
+  "overview.issue": "Em execução, mas a saída mostra erros",
+  "overview.issueSeen": "Visto {count}×, a última às {time}",
+  "overview.issueOutput": "Mostrar a saída do erro",
+  "overview.copyPrompt": "Copiar prompt de correção",
+  "overview.copyPromptHint": "Copia o erro, a pasta e os comandos como prompt para um agente de código",
+  "overview.dismiss": "Dispensar",
 
   // Eventos
   "events.none": "Nenhum evento ainda.",
@@ -262,6 +277,8 @@ const catalog: Catalog = {
   "settings.autostart": "Iniciar com o agente",
   "settings.autostartHint":
     "Após reiniciar o computador ou o agente, inicia o aplicativo de novo se ele estava em execução. Um aplicativo parado continua parado.",
+  "settings.watchErrors": "Monitorar erros na saída",
+  "settings.watchErrorsHint": "Avisa quando o app mostra erros enquanto continua em execução, como um build quebrado, e oferece um prompt de correção para um agente de código.",
   "settings.tags": "Marcas",
   "settings.tagsPlaceholder": "financeiro, interno",
   "settings.tagsHint": "Separadas por vírgula. Os aplicativos são agrupados pela primeira marca.",

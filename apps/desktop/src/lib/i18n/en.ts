@@ -56,6 +56,7 @@ export const en = {
   // Main app header
   "app.exitCode": "(code {code})",
   "app.restartIn": "in {seconds}s",
+  "app.printingErrors": "printing errors",
   "app.stop": "Stop",
   "app.stopHint": "Stop (Ctrl+Enter)",
   "app.restart": "Restart",
@@ -132,6 +133,13 @@ export const en = {
   "tray.failed": { one: "{count} app failed", other: "{count} apps failed" },
   "tray.restarting": { one: "{count} app restarting", other: "{count} apps restarting" },
   "tray.unreachable": "Agent not reachable",
+  "tray.errors": {
+    one: "{count} app has errors",
+    other: "{count} apps have errors",
+  },
+  "tray.copyPrompt": "Copy fix prompt for {name}",
+  "tray.issueTitle": "{name} has errors",
+  "tray.copied": "Fix prompt copied. Paste it into your coding agent.",
 
   // Overview
   "overview.restarting": "Exited with code {code}. Restarting in {seconds}s (attempt {attempt}).",
@@ -163,6 +171,12 @@ export const en = {
   "overview.tags": "Tags",
   "overview.recentEvents": "Recent events",
   "overview.allEvents": "All events",
+  "overview.issue": "Running, but the output shows errors",
+  "overview.issueSeen": "Seen {count}×, last at {time}",
+  "overview.issueOutput": "Show error output",
+  "overview.copyPrompt": "Copy fix prompt",
+  "overview.copyPromptHint": "Copies the error, folder and commands as a prompt for a coding agent",
+  "overview.dismiss": "Dismiss",
 
   // Events
   "events.none": "No events yet.",
@@ -251,6 +265,8 @@ export const en = {
   "settings.autostart": "Start with the agent",
   "settings.autostartHint":
     "After a reboot or agent restart, start the app again if it was running. A stopped app stays stopped.",
+  "settings.watchErrors": "Watch the output for errors",
+  "settings.watchErrorsHint": "Warns when the app prints errors while it keeps running, such as a broken build, and offers a fix prompt for a coding agent.",
   "settings.tags": "Tags",
   "settings.tagsPlaceholder": "finance, internal",
   "settings.tagsHint": "Comma separated. Apps are grouped by their first tag.",

@@ -56,6 +56,7 @@ const ar: Catalog = {
   // Main app header
   "app.exitCode": "(الرمز {code})",
   "app.restartIn": "خلال {seconds} ث",
+  "app.printingErrors": "يطبع أخطاء",
   "app.stop": "إيقاف",
   "app.stopHint": "إيقاف (Ctrl+Enter)",
   "app.restart": "إعادة تشغيل",
@@ -146,6 +147,17 @@ const ar: Catalog = {
     other: "{count} تطبيق قيد إعادة التشغيل",
   },
   "tray.unreachable": "تعذّر الوصول إلى العامل",
+  "tray.errors": {
+    zero: "لا توجد تطبيقات بها أخطاء",
+    one: "تطبيق واحد يطبع أخطاء",
+    two: "تطبيقان يطبعان أخطاء",
+    few: "{count} تطبيقات تطبع أخطاء",
+    many: "{count} تطبيقًا يطبع أخطاء",
+    other: "{count} تطبيق يطبع أخطاء",
+  },
+  "tray.copyPrompt": "نسخ موجّه الإصلاح لـ {name}",
+  "tray.issueTitle": "{name} يطبع أخطاء",
+  "tray.copied": "تم نسخ الموجّه. الصقه في وكيل البرمجة.",
 
   // Overview
   "overview.restarting": "انتهى بالرمز {code}. إعادة التشغيل خلال {seconds} ث (المحاولة {attempt}).",
@@ -177,6 +189,12 @@ const ar: Catalog = {
   "overview.tags": "العلامات",
   "overview.recentEvents": "الأحداث الأخيرة",
   "overview.allEvents": "كل الأحداث",
+  "overview.issue": "قيد التشغيل، لكن المخرجات تُظهر أخطاء",
+  "overview.issueSeen": "ظهر {count}×، آخر مرة في {time}",
+  "overview.issueOutput": "إظهار مخرجات الخطأ",
+  "overview.copyPrompt": "نسخ موجّه الإصلاح",
+  "overview.copyPromptHint": "ينسخ الخطأ والمجلد والأوامر كموجّه لوكيل برمجة",
+  "overview.dismiss": "تجاهل",
 
   // Events
   "events.none": "لا توجد أحداث بعد.",
@@ -273,6 +291,8 @@ const ar: Catalog = {
   "settings.autostart": "البدء مع العامل",
   "settings.autostartHint":
     "بعد إعادة تشغيل الجهاز أو العامل، يبدأ التطبيق مجددًا إذا كان قيد التشغيل. التطبيق المتوقف يبقى متوقفًا.",
+  "settings.watchErrors": "مراقبة الأخطاء في المخرجات",
+  "settings.watchErrorsHint": "ينبّه عندما يطبع التطبيق أخطاء وهو مستمر في العمل، مثل فشل البناء، ويقدّم موجّه إصلاح لوكيل برمجة.",
   "settings.tags": "العلامات",
   "settings.tagsPlaceholder": "مالية، داخلي",
   "settings.tagsHint": "مفصولة بفواصل. تُجمَّع التطبيقات حسب علامتها الأولى.",

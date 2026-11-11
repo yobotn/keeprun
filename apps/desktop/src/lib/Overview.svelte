@@ -1,7 +1,7 @@
 <script lang="ts">
   import { openPath, openUrl } from "@tauri-apps/plugin-opener";
-  import { Copy, ExternalLink, FolderOpen } from "@lucide/svelte";
-  import { formatBytes, formatDuration, isActive, type AppView } from "./api";
+  import { Copy, ExternalLink, FolderOpen, TriangleAlert } from "@lucide/svelte";
+  import { api, formatBytes, formatDuration, formatTime, isActive, type AppView } from "./api";
   import { t } from "./i18n/index.svelte";
   import EventsList from "./EventsList.svelte";
 
@@ -34,6 +34,30 @@
     setTimeout(() => (copied = ""), 1200);
   }
 
+  // Errors while running: copy a ready prompt for a coding agent, or dismiss.
+  let issueError = $state("");
+  let promptCopied = $state(false);
+  async function copyPrompt() {
+    issueError = "";
+    try {
+      const r = await api.issue(app.id);
+      if (!r.prompt) return;
+      await navigator.clipboard.writeText(r.prompt);
+      promptCopied = true;
+      setTimeout(() => (promptCopied = false), 2000);
+    } catch (e) {
+      issueError = (e as Error).message;
+    }
+  }
+  async function dismissIssue() {
+    issueError = "";
+    try {
+      await api.clearIssue(app.id);
+    } catch (e) {
+      issueError = (e as Error).message;
+    }
+  }
+
   const policy = $derived({
     never: t("overview.policyNever"),
     "on-failure": t("overview.policyOnFailure"),
@@ -56,6 +80,33 @@
     <p class="alert mb-4" role="alert">
       {t("overview.failed", { max: app.max_restarts })}
     </p>
+  {/if}
+
+  {#if app.issue}
+    <div class="alert alert-warn mb-4" role="status">
+      <div class="flex items-start gap-3">
+        <TriangleAlert size={15} class="mt-0.5 shrink-0" aria-hidden="true" />
+        <div class="min-w-0 flex-1">
+          <p class="font-medium">{t("overview.issue")}</p>
+          <p class="selectable mt-1 truncate font-mono text-[12px]" dir="ltr" title={app.issue.summary}>{app.issue.summary}</p>
+          <p class="mt-1 text-xs opacity-80">{t("overview.issueSeen", { count: app.issue.count, time: formatTime(app.issue.last_at, true) })}</p>
+          {#if app.issue.excerpt.length}
+            <details class="mt-2">
+              <summary class="cursor-pointer text-xs">{t("overview.issueOutput")}</summary>
+              <pre class="selectable mt-1 max-h-64 overflow-auto rounded border border-border bg-bg p-2 font-mono text-[11.5px] leading-[1.45] text-fg" dir="ltr">{app.issue.excerpt.join("\n")}</pre>
+            </details>
+          {/if}
+          {#if issueError}<p class="mt-2 text-xs text-danger" role="alert">{issueError}</p>{/if}
+        </div>
+        <div class="flex shrink-0 flex-col items-end gap-1.5">
+          <button class="btn btn-primary" onclick={copyPrompt} title={t("overview.copyPromptHint")}>
+            <Copy size={13} />
+            {promptCopied ? t("common.copied") : t("overview.copyPrompt")}
+          </button>
+          <button class="text-xs hover:underline" onclick={dismissIssue}>{t("overview.dismiss")}</button>
+        </div>
+      </div>
+    </div>
   {/if}
 
   <div class="grid grid-cols-4 gap-3">

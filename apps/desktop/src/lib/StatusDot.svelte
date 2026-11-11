@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { AppState } from "./api";
 
-  let { state, size = 8 }: { state: AppState; size?: number } = $props();
+  /** `issue`: running, but printing errors. */
+  let { state, issue = false, size = 8 }: { state: AppState; issue?: boolean; size?: number } = $props();
 
   const color: Record<AppState, string> = {
     running: "var(--accent)",
@@ -17,7 +18,7 @@
 <span
   class="inline-block shrink-0 rounded-full"
   class:pulse={state === "starting" || state === "restarting" || state === "stopping"}
-  style="width:{size}px;height:{size}px;background:{color[state]}"
+  style="width:{size}px;height:{size}px;background:{issue && state === 'running' ? 'var(--warn)' : color[state]}"
   aria-hidden="true"
 ></span>
 

@@ -57,6 +57,7 @@ const catalog: Catalog = {
   // Main app header
   "app.exitCode": "(code {code})",
   "app.restartIn": "dans {seconds} s",
+  "app.printingErrors": "affiche des erreurs",
   "app.stop": "Arrêter",
   "app.stopHint": "Arrêter (Ctrl+Enter)",
   "app.restart": "Redémarrer",
@@ -145,6 +146,14 @@ const catalog: Catalog = {
     other: "{count} applications en cours de redémarrage",
   },
   "tray.unreachable": "Agent inaccessible",
+  "tray.errors": {
+    one: "{count} app affiche des erreurs",
+    many: "{count} apps affichent des erreurs",
+    other: "{count} apps affichent des erreurs",
+  },
+  "tray.copyPrompt": "Copier le prompt de correction pour {name}",
+  "tray.issueTitle": "{name} affiche des erreurs",
+  "tray.copied": "Prompt copié. Collez-le dans votre agent de code.",
 
   // Overview
   "overview.restarting":
@@ -179,6 +188,12 @@ const catalog: Catalog = {
   "overview.tags": "Étiquettes",
   "overview.recentEvents": "Événements récents",
   "overview.allEvents": "Tous les événements",
+  "overview.issue": "En cours d’exécution, mais la sortie affiche des erreurs",
+  "overview.issueSeen": "Vu {count}×, dernière fois à {time}",
+  "overview.issueOutput": "Afficher la sortie d’erreur",
+  "overview.copyPrompt": "Copier le prompt de correction",
+  "overview.copyPromptHint": "Copie l’erreur, le dossier et les commandes sous forme de prompt pour un agent de code",
+  "overview.dismiss": "Ignorer",
 
   // Events
   "events.none": "Aucun événement pour l'instant.",
@@ -270,6 +285,8 @@ const catalog: Catalog = {
   "settings.autostart": "Démarrer avec l'agent",
   "settings.autostartHint":
     "Après un redémarrage de l'ordinateur ou de l'agent, l'application redémarre si elle était en cours d'exécution. Une application arrêtée reste arrêtée.",
+  "settings.watchErrors": "Surveiller les erreurs dans la sortie",
+  "settings.watchErrorsHint": "Avertit quand l’app affiche des erreurs tout en continuant de tourner, par exemple un build cassé, et propose un prompt de correction pour un agent de code.",
   "settings.tags": "Étiquettes",
   "settings.tagsPlaceholder": "finance, interne",
   "settings.tagsHint": "Séparées par des virgules. Les applications sont regroupées selon leur première étiquette.",

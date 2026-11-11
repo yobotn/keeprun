@@ -14,7 +14,7 @@ keeprun add [name] [--cwd <folder>]    Add an app. Without a command, the best d
     [--port n]                         Sets PORT. Defaults to the detected port.
     [-- <command line>]
 
-keeprun set <app> [--name] [--cwd] [--command] [--restart] [--max-restarts n]
+keeprun set <app> [--name] [--cwd] [--command] [--restart] [--max-restarts n] [--watch-errors false]
                   [--autostart true|false] [--tags a,b] [--port n, 0 removes it]
 keeprun env <app>                      Show variables (secrets masked, --reveal to show)
 keeprun env <app> -e K=V [--secret]    Set variables
@@ -28,6 +28,8 @@ keeprun tasks <app> --rm <name>
 keeprun run <app> <task>               Run a saved task. Shows output, exits with its exit code.
 keeprun run <app> -- <command line>    Run a command once in the app folder with the app env
 keeprun logs <app> [-n 200] [-f]       Recent lines, -f to follow
+keeprun issue <app>                    Errors the app printed while running, as a prompt for a coding agent
+keeprun issue <app> --clear            Dismiss them
 keeprun events [app] [-n 30]           Started, stopped, crashed, restarted, config changed
 keeprun rm <app>                       Remove a stopped app
 ```
