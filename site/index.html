@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Keeprun | Run internal apps on Windows Server</title>
-  <meta name="description" content="Keeprun runs and supervises internal Node, .NET and Python apps on Windows Server. One Windows service, a desktop app and a CLI. Open source, Apache 2.0.">
+  <title>Keeprun | Run internal apps on Windows, no Docker needed</title>
+  <meta name="description" content="Keeprun runs and supervises Node, .NET and Python apps on Windows 10, 11 and Windows Server as a Windows service. No Docker, WSL or Hyper-V. Desktop app, CLI and silent MSI. Open source, Apache 2.0.">
   <meta property="og:title" content="Keeprun">
-  <meta property="og:description" content="Run and supervise internal apps on Windows Server. Restarts on crash, survives reboots, logs in one place.">
+  <meta property="og:description" content="Run and supervise internal apps on any Windows machine or server. No Docker needed. Restarts on crash, survives reboots, logs in one place.">
   <meta property="og:image" content="https://keeprun.app/assets/screenshot-dark.png">
   <meta property="og:url" content="https://keeprun.app/">
   <meta name="twitter:card" content="summary_large_image">
@@ -35,21 +35,21 @@
       <div class="glow" aria-hidden="true"></div>
       <div class="wrap">
         <a class="pill" href="https://github.com/{{REPO}}/releases">{{VERSION_PILL}} {{icon:arrow-right}}</a>
-        <h1>Keep internal apps running on Windows Server.</h1>
+        <h1>Keep internal apps running on Windows.</h1>
         <p class="lead">
           Point Keeprun at a folder. It detects Node, .NET or Python, runs the app under a Windows service,
-          restarts it when it crashes and brings it back after a reboot. Logs, environment, ports and health
-          in one place, for every app on the server.
+          restarts it when it crashes and brings it back after a reboot. No Docker, no WSL, no Hyper-V:
+          your app runs as a normal Windows process, with logs, environment, ports and health in one place.
         </p>
         <div class="cta">
           <a class="button primary" href="{{MSI_URL}}">{{icon:download}} Download for Windows</a>
           <a class="button" href="docs/getting-started.html">Read the docs {{icon:arrow-right}}</a>
         </div>
         <ul class="trust" aria-label="Highlights">
-          <li>{{icon:circle-check}} Windows Server 2016 and later</li>
+          <li>{{icon:circle-check}} Windows 10, 11 and Server 2016+</li>
+          <li>{{icon:circle-check}} No Docker, WSL or Hyper-V</li>
           <li>{{icon:circle-check}} Silent MSI for Intune and SCCM</li>
           <li>{{icon:circle-check}} No cloud, no telemetry</li>
-          <li>{{icon:circle-check}} Open source, Apache 2.0</li>
         </ul>
         <figure class="shot">
           <picture>
@@ -57,6 +57,21 @@
             <img src="assets/screenshot-light.png" width="1650" height="1080" alt="Keeprun desktop app showing the HR Portal app running, with CPU, memory, uptime, its URL, folder, command and recent events.">
           </picture>
         </figure>
+        <div class="stack" aria-label="Runtimes Keeprun detects">
+          <p>Detects and runs</p>
+          <ul>
+            <li>{{icon:logo-nodedotjs}} Node.js</li>
+            <li class="wordmark" aria-label=".NET" title=".NET">{{icon:logo-dotnet}}</li>
+            <li>{{icon:logo-python}} Python</li>
+            <li>{{icon:logo-pnpm}} pnpm</li>
+            <li>{{icon:logo-yarn}} Yarn</li>
+            <li>{{icon:logo-bun}} Bun</li>
+            <li>{{icon:logo-django}} Django</li>
+            <li>{{icon:logo-flask}} Flask</li>
+            <li>{{icon:logo-fastapi}} FastAPI</li>
+            <li>{{icon:square-terminal}} Any .exe, .bat or .ps1</li>
+          </ul>
+        </div>
       </div>
     </section>
 
@@ -77,7 +92,8 @@
         <div class="col after">
           <h3>With Keeprun</h3>
           <ul>
-            <li>{{icon:check}} One Windows service supervises every app on the server.</li>
+            <li>{{icon:check}} One Windows service supervises every app on the machine.</li>
+            <li>{{icon:check}} Apps run as normal Windows processes. No Docker, WSL or Hyper-V to install or license.</li>
             <li>{{icon:check}} Crashes restart with backoff, and each one is recorded.</li>
             <li>{{icon:check}} Live logs with search, from the desktop app or the CLI.</li>
             <li>{{icon:check}} Secrets encrypted with Windows DPAPI and masked in the UI.</li>
@@ -167,7 +183,7 @@
       <div class="wrap split">
         <div>
           <p class="kicker">For IT</p>
-          <h2 id="fleet-h">Deploy to every server the way you deploy everything else</h2>
+          <h2 id="fleet-h">Deploy to every machine the way you deploy everything else</h2>
           <p class="muted">The MSI installs silently, repairs, upgrades in place and keeps apps, logs and settings across versions. Settings are MSI properties, so one command line covers the fleet.</p>
           <a class="button" href="docs/deployment.html">Deployment guide {{icon:arrow-right}}</a>
         </div>
@@ -233,12 +249,16 @@ Applied 2 migrations
           <p>Windows restarts the service after 5, 10 and 30 seconds. Each app runs in a Job Object tied to the agent, so no orphaned processes are left holding ports, and apps that were running start again.</p>
         </details>
         <details>
+          <summary>Do I need Docker? Can it run containers?</summary>
+          <p>No Docker is needed. Keeprun runs your app directly as a Windows process, so there is no Docker Desktop license, no WSL and no Hyper-V, and it works on VMs without nested virtualization. Keeprun does not manage containers itself. If Docker is installed, it can supervise a command such as <code>docker compose up</code> like any other command.</p>
+        </details>
+        <details>
           <summary>Does it need internet access?</summary>
           <p>No. The only outbound request is the optional update check to keeprun.app, which you can turn off or point at an internal mirror.</p>
         </details>
         <details>
           <summary>Which Windows versions are supported?</summary>
-          <p>Windows Server 2016, 2019, 2022 and 2025, and Windows 10 and 11, 64-bit.</p>
+          <p>Any 64-bit Windows from Windows 10 and Windows Server 2016 on: Windows 10 and 11, Windows Server 2016, 2019, 2022 and 2025. Use it on a developer laptop or a production server. Windows 7 and 8 are not supported, because the desktop app needs WebView2.</p>
         </details>
         <details>
           <summary>Is it free for commercial use?</summary>
@@ -249,8 +269,8 @@ Applied 2 migrations
 
     <section class="final" id="download" aria-labelledby="dl-h">
       <div class="wrap">
-        <h2 id="dl-h">Install Keeprun on your first server</h2>
-        <p class="muted">{{VERSION_LINE}} Windows 10, 11 and Server 2016 or later, 64-bit.</p>
+        <h2 id="dl-h">Install Keeprun</h2>
+        <p class="muted">{{VERSION_LINE}} Windows 10, 11 and Windows Server 2016 or later, 64-bit. No Docker needed.</p>
         <div class="cards">
           <a class="card" href="{{MSI_URL}}">
             <span class="ico">{{icon:package}}</span>

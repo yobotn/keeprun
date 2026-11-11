@@ -4,17 +4,19 @@
 
 # Keeprun
 
-**Keep internal apps running on Windows Server.**
+**Keep internal apps running on Windows. No Docker needed.**
 
 Point Keeprun at a folder. It detects Node, .NET or Python, runs the app under a Windows service,
-restarts it when it crashes and brings it back after a reboot.
+restarts it when it crashes and brings it back after a reboot. Your app runs as a normal Windows
+process: no Docker, no WSL, no Hyper-V.
 
 [Website](https://keeprun.app) &nbsp;&middot;&nbsp; [Download](https://github.com/yobotn/keeprun/releases/latest) &nbsp;&middot;&nbsp; [Getting started](docs/getting-started.md) &nbsp;&middot;&nbsp; [Deploy at scale](docs/deployment.md) &nbsp;&middot;&nbsp; [CLI](docs/cli.md)
 
 [![Latest release](https://img.shields.io/github/v/release/yobotn/keeprun?label=release&color=22c55e)](https://github.com/yobotn/keeprun/releases/latest)
 [![CI](https://github.com/yobotn/keeprun/actions/workflows/ci.yml/badge.svg)](https://github.com/yobotn/keeprun/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
-![Windows Server 2016+](https://img.shields.io/badge/Windows%20Server-2016%2B-0078D6)
+![Windows 10, 11 and Server 2016+](https://img.shields.io/badge/Windows-10%20%7C%2011%20%7C%20Server%202016%2B-0078D6)
+![No Docker](https://img.shields.io/badge/Docker-not%20needed-555)
 
 <br>
 
@@ -22,6 +24,9 @@ restarts it when it crashes and brings it back after a reboot.
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshot-dark.png">
   <img src="docs/assets/screenshot-light.png" width="900" alt="Keeprun desktop app with HR Portal running: CPU, memory, uptime, URL, folder, command and recent events.">
 </picture>
+
+<sub>DETECTS AND RUNS</sub><br>
+<img src="docs/assets/logos/nodedotjs.svg" height="22" alt="Node.js" title="Node.js"> &nbsp; <img src="docs/assets/logos/dotnet.svg" height="22" alt=".NET" title=".NET"> &nbsp; <img src="docs/assets/logos/python.svg" height="22" alt="Python" title="Python"> &nbsp; <img src="docs/assets/logos/pnpm.svg" height="22" alt="pnpm" title="pnpm"> &nbsp; <img src="docs/assets/logos/yarn.svg" height="22" alt="Yarn" title="Yarn"> &nbsp; <img src="docs/assets/logos/bun.svg" height="22" alt="Bun" title="Bun"> &nbsp; <img src="docs/assets/logos/django.svg" height="22" alt="Django" title="Django"> &nbsp; <img src="docs/assets/logos/flask.svg" height="22" alt="Flask" title="Flask"> &nbsp; <img src="docs/assets/logos/fastapi.svg" height="22" alt="FastAPI" title="FastAPI"> &nbsp; <sub>and any .exe, .bat or .ps1</sub>
 
 </div>
 
@@ -31,9 +36,13 @@ Internal apps on Windows usually run as a `.bat` in a Startup folder, a Schedule
 service wrapper someone set up years ago. A crash goes unnoticed until users call. Logs live in a
 console window nobody sees. Connection strings sit in plain text.
 
-Keeprun replaces that with **one Windows service** that supervises every app on the server, a
-**desktop app** to see and control them, and a **CLI** for scripts and remote sessions. No Docker,
-no WSL, no cloud.
+Containers would fix some of that, but Docker Desktop needs a license, WSL or Hyper-V, and nested
+virtualization that many Windows VMs do not have.
+
+Keeprun replaces all of it with **one Windows service** that supervises every app on the machine, a
+**desktop app** to see and control them, and a **CLI** for scripts and remote sessions. It runs on
+Windows 10 and 11 as well as Windows Server, from a developer laptop to a production VM. No
+Docker, no WSL, no cloud.
 
 ## Features
 
@@ -138,13 +147,14 @@ Details in the [deployment guide](docs/deployment.md).
 
 ## Compared with the usual setup
 
-| | Keeprun | Service wrapper per app (NSSM, WinSW) | Task Scheduler |
-|---|:---:|:---:|:---:|
-| One service for every app on the server | Yes | No, one service per app | No |
-| Detects how to run Node, .NET and Python apps | Yes | No | No |
-| Live logs and health for all apps in one UI | Yes | No | No |
-| Secret environment values encrypted at rest | Yes | No | No |
-| Restart with backoff, then stop retrying | Yes | Configurable | Limited |
+| | Keeprun | Service wrapper per app (NSSM, WinSW) | Task Scheduler | Docker Desktop |
+|---|:---:|:---:|:---:|:---:|
+| Runs without WSL, Hyper-V or containers | Yes | Yes | Yes | No |
+| One service for every app on the machine | Yes | No, one service per app | No | Yes |
+| Detects how to run Node, .NET and Python apps | Yes | No | No | No |
+| Live logs and health for all apps in one UI | Yes | No | No | Yes |
+| Restart with backoff, then stop retrying | Yes | Configurable | Limited | Configurable |
+| Free for commercial use | Yes | Yes | Yes | Paid above a company size |
 
 ## Security
 
