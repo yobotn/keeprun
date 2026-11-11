@@ -254,3 +254,4 @@ details p { margin: 0 0 18px; color: var(--fg-muted); }
   .docs aside { position: static; flex-direction: row; flex-wrap: wrap; gap: 4px; }
   .docs aside p { width: 100%; }
 }
+.page { padding-top: 56px; padding-bottom: 96px; }

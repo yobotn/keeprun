@@ -1,0 +1,371 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Keeprun Agent API",
+    "version": "1",
+    "summary": "Local API of the Keeprun agent, the Windows service that runs and supervises apps.",
+    "description": "The Keeprun agent runs on each Windows machine and listens on 127.0.0.1 only: port 7171 for the installed service, 7181 for a dev build. It is not reachable over the network. Every route except /health needs the token from <data>\\agent.token (C:\\ProgramData\\Keeprun\\agent.token for the installed service), which only SYSTEM, Administrators and the Keeprun Users group can read. Send it as Authorization: Bearer <token>. Errors are JSON: {\"error\": \"message\"}. The keeprun CLI covers the same operations with --json output. Docs: https://keeprun.app/docs/api.html",
+    "license": { "name": "Apache-2.0", "identifier": "Apache-2.0" },
+    "contact": { "name": "Keeprun on GitHub", "url": "https://github.com/yobotn/keeprun/issues" }
+  },
+  "externalDocs": { "description": "Agent API docs", "url": "https://keeprun.app/docs/api.html" },
+  "servers": [
+    { "url": "http://127.0.0.1:7171", "description": "Installed Keeprun service on this machine" },
+    { "url": "http://127.0.0.1:7181", "description": "Dev agent (npm run dev)" }
+  ],
+  "security": [{ "agentToken": [] }],
+  "tags": [
+    { "name": "Agent", "description": "Agent status." },
+    { "name": "Apps", "description": "Add, change and remove apps." },
+    { "name": "Control", "description": "Start, stop and restart apps." },
+    { "name": "Tasks", "description": "Run one-off commands such as migrations in the app folder and environment." },
+    { "name": "Logs and events", "description": "Output and history of apps." }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "tags": ["Agent"],
+        "summary": "Check that the agent is running",
+        "description": "Returns the agent environment and version. Needs no token.",
+        "security": [],
+        "responses": {
+          "200": { "description": "The agent is running.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Health" } } } }
+        }
+      }
+    },
+    "/apps": {
+      "get": {
+        "operationId": "listApps",
+        "tags": ["Apps"],
+        "summary": "List apps with live status",
+        "description": "Every app on this machine with its state, PID, CPU, memory, listening ports and current task.",
+        "responses": {
+          "200": { "description": "All apps.", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/AppView" } } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "operationId": "addApp",
+        "tags": ["Apps"],
+        "summary": "Add an app",
+        "description": "Saves an app definition. The id is derived from the name, for example \"HR Portal\" becomes hr-portal. Use the CLI command keeprun detect <folder> to find the right command line for a folder.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NewApp" } } } },
+        "responses": {
+          "201": { "description": "The app was added.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppView" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/apps/{id}": {
+      "parameters": [{ "$ref": "#/components/parameters/AppId" }],
+      "get": {
+        "operationId": "getApp",
+        "tags": ["Apps"],
+        "summary": "Get one app with live status",
+        "responses": {
+          "200": { "description": "The app.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppView" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "operationId": "updateApp",
+        "tags": ["Apps"],
+        "summary": "Change an app",
+        "description": "Only the fields you send change. A running app keeps running with its old settings until it is restarted.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateApp" } } } },
+        "responses": {
+          "200": { "description": "The changed app.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppView" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      },
+      "delete": {
+        "operationId": "removeApp",
+        "tags": ["Apps"],
+        "summary": "Remove a stopped app",
+        "responses": {
+          "204": { "description": "The app was removed." },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/apps/{id}/start": {
+      "parameters": [{ "$ref": "#/components/parameters/AppId" }],
+      "post": {
+        "operationId": "startApp",
+        "tags": ["Control"],
+        "summary": "Start an app",
+        "description": "Returns 409 if it is already running, and 400 with the reason if it cannot start, such as a port in use or a missing folder.",
+        "responses": {
+          "200": { "description": "The app is starting.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppView" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/apps/{id}/stop": {
+      "parameters": [{ "$ref": "#/components/parameters/AppId" }],
+      "post": {
+        "operationId": "stopApp",
+        "tags": ["Control"],
+        "summary": "Stop an app and its whole process tree",
+        "responses": {
+          "200": { "description": "The app is stopped.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppView" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/apps/{id}/restart": {
+      "parameters": [{ "$ref": "#/components/parameters/AppId" }],
+      "post": {
+        "operationId": "restartApp",
+        "tags": ["Control"],
+        "summary": "Restart an app",
+        "responses": {
+          "200": { "description": "The app is restarting.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppView" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/apps/{id}/tasks/run": {
+      "parameters": [{ "$ref": "#/components/parameters/AppId" }],
+      "post": {
+        "operationId": "runTask",
+        "tags": ["Tasks"],
+        "summary": "Run a saved task or a one-off command",
+        "description": "Runs in the app folder with the app environment and returns once the task has started. Its output appears in the app logs with task set to true. Returns 409 if a task is already running.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RunTask" } } } },
+        "responses": {
+          "200": { "description": "The task started. See the task field.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppView" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/apps/{id}/tasks/stop": {
+      "parameters": [{ "$ref": "#/components/parameters/AppId" }],
+      "post": {
+        "operationId": "stopTask",
+        "tags": ["Tasks"],
+        "summary": "Stop the running task and its process tree",
+        "responses": {
+          "200": { "description": "The task is stopped.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppView" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/apps/{id}/logs/recent": {
+      "parameters": [{ "$ref": "#/components/parameters/AppId" }],
+      "get": {
+        "operationId": "getRecentLogs",
+        "tags": ["Logs and events"],
+        "summary": "Get the latest log lines of an app",
+        "description": "For live output, open the WebSocket /apps/{id}/logs?token=<token>. It sends the buffered lines, then each new LogLine as a JSON message.",
+        "parameters": [
+          { "name": "tail", "in": "query", "description": "Number of lines.", "schema": { "type": "integer", "minimum": 1, "default": 200 } }
+        ],
+        "responses": {
+          "200": { "description": "Log lines, oldest first.", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LogLine" } } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/apps/{id}/events": {
+      "parameters": [{ "$ref": "#/components/parameters/AppId" }],
+      "get": {
+        "operationId": "getAppEvents",
+        "tags": ["Logs and events"],
+        "summary": "Get the history of one app",
+        "description": "Starts, stops, crashes, restarts, config changes and tasks, newest first.",
+        "parameters": [{ "$ref": "#/components/parameters/Limit" }],
+        "responses": {
+          "200": { "description": "Events, newest first.", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Event" } } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/events": {
+      "get": {
+        "operationId": "listEvents",
+        "tags": ["Logs and events"],
+        "summary": "Get the history of all apps",
+        "parameters": [{ "$ref": "#/components/parameters/Limit" }],
+        "responses": {
+          "200": { "description": "Events, newest first.", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Event" } } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "agentToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "The contents of agent.token in the Keeprun data folder. WebSocket clients pass it as ?token= instead."
+      }
+    },
+    "parameters": {
+      "AppId": { "name": "id", "in": "path", "required": true, "description": "App id, such as hr-portal.", "schema": { "type": "string", "pattern": "^[a-z0-9-]+$" } },
+      "Limit": { "name": "limit", "in": "query", "description": "Maximum number of events.", "schema": { "type": "integer", "minimum": 1, "default": 100 } }
+    },
+    "responses": {
+      "BadRequest": { "description": "The request is not valid, or the app cannot start. The message says why.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Unauthorized": { "description": "Missing or wrong agent token.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "NotFound": { "description": "No app with this id.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Conflict": { "description": "The app is in the wrong state, for example already running, or the id is taken.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": { "error": { "type": "string", "description": "What went wrong and what to do." } }
+      },
+      "Health": {
+        "type": "object",
+        "required": ["ok", "env", "version"],
+        "properties": {
+          "ok": { "type": "boolean" },
+          "env": { "type": "string", "enum": ["dev", "prod"] },
+          "version": { "type": "string", "examples": ["0.2.0"] }
+        }
+      },
+      "RestartPolicy": {
+        "type": "string",
+        "enum": ["never", "on-failure", "always"],
+        "default": "on-failure",
+        "description": "What to do when the process ends without a stop request. on-failure restarts when the exit code is not 0."
+      },
+      "Task": {
+        "type": "object",
+        "required": ["name", "command"],
+        "properties": { "name": { "type": "string", "examples": ["db:migrate"] }, "command": { "type": "string", "examples": ["npm run db:migrate"] } }
+      },
+      "NewApp": {
+        "type": "object",
+        "required": ["name", "cwd", "command"],
+        "properties": {
+          "name": { "type": "string", "examples": ["HR Portal"] },
+          "cwd": { "type": "string", "description": "App folder.", "examples": ["D:\\apps\\hr-portal"] },
+          "command": { "type": "string", "description": "Command line, run through cmd.exe /d /s /c.", "examples": ["npm run start"] },
+          "env": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Environment variables. Set PORT for the port the app listens on." },
+          "secrets": { "type": "array", "items": { "type": "string" }, "uniqueItems": true, "description": "Keys in env whose values are secret. Encrypted with DPAPI and masked." },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "autostart": { "type": "boolean", "default": true, "description": "Start with the agent, at boot, unless the user stopped it." },
+          "restart": { "$ref": "#/components/schemas/RestartPolicy" },
+          "max_restarts": { "type": "integer", "minimum": 0, "default": 5, "description": "Restarts in a row before the app is marked failed. 0 means no limit." },
+          "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } }
+        }
+      },
+      "UpdateApp": {
+        "type": "object",
+        "description": "Fields to change. Missing fields keep their value.",
+        "properties": {
+          "name": { "type": "string" },
+          "cwd": { "type": "string" },
+          "command": { "type": "string" },
+          "env": { "type": "object", "additionalProperties": { "type": "string" } },
+          "secrets": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "autostart": { "type": "boolean" },
+          "restart": { "$ref": "#/components/schemas/RestartPolicy" },
+          "max_restarts": { "type": "integer", "minimum": 0 },
+          "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } }
+        }
+      },
+      "RunTask": {
+        "type": "object",
+        "description": "Send name for a saved task, or command for a one-off command line.",
+        "properties": { "name": { "type": "string" }, "command": { "type": "string" } }
+      },
+      "Stats": {
+        "type": "object",
+        "required": ["cpu_percent", "memory_bytes", "processes", "ports"],
+        "description": "Resource use of the whole process tree.",
+        "properties": {
+          "cpu_percent": { "type": "number" },
+          "memory_bytes": { "type": "integer" },
+          "processes": { "type": "integer" },
+          "ports": { "type": "array", "items": { "type": "integer" }, "description": "TCP ports the tree listens on." }
+        }
+      },
+      "TaskRun": {
+        "type": "object",
+        "required": ["command", "running", "started_at"],
+        "properties": {
+          "name": { "type": ["string", "null"], "description": "Saved task name, or null for a one-off command." },
+          "command": { "type": "string" },
+          "running": { "type": "boolean" },
+          "started_at": { "type": "integer", "description": "Unix time in milliseconds." },
+          "finished_at": { "type": ["integer", "null"] },
+          "exit_code": { "type": ["integer", "null"] }
+        }
+      },
+      "AppView": {
+        "type": "object",
+        "description": "An app with its live status.",
+        "required": ["id", "name", "cwd", "command", "state"],
+        "properties": {
+          "id": { "type": "string", "examples": ["hr-portal"] },
+          "name": { "type": "string" },
+          "cwd": { "type": "string" },
+          "command": { "type": "string" },
+          "env": { "type": "object", "additionalProperties": { "type": "string" } },
+          "secrets": { "type": "array", "items": { "type": "string" } },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "autostart": { "type": "boolean" },
+          "restart": { "$ref": "#/components/schemas/RestartPolicy" },
+          "max_restarts": { "type": "integer" },
+          "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } },
+          "state": { "type": "string", "enum": ["stopped", "starting", "running", "stopping", "exited", "restarting", "failed"] },
+          "pid": { "type": ["integer", "null"] },
+          "exit_code": { "type": ["integer", "null"] },
+          "started_at": { "type": ["integer", "null"], "description": "Unix time in milliseconds." },
+          "restarts": { "type": "integer", "description": "Restarts in a row since the last stable run." },
+          "next_restart_at": { "type": ["integer", "null"], "description": "Unix time in milliseconds of the next restart attempt." },
+          "stats": { "oneOf": [{ "$ref": "#/components/schemas/Stats" }, { "type": "null" }] },
+          "task": { "oneOf": [{ "$ref": "#/components/schemas/TaskRun" }, { "type": "null" }] }
+        }
+      },
+      "LogLine": {
+        "type": "object",
+        "required": ["ts", "stream", "text"],
+        "properties": {
+          "ts": { "type": "integer", "description": "Unix time in milliseconds." },
+          "stream": { "type": "string", "enum": ["stdout", "stderr", "system"] },
+          "text": { "type": "string" },
+          "task": { "type": "boolean", "description": "Present and true for task output." }
+        }
+      },
+      "Event": {
+        "type": "object",
+        "required": ["id", "app_id", "ts", "kind", "message"],
+        "properties": {
+          "id": { "type": "integer" },
+          "app_id": { "type": "string" },
+          "ts": { "type": "integer", "description": "Unix time in milliseconds." },
+          "kind": { "type": "string", "enum": ["added", "config-changed", "started", "start-failed", "stopped", "exited", "crashed", "restarted", "failed", "task-started", "task-finished", "task-failed"] },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -8,6 +8,8 @@ Local HTTP and WebSocket API on `127.0.0.1:7171` (prod) or `:7181` (dev). Every 
 
 Errors return `{"error": "..."}` with 400, 401, 404, 409 or 500.
 
+The full API is described in the [OpenAPI 3.1 specification](https://keeprun.app/openapi.json).
+
 | Method | Path | Body or query | Returns |
 |---|---|---|---|
 | GET | `/health` | | `{ok, env, version}` |

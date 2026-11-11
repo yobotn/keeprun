@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>%TITLE% | Keeprun</title>
+  <meta name="description" content="%DESCRIPTION%">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <link rel="canonical" href="%URL%">
+  <link rel="alternate" type="text/markdown" href="%MD_URL%" title="%TITLE% in Markdown">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Keeprun">
+  <meta property="og:title" content="%TITLE% | Keeprun">
+  <meta property="og:description" content="%DESCRIPTION%">
+  <meta property="og:url" content="%URL%">
+  <meta property="og:image" content="{{SITE}}/assets/social-card.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="{{SITE}}/assets/social-card.png">
+  <meta name="theme-color" content="#111113">
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  %JSONLD%
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="/"><img src="/logo.svg" alt="" width="28" height="28"> Keeprun</a>
+      <nav aria-label="Main">
+        <a class="hide-sm" href="/#features">Features</a>
+        <a href="/docs/">Docs</a>
+        <a class="icon-link" href="https://github.com/{{REPO}}" aria-label="GitHub">{{icon:github}}</a>
+        <a class="button small primary" href="/#download">{{icon:download}} Download</a>
+      </nav>
+    </div>
+  </header>
+  <main class="wrap prose page" id="main">
+%BODY%
+  </main>
+  <footer class="foot">
+    <div class="wrap foot-inner">
+      <div>
+        <a class="brand" href="/"><img src="/logo.svg" alt="" width="24" height="24"> Keeprun</a>
+        <p class="muted">Open source under the Apache 2.0 license.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="/docs/">Docs</a>
+        <a href="/developers">Developers</a>
+        <a href="/about">About</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/contact">Contact</a>
+        <a href="https://github.com/{{REPO}}">GitHub</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>
