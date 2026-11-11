@@ -132,7 +132,7 @@ Intune, or at install time:
 | Value | Type | Effect | Install option |
 |---|---|---|---|
 | `DisableUpdates` | DWORD `1` | No checks, no Update button | MSI `KEEPRUN_DISABLE_UPDATES=1`, NSIS `/NOUPDATES` |
-| `UpdateUrl` | String | Read the manifest from this URL instead of `https://keeprun.dev/latest.json` | MSI `KEEPRUN_UPDATE_URL=https://...` |
+| `UpdateUrl` | String | Read the manifest from this URL instead of `https://keeprun.app/latest.json` | MSI `KEEPRUN_UPDATE_URL=https://...` |
 
 ```powershell
 msiexec /i Keeprun_0.2.0_x64_en-US.msi /qn KEEPRUN_DISABLE_UPDATES=1

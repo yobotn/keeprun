@@ -8,7 +8,7 @@ How a version gets from a git tag to users, and the one-time setup it needs.
    for the updater, writes `latest.json`, and attaches everything to a **draft** release.
 2. Review the draft on GitHub and publish it. Nothing reaches users before this step.
 3. Publishing runs the **Website** workflow. It rebuilds the site with the new download links
-   and copies the release's `latest.json` to `https://keeprun.dev/latest.json`.
+   and copies the release's `latest.json` to `https://keeprun.app/latest.json`.
 4. Desktop apps find the update on their next check (within 6 hours, or at the next start).
 
 To stop a rollout, delete the release or mark it as a pre-release, then run the Website workflow
@@ -61,7 +61,7 @@ secrets for Trusted Signing) as described in [deployment.md](deployment.md#code-
 ### Website and domain
 
 1. In the repository, open **Settings > Pages** and set **Source** to **GitHub Actions**.
-2. Under **Custom domain**, enter `keeprun.dev` and save. Turn on **Enforce HTTPS** once the
+2. Under **Custom domain**, enter `keeprun.app` and save. Turn on **Enforce HTTPS** once the
    certificate is issued.
 3. At the DNS provider, point the apex domain at GitHub Pages:
    - `A` records: `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`

@@ -196,7 +196,8 @@ Enterprises pay for accountability, not for code. A clone of the repo does not i
 
 - Name: **Keeprun**
 - CLI: `keeprun`
-- To verify: domain (`keeprun.dev` / `keeprun.io`), GitHub org `keeprun`, trademark search (USPTO / EUIPO).
+- Domain: `keeprun.app` (website and update manifest). Repository: `github.com/yobotn/keeprun`.
+- To verify: trademark search (USPTO / EUIPO).
 
 ## 10. Decisions made during the build
 
@@ -214,7 +215,7 @@ Enterprises pay for accountability, not for code. A clone of the repo does not i
 | `keeprun-agent install` is idempotent and adds the CLI to PATH | Installers call it on every install and upgrade. PATH is edited in Rust, not NSIS, to avoid truncation. |
 | Desktop binary named `keeprun-desktop.exe` | `Keeprun.exe` and the CLI `keeprun.exe` would collide on a case-insensitive file system. |
 | Deferred: per-app "Run as" | Needs stored passwords or gMSA and `CreateProcessAsUser`. Own design, v1.1. |
-| Auto-update in the desktop app, user approved | The app checks `keeprun.dev/latest.json`, shows an Update button, and runs the signed MSI or setup.exe after UAC approval. The service never updates itself. IT can turn it off or use a mirror with `HKLM\SOFTWARE\Policies\Keeprun` (`DisableUpdates`, `UpdateUrl`), also settable at install. Publishing a GitHub release is the rollout switch. |
+| Auto-update in the desktop app, user approved | The app checks `keeprun.app/latest.json`, shows an Update button, and runs the signed MSI or setup.exe after UAC approval. The service never updates itself. IT can turn it off or use a mirror with `HKLM\SOFTWARE\Policies\Keeprun` (`DisableUpdates`, `UpdateUrl`), also settable at install. Publishing a GitHub release is the rollout switch. |
 | Website on GitHub Pages | `site/` plus `docs/` rendered to HTML, deployed by Actions. Download links and the update manifest come from the latest published release, so the site has no version to edit. |
 | App port is the PORT variable | One source of truth. A Port field edits it, detected Python commands read `%PORT%`, ASP.NET Core gets `ASPNETCORE_URLS`, and two apps cannot share a port. |
 | Code signing wired, not configured | `KEEPRUN_SIGN_COMMAND` feeds Tauri's `signCommand`. Needs the certificate (open item 3). |
@@ -225,6 +226,6 @@ Enterprises pay for accountability, not for code. A clone of the repo does not i
 
 ## 11. Open items
 
-1. Verify domain, GitHub org and trademark for Keeprun. The build assumes `keeprun.dev` (update URL, site) and reads the repo from the CI environment. See docs/releasing.md to change the domain.
+1. Trademark search for Keeprun. Domain (`keeprun.app`) and repository (`yobotn/keeprun`) are set. docs/releasing.md covers changing the domain.
 2. Support plan pricing and SLA times.
 3. Code signing provider and certificate.
