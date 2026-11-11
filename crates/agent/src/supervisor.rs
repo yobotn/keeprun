@@ -384,6 +384,7 @@ impl Supervisor {
         };
         {
             let mut apps = self.apps.write().unwrap();
+            Self::port_taken(&apps, &id, &spec.env)?;
             if apps.contains_key(&id) {
                 return Err(SupError::Conflict(format!(
                     "An app with id \"{id}\" already exists. Choose another name."
@@ -441,6 +442,9 @@ impl Supervisor {
             spec.tasks = clean_tasks(v)?;
         }
         Self::validate(&spec.name, &spec.cwd, &spec.command)?;
+        if job::port_of(&spec.env) != job::port_of(&before.env) {
+            Self::port_taken(&self.apps.read().unwrap(), id, &spec.env)?;
+        }
         if spec == before {
             return self.view(id);
         }
@@ -515,9 +519,28 @@ impl Supervisor {
         self.view(id)
     }
 
+    /// Two apps set to the same port would fight over it. Refuse when saving, not at 3 AM.
+    fn port_taken(
+        apps: &BTreeMap<String, Arc<Managed>>,
+        id: &str,
+        env: &BTreeMap<String, String>,
+    ) -> Result<(), SupError> {
+        let Some(port) = job::port_of(env) else {
+            return Ok(());
+        };
+        for (other, m) in apps.iter().filter(|(k, _)| k.as_str() != id) {
+            if job::port_of(&m.spec.read().unwrap().env) == Some(port) {
+                return Err(SupError::Conflict(format!(
+                    "Port {port} is already set for app \"{other}\". Choose another port."
+                )));
+            }
+        }
+        Ok(())
+    }
+
     /// Port given in the app env as PORT, if another process already listens on it.
     fn port_conflict(spec: &AppSpec) -> Option<String> {
-        let port: u16 = spec.env.get("PORT")?.trim().parse().ok()?;
+        let port = job::port_of(&spec.env)?;
         let (pid, _) = job::listening_ports()
             .into_iter()
             .find(|(_, p)| *p == port)?;
@@ -1259,6 +1282,25 @@ mod tests {
         s.stop_task(&id).unwrap();
         assert!(!wait_task(&s, &id, 5).await.running);
         s.remove(&id).unwrap();
+    }
+
+    #[test]
+    fn two_apps_cannot_share_a_port() {
+        let s = sup("ports");
+        let a = app(&s, "first", "x", RestartPolicy::Never, 5);
+        let b = app(&s, "second", "x", RestartPolicy::Never, 5);
+        let port = |p: &str| UpdateApp {
+            env: Some(BTreeMap::from([("PORT".into(), p.into())])),
+            ..Default::default()
+        };
+        s.update(&a, port("4100")).unwrap();
+        assert!(matches!(
+            s.update(&b, port("4100")),
+            Err(SupError::Conflict(_))
+        ));
+        s.update(&b, port("4101")).unwrap();
+        // Saving the same app again with its own port is fine.
+        s.update(&a, port("4100")).unwrap();
     }
 
     #[test]

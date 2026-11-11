@@ -242,6 +242,14 @@ fn resume_process(pid: u32) -> Result<()> {
 }
 
 /// Spawn `command` through `cmd.exe` inside a new job. Returns the child and its job.
+/// The app port from its PORT variable, if set to a valid number.
+pub fn port_of(env: &BTreeMap<String, String>) -> Option<u16> {
+    env.iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("PORT"))
+        .and_then(|(_, v)| v.trim().parse().ok())
+        .filter(|p| *p != 0)
+}
+
 const NO_CWD_IN_PATH: &str = "NoDefaultCurrentDirectoryInExePath";
 
 pub fn spawn_in_job(
@@ -265,6 +273,21 @@ pub fn spawn_in_job(
         cmd.env_remove(NO_CWD_IN_PATH);
     }
     cmd.envs(env);
+    // ASP.NET Core ignores PORT. Map it, unless the app sets its own URLs.
+    if let Some(port) = port_of(env) {
+        let has = |n: &str| env.keys().any(|k| k.eq_ignore_ascii_case(n));
+        if ![
+            "ASPNETCORE_URLS",
+            "ASPNETCORE_HTTP_PORTS",
+            "ASPNETCORE_HTTPS_PORTS",
+            "URLS",
+        ]
+        .iter()
+        .any(|n| has(n))
+        {
+            cmd.env("ASPNETCORE_URLS", format!("http://*:{port}"));
+        }
+    }
     if let Some(path) = path_with_tool_dir(command, env) {
         cmd.env("PATH", path);
     }
@@ -336,6 +359,23 @@ mod tests {
 
     /// A script in the app folder runs even when the agent inherited
     /// NoDefaultCurrentDirectoryInExePath (set on hardened servers and some shells).
+    #[tokio::test]
+    async fn port_is_passed_to_aspnet_core() {
+        let env = BTreeMap::from([("PORT".to_string(), "4567".to_string())]);
+        let (mut child, _job) =
+            spawn_in_job(&std::env::temp_dir(), "echo %ASPNETCORE_URLS%", &env).unwrap();
+        let mut out = String::new();
+        child
+            .stdout
+            .take()
+            .unwrap()
+            .read_to_string(&mut out)
+            .await
+            .unwrap();
+        child.wait().await.unwrap();
+        assert_eq!(out.trim(), "http://*:4567");
+    }
+
     #[tokio::test]
     async fn runs_script_from_app_folder() {
         let dir = std::env::temp_dir().join(format!("keeprun-job-{}", std::process::id()));

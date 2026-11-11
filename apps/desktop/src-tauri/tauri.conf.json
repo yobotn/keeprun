@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Keeprun",
-  "version": "0.1.0",
   "identifier": "dev.keeprun.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -38,5 +37,16 @@
       "icons/icon.ico"
     ]
   },
-  "mainBinaryName": "keeprun-desktop"
+  "mainBinaryName": "keeprun-desktop",
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJENEVCRjY3RjNFNEFCRkYKUldUL3ErVHpaNzlPdlNKdnlXK1BKZ3p2ajFyVGZDNWFWN1dubkFKQlROdUx4OXZuVlJ1Wm1BanAK",
+      "endpoints": [
+        "https://keeprun.dev/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
 }

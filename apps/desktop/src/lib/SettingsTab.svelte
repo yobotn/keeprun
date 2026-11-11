@@ -27,8 +27,11 @@
       max_restarts: a.max_restarts,
       autostart: a.autostart,
       tags: a.tags.join(", "),
+      port: a.env.PORT ?? "",
     };
   }
+
+  const portValid = $derived(form.port.trim() === "" || /^\d{1,5}$/.test(form.port.trim()) && +form.port >= 1 && +form.port <= 65535);
 
   const dirty = $derived(JSON.stringify(form) !== baseline);
   let error = $state("");
@@ -55,9 +58,22 @@
   async function save(e: SubmitEvent) {
     e.preventDefault();
     error = "";
+    if (!portValid) {
+      error = "Port must be a number from 1 to 65535, or empty.";
+      return;
+    }
     saving = true;
+    // Only send env when the port changed, so this form never overwrites Environment edits.
+    const port = form.port.trim();
+    let env: Record<string, string> | undefined;
+    if (port !== (app.env.PORT ?? "")) {
+      env = { ...app.env };
+      if (port) env.PORT = port;
+      else delete env.PORT;
+    }
     try {
       const v = await api.update(app.id, {
+        ...(env ? { env } : {}),
         name: form.name,
         cwd: form.cwd,
         command: form.command,
@@ -133,6 +149,22 @@
         <p class="hint">Runs through cmd.exe in the folder. Full paths work under any account.</p>
       </div>
 
+      <div>
+        <label class="label" for="s-port">Port</label>
+        <input
+          id="s-port"
+          class="input w-32 tabular-nums {portValid ? '' : '!border-danger'}"
+          bind:value={form.port}
+          inputmode="numeric"
+          maxlength="5"
+          placeholder="None"
+        />
+        <p class="hint">
+          Sets the PORT variable. Commands can use <span class="font-mono">%PORT%</span>, and ASP.NET Core apps get it
+          as <span class="font-mono">ASPNETCORE_URLS</span>. Two apps cannot share a port.
+        </p>
+      </div>
+
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="label" for="s-restart">Restart on exit</label>
@@ -189,7 +221,7 @@
       {#if error}
         <p class="alert flex-1" role="alert">{error}</p>
       {:else if saved}
-        <p class="flex-1 text-sm text-fg-muted">Saved.{isActive(app.state) ? " Restart to apply folder or command changes." : ""}</p>
+        <p class="flex-1 text-sm text-fg-muted">Saved.{isActive(app.state) ? " Restart to apply folder, command or port changes." : ""}</p>
       {:else}
         <p class="flex-1 text-sm text-fg-muted">Unsaved changes</p>
       {/if}

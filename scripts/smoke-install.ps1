@@ -31,7 +31,8 @@ foreach ($o in $old) {
 
 $log = Join-Path $env:TEMP 'keeprun-install.log'
 Write-Host "Installing $Msi"
-$p = Start-Process msiexec -ArgumentList "/i `"$Msi`" /qn /l*v `"$log`"" -Wait -PassThru
+# KEEPRUN_DISABLE_UPDATES checks the policy component. Uninstall removes it again.
+$p = Start-Process msiexec -ArgumentList "/i `"$Msi`" /qn KEEPRUN_DISABLE_UPDATES=1 /l*v `"$log`"" -Wait -PassThru
 Check "msiexec install exit code 0 (log: $log)" { $p.ExitCode -eq 0 }
 
 $dir = (Get-ItemProperty 'HKLM:\Software\Keeprun' -ErrorAction SilentlyContinue).InstallDir
@@ -43,6 +44,7 @@ $token = "$env:ProgramData\Keeprun\agent.token"
 Check 'Token file exists' { Test-Path $token }
 Check 'Token not readable by Everyone or Users' { (Test-Path $token) -and -not ((icacls $token) -match 'Everyone|BUILTIN\\Users') }
 Check 'Keeprun Users group exists' { net localgroup 'Keeprun Users' *> $null; $LASTEXITCODE -eq 0 }
+Check 'Update policy written' { (Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Keeprun' -ErrorAction Stop).DisableUpdates -eq 1 }
 Check 'Install folder on machine PATH' { ([Environment]::GetEnvironmentVariable('Path', 'Machine') -split ';') -contains $dir.TrimEnd('\') }
 
 $ok = $false
@@ -75,12 +77,18 @@ Check 'CLI follows the new port' { & "$dir\keeprun.exe" list *> $null; $LASTEXIT
 & "$dir\keeprun-agent.exe" set-port 7171 *> $null
 & "$dir\keeprun.exe" rm smoke-app *> $null
 
+$r = Start-Process msiexec -ArgumentList "/fa `"$Msi`" /qn /l*v `"$log.repair`"" -Wait -PassThru
+Check 'MSI repair exit code 0' { $r.ExitCode -eq 0 }
+Start-Sleep -Seconds 2
+Check 'Service running after repair' { (Get-Service KeeprunAgent).Status -eq 'Running' }
+
 if (-not $KeepInstalled) {
     Write-Host 'Uninstalling'
     $u = Start-Process msiexec -ArgumentList "/x `"$Msi`" /qn /l*v `"$log.uninstall`"" -Wait -PassThru
     Check 'msiexec uninstall exit code 0' { $u.ExitCode -eq 0 }
     Check 'Service removed' { -not (Get-Service KeeprunAgent -ErrorAction SilentlyContinue) }
     Check 'PATH entry removed' { -not (([Environment]::GetEnvironmentVariable('Path', 'Machine') -split ';') -contains $dir.TrimEnd('\')) }
+    Check 'Update policy removed' { -not (Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Keeprun' -ErrorAction SilentlyContinue).DisableUpdates }
     Check 'Data folder kept' { Test-Path "$env:ProgramData\Keeprun" }
 }
 

@@ -1,0 +1,64 @@
+name: Website
+
+# Builds the site from site/ and docs/, adds the update manifest of the latest published
+# release, and deploys to GitHub Pages. Publishing a release redeploys, which is what makes
+# desktop apps see the update.
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", "docs/**", "scripts/build-site.mjs", ".github/workflows/pages.yml"]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Find the latest published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)
+          echo "KEEPRUN_TAG=$tag" >> "$GITHUB_ENV"
+          if [ -n "$tag" ] && gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern latest.json --dir "$RUNNER_TEMP" 2>/dev/null; then
+            echo "KEEPRUN_MANIFEST=$RUNNER_TEMP/latest.json" >> "$GITHUB_ENV"
+          fi
+          echo "Latest release: ${tag:-none}"
+
+      - name: Build site
+        run: |
+          npm install --no-save --no-package-lock marked@15
+          node scripts/build-site.mjs
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

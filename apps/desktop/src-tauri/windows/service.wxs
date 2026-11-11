@@ -4,12 +4,23 @@
   Silent install for Intune / SCCM: msiexec /i Keeprun_x.y.z_x64_en-US.msi /qn
   Optional: KEEPRUN_USER=DOMAIN\name grants that user access to the desktop app.
   Optional: KEEPRUN_PORT=7272 sets the agent API port (default 7171).
+  Optional: KEEPRUN_DISABLE_UPDATES=1 turns off update checks in the desktop app.
+  Optional: KEEPRUN_UPDATE_URL=https://mirror.contoso.com/keeprun/latest.json uses an internal mirror.
+  Both write policy values under HKLM\SOFTWARE\Policies\Keeprun, which Group Policy can also set.
 -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Fragment>
     <Property Id="KEEPRUN_USER" Secure="yes" />
     <SetProperty Id="KEEPRUN_USER" Value="[LogonUser]" Before="CostInitialize" Sequence="execute">NOT KEEPRUN_USER</SetProperty>
     <Property Id="KEEPRUN_PORT" Secure="yes" />
+    <!-- Read the current policy values first, so an upgrade that does not pass the properties
+         keeps them instead of removing them. A DWORD reads back as "#1". -->
+    <Property Id="KEEPRUN_DISABLE_UPDATES" Secure="yes">
+      <RegistrySearch Id="KeeprunFindDisableUpdates" Root="HKLM" Key="SOFTWARE\Policies\Keeprun" Name="DisableUpdates" Type="raw" Win64="yes" />
+    </Property>
+    <Property Id="KEEPRUN_UPDATE_URL" Secure="yes">
+      <RegistrySearch Id="KeeprunFindUpdateUrl" Root="HKLM" Key="SOFTWARE\Policies\Keeprun" Name="UpdateUrl" Type="raw" Win64="yes" />
+    </Property>
 
     <!-- The Tauri template sets ARPNOREPAIR, which hides Repair in the installer and in
          Apps and features. Repair is useful here: it reinstalls the files and re-registers
@@ -22,8 +33,21 @@
       </Component>
     </DirectoryRef>
 
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="KeeprunPolicyDisableUpdates" Guid="2F6C1D7E-4B1A-4E39-9C55-7B0E3D8A61C2">
+        <Condition><![CDATA[KEEPRUN_DISABLE_UPDATES = "1" OR KEEPRUN_DISABLE_UPDATES = "#1"]]></Condition>
+        <RegistryValue Root="HKLM" Key="SOFTWARE\Policies\Keeprun" Name="DisableUpdates" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+      <Component Id="KeeprunPolicyUpdateUrl" Guid="9A4E2B61-3C7D-4F08-A1E2-5D6B7C8E9F03">
+        <Condition>KEEPRUN_UPDATE_URL</Condition>
+        <RegistryValue Root="HKLM" Key="SOFTWARE\Policies\Keeprun" Name="UpdateUrl" Type="string" Value="[KEEPRUN_UPDATE_URL]" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
     <ComponentGroup Id="KeeprunServiceActions">
       <ComponentRef Id="KeeprunServiceRegistration" />
+      <ComponentRef Id="KeeprunPolicyDisableUpdates" />
+      <ComponentRef Id="KeeprunPolicyUpdateUrl" />
     </ComponentGroup>
 
     <!-- net stop waits until the service has stopped, so files are free to replace or remove. -->

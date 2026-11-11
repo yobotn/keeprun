@@ -9,6 +9,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use tauri::Manager;
 
+mod update;
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Connection {
@@ -130,6 +132,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(update::Pending::default())
         .setup(|app| {
             if let (Ok(env), Some(w)) = (Env::detect(), app.get_webview_window("main")) {
                 if env == Env::Dev {
@@ -143,7 +147,10 @@ pub fn run() {
             detect,
             read_env_file,
             looks_secret,
-            set_agent_port
+            set_agent_port,
+            update::update_policy,
+            update::check_update,
+            update::install_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running Keeprun");

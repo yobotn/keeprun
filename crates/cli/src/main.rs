@@ -73,6 +73,9 @@ enum Cmd {
         /// Start it right after adding.
         #[arg(long)]
         start: bool,
+        /// Port the app listens on. Sets PORT. Defaults to the detected port.
+        #[arg(long)]
+        port: Option<u16>,
         /// Command line that starts the app.
         #[arg(last = true)]
         command: Vec<String>,
@@ -98,6 +101,9 @@ enum Cmd {
         /// Replace tags (comma separated).
         #[arg(long)]
         tags: Option<String>,
+        /// Port the app listens on. Sets PORT. 0 removes it.
+        #[arg(long)]
+        port: Option<u16>,
     },
     /// Show, set or remove environment variables.
     Env {
@@ -447,13 +453,16 @@ async fn run() -> Result<()> {
             restart,
             no_autostart,
             start,
+            port,
             command,
         } => {
             let cwd = cwd.map_or_else(std::env::current_dir, Ok)?;
             let cwd = std::path::absolute(&cwd).unwrap_or(cwd);
             let mut env = BTreeMap::new();
             // Detected one-off commands (install, migrate, build) are saved as tasks, never run.
-            let tasks: Vec<TaskSpec> = detect::detect(&cwd)
+            let detected = detect::detect(&cwd).ok();
+            let detected_port = detected.as_ref().and_then(|d| d.port);
+            let tasks: Vec<TaskSpec> = detected
                 .map(|d| d.tasks)
                 .unwrap_or_default()
                 .into_iter()
@@ -492,6 +501,12 @@ async fn run() -> Result<()> {
                 env.extend(read_env_file(f)?);
             }
             env.extend(parse_vars(&vars)?);
+            // Detected commands may read %PORT%, so give the app a port whenever one is known.
+            if let Some(p) = port.filter(|p| *p != 0) {
+                env.insert("PORT".into(), p.to_string());
+            } else if let Some(p) = detected_port.filter(|_| !env.contains_key("PORT")) {
+                env.insert("PORT".into(), p.to_string());
+            }
             let secrets: BTreeSet<String> =
                 env.keys().filter(|k| looks_secret(k)).cloned().collect();
             let body = NewApp {
@@ -531,8 +546,22 @@ async fn run() -> Result<()> {
             max_restarts,
             autostart,
             tags,
+            port,
         } => {
-            let needs_restart = cwd.is_some() || command.is_some();
+            let needs_restart = cwd.is_some() || command.is_some() || port.is_some();
+            let env = match port {
+                Some(p) => {
+                    let v: AppView = c.get(&format!("/apps/{app}")).await?;
+                    let mut env = v.spec.env;
+                    if p == 0 {
+                        env.remove("PORT");
+                    } else {
+                        env.insert("PORT".into(), p.to_string());
+                    }
+                    Some(env)
+                }
+                None => None,
+            };
             let u = UpdateApp {
                 name,
                 cwd: cwd.map(|p| std::path::absolute(&p).unwrap_or(p)),
@@ -541,6 +570,7 @@ async fn run() -> Result<()> {
                 max_restarts,
                 autostart,
                 tags: tags.map(|t| t.split(',').map(str::to_string).collect()),
+                env,
                 ..Default::default()
             };
             let v: AppView = c.send(Method::PATCH, &format!("/apps/{app}"), &u).await?;

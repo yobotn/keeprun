@@ -10,6 +10,10 @@
 #
 # Code signing: set KEEPRUN_SIGN_COMMAND to a command that signs the file passed as %1,
 # e.g. trusted-signing-cli for Azure Trusted Signing. See docs/deployment.md.
+#
+# Update signing: set TAURI_SIGNING_PRIVATE_KEY (and TAURI_SIGNING_PRIVATE_KEY_PASSWORD if the
+# key has one) to also produce .sig files and target/release/bundle/latest.json for the
+# desktop updater. See docs/releasing.md.
 
 param([switch]$SkipBundle)
 
@@ -34,6 +38,12 @@ Copy-Item target/release/keeprun.exe "$bin/keeprun-$triple.exe" -Force
 if (-not (Test-Path "apps/desktop/node_modules")) { npm --prefix apps/desktop install }
 
 $configs = @("--config", "src-tauri/tauri.bundle.conf.json")
+$updater = [bool]$env:TAURI_SIGNING_PRIVATE_KEY
+if ($updater) {
+    $upd = Join-Path $env:TEMP "keeprun-updater.conf.json"
+    Set-Content -Path $upd -Value '{"bundle":{"createUpdaterArtifacts":true}}' -Encoding utf8
+    $configs += @("--config", $upd)
+}
 if ($env:KEEPRUN_SIGN_COMMAND) {
     $sign = @{ bundle = @{ windows = @{ signCommand = $env:KEEPRUN_SIGN_COMMAND } } } | ConvertTo-Json -Depth 5 -Compress
     $signFile = Join-Path $env:TEMP "keeprun-sign.conf.json"
@@ -48,6 +58,11 @@ try {
 }
 finally {
     Pop-Location
+}
+
+if ($updater) {
+    node scripts/update-manifest.mjs
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
 Write-Host ""

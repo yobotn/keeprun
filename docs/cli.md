@@ -11,10 +11,11 @@ keeprun detect [folder]                What Keeprun would run in a folder
 keeprun add [name] [--cwd <folder>]    Add an app. Without a command, the best detected one.
     [-e KEY=VALUE]... [--env-file f]   Variables. A .env in the folder is imported by default.
     [-t tag]... [--restart never|on-failure|always] [--no-autostart] [--start]
+    [--port n]                         Sets PORT. Defaults to the detected port.
     [-- <command line>]
 
 keeprun set <app> [--name] [--cwd] [--command] [--restart] [--max-restarts n]
-                  [--autostart true|false] [--tags a,b]
+                  [--autostart true|false] [--tags a,b] [--port n, 0 removes it]
 keeprun env <app>                      Show variables (secrets masked, --reveal to show)
 keeprun env <app> -e K=V [--secret]    Set variables
 keeprun env <app> --unset K            Remove a variable

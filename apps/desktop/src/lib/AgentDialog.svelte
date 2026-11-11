@@ -1,8 +1,14 @@
 <script lang="ts">
   import { X } from "@lucide/svelte";
   import { connection, desktop, type Connection } from "./api";
+  import { checkForUpdates, updates } from "./updates.svelte";
 
-  let { conn, onclose, onchanged }: { conn: Connection | null; onclose: () => void; onchanged: () => void } = $props();
+  let {
+    conn,
+    onclose,
+    onchanged,
+    onupdate,
+  }: { conn: Connection | null; onclose: () => void; onchanged: () => void; onupdate: () => void } = $props();
 
   let dialog: HTMLDialogElement;
   const currentPort = $derived(conn ? Number(new URL(conn.baseUrl).port) : 0);
@@ -55,7 +61,19 @@
         <dt class="text-fg-muted">Data folder</dt>
         <dd class="truncate font-mono" title={conn.dataDir}>{conn.dataDir}</dd>
         <dt class="text-fg-muted">Version</dt>
-        <dd>{conn.version}</dd>
+        <dd class="flex items-center gap-3">
+          {conn.version}
+          {#if updates.available}
+            <button type="button" class="text-accent hover:underline" onclick={onupdate}>Update to {updates.available.version}</button>
+          {:else if updates.policy && !updates.policy.enabled}
+            <span class="text-fg-muted">{updates.policy.reason}</span>
+          {:else}
+            <button type="button" class="text-accent hover:underline disabled:opacity-60" disabled={updates.checking} onclick={() => checkForUpdates(true)}>
+              {updates.checking ? "Checking" : "Check for updates"}
+            </button>
+            {#if updates.upToDate}<span class="text-fg-muted">Up to date</span>{/if}
+          {/if}
+        </dd>
       </dl>
     {/if}
 
@@ -77,6 +95,7 @@
       {/if}
       <p class="hint">From a terminal: <span class="selectable font-mono">keeprun-agent set-port {valid ? port : "7272"}</span></p>
       {#if error}<p class="selectable alert" role="alert">{error}</p>{/if}
+      {#if updates.error && !updates.installing}<p class="selectable alert" role="alert">{updates.error}</p>{/if}
       {#if message}<p class="selectable whitespace-pre-line text-[13px] text-fg-muted">{message}</p>{/if}
     </form>
   </div>

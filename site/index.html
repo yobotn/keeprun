@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Keeprun</title>
+  <meta name="description" content="Run and supervise internal Node, .NET and Python apps on Windows Server. A Windows service, a desktop app and a CLI. Open source.">
+  <meta property="og:title" content="Keeprun">
+  <meta property="og:description" content="Run and supervise internal apps on Windows Server.">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="./"><img src="logo.svg" alt="" width="28" height="28"> Keeprun</a>
+      <nav aria-label="Main">
+        <a href="docs/getting-started.html">Docs</a>
+        <a href="#download">Download</a>
+        <a href="https://github.com/{{REPO}}">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero wrap">
+      <p class="eyebrow">Open source. Apache 2.0. For Windows Server.</p>
+      <h1>Keep internal apps running on Windows.</h1>
+      <p class="lead">
+        Point Keeprun at a folder. It detects Node, .NET or Python, runs the app under a Windows service,
+        restarts it when it crashes and starts it again after a reboot. Logs, environment and ports in one place.
+      </p>
+      <div class="cta">
+        <a class="button primary" href="{{MSI_URL}}">Download for Windows</a>
+        <a class="button" href="docs/getting-started.html">Get started</a>
+      </div>
+      <p class="meta">{{VERSION_LINE}}</p>
+
+      <div class="window" aria-label="Keeprun desktop app" role="img">
+        <div class="titlebar"><span></span><span></span><span></span></div>
+        <div class="app">
+          <aside>
+            <p class="group">Finance</p>
+            <p class="item active"><i class="dot ok"></i>hr-portal<em>:3001</em></p>
+            <p class="item"><i class="dot ok"></i>sales-api<em>:5080</em></p>
+            <p class="group">Reports</p>
+            <p class="item"><i class="dot"></i>nightly-export</p>
+            <p class="item"><i class="dot bad"></i>legacy-bot</p>
+          </aside>
+          <div class="detail">
+            <div class="head"><b>hr-portal</b><span class="state"><i class="dot ok"></i>Running</span></div>
+            <div class="tabs"><span class="on">Overview</span><span>Logs</span><span>Tasks</span><span>Environment</span><span>Settings</span></div>
+            <div class="stats">
+              <div><small>CPU</small><b>3%</b></div>
+              <div><small>Memory</small><b>142 MB</b></div>
+              <div><small>Uptime</small><b>4d 2h</b></div>
+              <div><small>Port</small><b>3001</b></div>
+            </div>
+            <div class="log">
+              <p><span>09:00:02</span>Started with the agent (PID 4120)</p>
+              <p><span>10:42:17</span>Exited with code 1. Restarting in 1s</p>
+              <p><span>10:42:18</span>Restarted after exit, attempt 1</p>
+              <p><span>10:42:19</span>Listening on http://localhost:3001</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="features wrap" aria-labelledby="features">
+      <h2 id="features">What it does</h2>
+      <div class="grid">
+        <article>
+          <h3>Detects how to run it</h3>
+          <p>npm, pnpm, yarn and bun scripts, .NET projects and published builds, Python with venv, uvicorn, Flask and Django. Or any command line.</p>
+        </article>
+        <article>
+          <h3>Restarts on crash</h3>
+          <p>Backoff from 1 second up to 60. After repeated crashes the app is marked Failed instead of looping forever.</p>
+        </article>
+        <article>
+          <h3>Survives reboots</h3>
+          <p>A Windows service starts the apps that were running. Apps you stopped stay stopped.</p>
+        </article>
+        <article>
+          <h3>Kills the whole tree</h3>
+          <p>Each app runs in a Job Object. Stop ends every child process, so ports are free for the next start.</p>
+        </article>
+        <article>
+          <h3>Logs and health</h3>
+          <p>Live output with search, CPU, memory, listening ports and an event history of starts, stops and crashes.</p>
+        </article>
+        <article>
+          <h3>Secrets encrypted</h3>
+          <p>Environment values marked secret are stored with Windows DPAPI and masked in the UI.</p>
+        </article>
+        <article>
+          <h3>Tasks on demand</h3>
+          <p>Migrations, seeds and installs are saved as tasks and run when you choose, with the app's environment.</p>
+        </article>
+        <article>
+          <h3>Built for IT</h3>
+          <p>Silent MSI for Intune and SCCM, a CLI for scripts, a local API, and update checks you can turn off by policy.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="cli wrap" aria-labelledby="cli">
+      <h2 id="cli">Same thing from a terminal</h2>
+      <pre><code><span class="c"># Add the app in the current folder and start it</span>
+keeprun add --start
+
+<span class="c"># Status, CPU, memory and ports of every app</span>
+keeprun list
+
+<span class="c"># Follow logs, run a migration</span>
+keeprun logs hr-portal -f
+keeprun run hr-portal db:migrate</code></pre>
+    </section>
+
+    <section class="download wrap" id="download" aria-labelledby="dl">
+      <h2 id="dl">Download</h2>
+      <p>Windows 10, Windows 11 and Windows Server 2016 or later, 64-bit. {{VERSION_LINE}}</p>
+      <div class="cards">
+        <a class="card" href="{{MSI_URL}}">
+          <b>MSI installer</b>
+          <span>For Intune, SCCM and Group Policy. Supports silent install and repair.</span>
+        </a>
+        <a class="card" href="{{EXE_URL}}">
+          <b>Setup (.exe)</b>
+          <span>For installing by hand.</span>
+        </a>
+      </div>
+      <pre><code>msiexec /i Keeprun_{{VERSION}}_x64_en-US.msi /qn</code></pre>
+      <p class="meta">All releases and checksums on <a href="https://github.com/{{REPO}}/releases">GitHub</a>.</p>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <span>Keeprun is open source under the Apache 2.0 license.</span>
+    <nav aria-label="Footer">
+      <a href="docs/getting-started.html">Docs</a>
+      <a href="docs/security.html">Security</a>
+      <a href="https://github.com/{{REPO}}">GitHub</a>
+    </nav>
+  </footer>
+</body>
+</html>

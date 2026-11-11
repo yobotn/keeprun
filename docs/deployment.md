@@ -114,6 +114,30 @@ A local certificate works the same way with `signtool sign /fd SHA256 /tr <times
 
 ## Updates
 
-There is no built-in auto-updater on purpose: managed Windows fleets roll out software through
-Intune, SCCM or WSUS-style tools, and a self-updating SYSTEM service is a change that IT teams
-must approve. Ship each version as an MSI through your normal channel.
+The desktop app checks for a new version 10 seconds after it starts and every 6 hours. When
+one exists, an **Update** button appears in the header. Updating downloads the installer,
+checks its signature, and runs it after administrator approval. The installer updates the
+desktop app, the agent service and the CLI, then restarts the service. Apps that were running
+start again. An MSI install is updated with the MSI, an NSIS install with the setup.exe.
+
+Nothing installs without someone clicking **Install and restart**. The agent service never
+updates itself.
+
+### Turn update checks off, or use a mirror
+
+Fleets that roll out versions through Intune or SCCM usually turn the check off. Two policy
+values under `HKLM\SOFTWARE\Policies\Keeprun` control it. Set them with Group Policy,
+Intune, or at install time:
+
+| Value | Type | Effect | Install option |
+|---|---|---|---|
+| `DisableUpdates` | DWORD `1` | No checks, no Update button | MSI `KEEPRUN_DISABLE_UPDATES=1`, NSIS `/NOUPDATES` |
+| `UpdateUrl` | String | Read the manifest from this URL instead of `https://keeprun.dev/latest.json` | MSI `KEEPRUN_UPDATE_URL=https://...` |
+
+```powershell
+msiexec /i Keeprun_0.2.0_x64_en-US.msi /qn KEEPRUN_DISABLE_UPDATES=1
+```
+
+A mirror serves a copy of `latest.json` with the `url` fields changed to point at the mirrored
+installers. Keep the `signature` fields as they are: the desktop app rejects installers whose
+signature does not match the key built into it.

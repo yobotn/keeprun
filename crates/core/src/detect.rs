@@ -141,7 +141,12 @@ pub fn detect(dir: &Path) -> Result<Detection, String> {
     } else {
         detect_custom(dir)
     };
-    d.port = d.port.or(env_port);
+    // Python commands read %PORT%, so a PORT in .env decides. Elsewhere the scripts are
+    // more specific than .env.
+    d.port = match d.kind {
+        Kind::Python => env_port.or(d.port),
+        _ => d.port.or(env_port),
+    };
     d.dotenv = dotenv;
     Ok(d)
 }
@@ -359,7 +364,7 @@ fn detect_dotnet(dir: &Path, proj: &Path) -> Detection {
     let file = proj.file_name().unwrap().to_string_lossy().to_string();
     suggestions.push(Suggestion {
         label: "dotnet run -c Release".into(),
-        command: format!("{dotnet} run -c Release --project {file}"),
+        command: format!("{dotnet} run -c Release --no-launch-profile --project {file}"),
         detail: None,
         name: String::new(),
     });
@@ -444,7 +449,7 @@ fn detect_python(dir: &Path) -> Detection {
     if dir.join("manage.py").is_file() {
         suggestions.push(Suggestion {
             label: "Django (manage.py runserver)".into(),
-            command: format!("{python} manage.py runserver 127.0.0.1:8000 --noreload"),
+            command: format!("{python} manage.py runserver 127.0.0.1:%PORT% --noreload"),
             detail: None,
             name: String::new(),
         });
@@ -458,7 +463,7 @@ fn detect_python(dir: &Path) -> Detection {
         if deps.contains("uvicorn") || deps.contains("fastapi") {
             suggestions.push(Suggestion {
                 label: format!("uvicorn {module}:app"),
-                command: format!("{python} -m uvicorn {module}:app --host 127.0.0.1 --port 8000"),
+                command: format!("{python} -m uvicorn {module}:app --host 127.0.0.1 --port %PORT%"),
                 detail: None,
                 name: String::new(),
             });
@@ -467,7 +472,7 @@ fn detect_python(dir: &Path) -> Detection {
         if deps.contains("flask") {
             suggestions.push(Suggestion {
                 label: format!("flask --app {module} run"),
-                command: format!("{python} -m flask --app {module} run --port 5000"),
+                command: format!("{python} -m flask --app {module} run --port %PORT%"),
                 detail: None,
                 name: String::new(),
             });
@@ -646,7 +651,7 @@ mod tests {
             .last()
             .unwrap()
             .command
-            .contains("run -c Release --project Api.csproj"));
+            .contains("run -c Release --no-launch-profile --project Api.csproj"));
     }
 
     #[test]

@@ -214,7 +214,9 @@ Enterprises pay for accountability, not for code. A clone of the repo does not i
 | `keeprun-agent install` is idempotent and adds the CLI to PATH | Installers call it on every install and upgrade. PATH is edited in Rust, not NSIS, to avoid truncation. |
 | Desktop binary named `keeprun-desktop.exe` | `Keeprun.exe` and the CLI `keeprun.exe` would collide on a case-insensitive file system. |
 | Deferred: per-app "Run as" | Needs stored passwords or gMSA and `CreateProcessAsUser`. Own design, v1.1. |
-| Deferred: auto-update | Managed fleets deploy through Intune or SCCM. A self-updating SYSTEM service needs IT approval and a signed update feed. |
+| Auto-update in the desktop app, user approved | The app checks `keeprun.dev/latest.json`, shows an Update button, and runs the signed MSI or setup.exe after UAC approval. The service never updates itself. IT can turn it off or use a mirror with `HKLM\SOFTWARE\Policies\Keeprun` (`DisableUpdates`, `UpdateUrl`), also settable at install. Publishing a GitHub release is the rollout switch. |
+| Website on GitHub Pages | `site/` plus `docs/` rendered to HTML, deployed by Actions. Download links and the update manifest come from the latest published release, so the site has no version to edit. |
+| App port is the PORT variable | One source of truth. A Port field edits it, detected Python commands read `%PORT%`, ASP.NET Core gets `ASPNETCORE_URLS`, and two apps cannot share a port. |
 | Code signing wired, not configured | `KEEPRUN_SIGN_COMMAND` feeds Tauri's `signCommand`. Needs the certificate (open item 3). |
 | Tasks separate from the run command | Detected one-off scripts (install, build, migrate, seed) were offered as ways to run the app. They are now saved as tasks and only run on demand, from the Tasks tab or `keeprun run`. One task at a time per app, never restarted. |
 | Port changed with `keeprun-agent set-port` | One command checks the port is free, writes `config.toml` and restarts the service. UI and CLI read the same file. Installers take `KEEPRUN_PORT` (MSI) or `/PORT=` (NSIS). |
@@ -223,6 +225,6 @@ Enterprises pay for accountability, not for code. A clone of the repo does not i
 
 ## 11. Open items
 
-1. Verify domain, GitHub org and trademark for Keeprun.
+1. Verify domain, GitHub org and trademark for Keeprun. The build assumes `keeprun.dev` (update URL, site) and reads the repo from the CI environment. See docs/releasing.md to change the domain.
 2. Support plan pricing and SLA times.
 3. Code signing provider and certificate.

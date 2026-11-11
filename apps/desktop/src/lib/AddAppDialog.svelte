@@ -10,6 +10,7 @@
   let detection = $state<Detection | null>(null);
   let name = $state("");
   let command = $state("");
+  let port = $state("");
   let custom = $state(false);
   let importEnv = $state(true);
   let startNow = $state(true);
@@ -35,6 +36,7 @@
       const d = await desktop.detect(dir);
       detection = d;
       name = d.name;
+      port = d.dotenv.PORT ?? (d.port ? String(d.port) : "");
       command = d.suggestions[0]?.command ?? "";
       custom = d.suggestions.length === 0;
     } catch (e) {
@@ -48,7 +50,8 @@
     error = "";
     busy = true;
     try {
-      const env = importEnv && detection ? { ...detection.dotenv } : {};
+      const env: Record<string, string> = importEnv && detection ? { ...detection.dotenv } : {};
+      if (port.trim()) env.PORT = port.trim();
       const secrets: string[] = [];
       for (const k of Object.keys(env)) if (await desktop.looksSecret(k)) secrets.push(k);
       let app = await api.add({
@@ -112,9 +115,24 @@
         <p class="alert alert-warn flex items-start gap-2"><TriangleAlert size={14} class="mt-0.5 shrink-0" />{w}</p>
       {/each}
 
-      <div>
-        <label class="label" for="a-name">Name</label>
-        <input id="a-name" class="input" bind:value={name} required />
+      <div class="flex gap-3">
+        <div class="flex-1">
+          <label class="label" for="a-name">Name</label>
+          <input id="a-name" class="input" bind:value={name} required />
+        </div>
+        <div class="w-28">
+          <label class="label" for="a-port">Port</label>
+          <input
+            id="a-port"
+            class="input tabular-nums"
+            bind:value={port}
+            inputmode="numeric"
+            pattern="\d{'{'}1,5{'}'}"
+            maxlength="5"
+            placeholder="None"
+            title="Sets the PORT variable"
+          />
+        </div>
       </div>
 
       <fieldset>

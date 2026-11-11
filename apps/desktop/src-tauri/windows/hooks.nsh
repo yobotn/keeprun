@@ -1,6 +1,8 @@
 ; Keeprun NSIS installer hooks. Installs the agent as a Windows service.
 ; Silent install for Intune / SCCM: Keeprun_x.y.z_x64-setup.exe /S
 ; Optional: /PORT=7272 sets the agent API port (default 7171).
+; Optional: /NOUPDATES turns off update checks in the desktop app (policy value
+; HKLM\SOFTWARE\Policies\Keeprun DisableUpdates, which Group Policy can also set).
 
 !include "FileFunc.nsh"
 
@@ -18,6 +20,12 @@
   ${GetOptions} $R0 "/PORT=" $R1
   ${If} ${Errors}
     StrCpy $R1 ""
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $R0 "/NOUPDATES" $R2
+  ${IfNot} ${Errors}
+    SetRegView 64
+    WriteRegDWORD HKLM "SOFTWARE\Policies\Keeprun" "DisableUpdates" 1
   ${EndIf}
   nsExec::ExecToLog '"$INSTDIR\keeprun-agent.exe" install --env prod --port "$R1"'
   Pop $0

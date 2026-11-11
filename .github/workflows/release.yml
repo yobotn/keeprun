@@ -35,7 +35,15 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           KEEPRUN_SIGN_COMMAND: ${{ secrets.KEEPRUN_SIGN_COMMAND }}
+          # Update signing key (minisign, from `tauri signer generate`). Required for releases:
+          # without it the desktop updater cannot verify the installers.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          KEEPRUN_TAG: ${{ github.ref_name }}
         run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY -and $env:GITHUB_REF -like 'refs/tags/*') {
+            throw "Set the TAURI_SIGNING_PRIVATE_KEY secret. Releases without update signatures cannot be installed by the updater."
+          }
           if ($env:KEEPRUN_SIGN_COMMAND) { cargo install trusted-signing-cli --locked }
           ./scripts/build.ps1
 
@@ -45,12 +53,21 @@ jobs:
           path: |
             target/release/bundle/msi/*.msi
             target/release/bundle/nsis/*-setup.exe
+            target/release/bundle/msi/*.sig
+            target/release/bundle/nsis/*.sig
+            target/release/bundle/latest.json
 
       - name: Publish GitHub release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          # Draft: nothing reaches users until the release is published. Publishing triggers
+          # the Website workflow, which serves latest.json to the desktop updater.
           draft: true
+          generate_release_notes: true
           files: |
             target/release/bundle/msi/*.msi
             target/release/bundle/nsis/*-setup.exe
+            target/release/bundle/msi/*.sig
+            target/release/bundle/nsis/*.sig
+            target/release/bundle/latest.json

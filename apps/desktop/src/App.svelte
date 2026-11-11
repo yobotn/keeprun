@@ -1,6 +1,6 @@
 <script lang="ts">
   import { openPath, openUrl } from "@tauri-apps/plugin-opener";
-  import { Monitor, Moon, Play, Plus, RotateCw, Search, Server, Square, Sun, TriangleAlert } from "@lucide/svelte";
+  import { ArrowUpCircle, Monitor, Moon, Play, Plus, RotateCw, Search, Server, Square, Sun, TriangleAlert } from "@lucide/svelte";
   import {
     api,
     appUrl,
@@ -21,6 +21,8 @@
   import AddAppDialog from "./lib/AddAppDialog.svelte";
   import AgentDialog from "./lib/AgentDialog.svelte";
   import TasksTab from "./lib/TasksTab.svelte";
+  import UpdateDialog from "./lib/UpdateDialog.svelte";
+  import { checkForUpdates, scheduleUpdateChecks, updates } from "./lib/updates.svelte";
   import CommandPalette, { type Command } from "./lib/CommandPalette.svelte";
 
   type Tab = "overview" | "logs" | "tasks" | "environment" | "settings" | "events";
@@ -43,6 +45,9 @@
   let adding = $state(false);
   let palette = $state(false);
   let agentOpen = $state(false);
+  let updateOpen = $state(false);
+
+  $effect(() => scheduleUpdateChecks());
   let loaded = $state(false);
   let now = $state(Date.now());
 
@@ -107,7 +112,7 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    if (adding || palette || agentOpen) return;
+    if (adding || palette || agentOpen || updateOpen) return;
     const k = e.key.toLowerCase();
     if (e.ctrlKey && k === "k") {
       e.preventDefault();
@@ -174,6 +179,12 @@
     }
     out.push({ id: "add", group: "General", label: "Add app", hint: "Ctrl+N", run: () => (adding = true) });
     out.push({ id: "agent", group: "General", label: "Agent settings (port)", run: () => (agentOpen = true) });
+    if (updates.available) {
+      const v = updates.available.version;
+      out.push({ id: "update", group: "General", label: `Update to ${v}`, run: () => (updateOpen = true) });
+    } else if (updates.policy?.enabled !== false) {
+      out.push({ id: "check-update", group: "General", label: "Check for updates", run: () => (agentOpen = true, checkForUpdates(true)) });
+    }
     out.push({ id: "theme-system", group: "General", label: "Theme: follow system", run: () => applyTheme("system") });
     out.push({ id: "theme-light", group: "General", label: "Theme: light", run: () => applyTheme("light") });
     out.push({ id: "theme-dark", group: "General", label: "Theme: dark", run: () => applyTheme("dark") });
@@ -206,6 +217,11 @@
       <span class="flex-1 text-left">Search</span>
       <span class="kbd">Ctrl K</span>
     </button>
+    {#if updates.available}
+      <button class="btn !border-accent !text-accent" onclick={() => (updateOpen = true)} title="Version {updates.available.version} is available">
+        <ArrowUpCircle size={15} /> Update
+      </button>
+    {/if}
     <button class="btn-icon" onclick={() => (agentOpen = true)} title="Agent: {conn?.baseUrl ?? 'not connected'}. Change port.">
       <Server size={16} />
     </button>
@@ -345,7 +361,11 @@
 {/if}
 
 {#if agentOpen}
-  <AgentDialog {conn} onclose={() => (agentOpen = false)} onchanged={refresh} />
+  <AgentDialog {conn} onclose={() => (agentOpen = false)} onchanged={refresh} onupdate={() => ((agentOpen = false), (updateOpen = true))} />
+{/if}
+
+{#if updateOpen}
+  <UpdateDialog onclose={() => (updateOpen = false)} />
 {/if}
 
 {#if palette}
