@@ -59,6 +59,12 @@ work when the service runs as LocalSystem, which does not see per-user tools on 
 - File paths in logs and in error output, such as `src\routes\users.ts:42:17` in a stack trace,
   are links. Click one to open the file at that line in VS Code, Cursor or Windsurf, whichever is
   installed. Paths relative to the app folder work too. Choose the editor in **Preferences**.
+- A **health check** (Settings) catches an app that runs but no longer answers, such as a
+  server stuck on a lock. Enter a path such as `/health`: Keeprun requests it on the app's port
+  every 10 seconds, and any 2xx or 3xx answer within 5 seconds passes. The Overview tab shows the
+  result. Turn on the restart option to restart the app after 3 failed checks in a row. If the
+  check still fails after that restart, Keeprun stops restarting and says so, since the check
+  itself is probably wrong.
 - When the app folder is in a Git repository, the Overview tab shows the branch, commits to pull
   or push, uncommitted changes and the last commit. **Pull and restart** fast-forwards the
   branch (it never merges), runs the app's `install` task when a lockfile or other dependency

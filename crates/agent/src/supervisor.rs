@@ -6,13 +6,14 @@
 
 use crate::copies;
 use crate::db::Db;
+use crate::health;
 use crate::job::{self, Job};
 use anyhow::{anyhow, Context, Result};
 use keeprun_core::issue::{self, IssueTracker};
 use keeprun_core::model::{
     changed_keys, read_env_file, slugify, AppSpec, AppState, AppView, EnvFileStatus, Event,
-    EventKind, IssueReport, LogLine, NewApp, OutsideCopy, RestartPolicy, RunTask, Stats, Stream,
-    TaskRun, TaskSpec, UpdateApp,
+    EventKind, HealthStatus, IssueReport, LogLine, NewApp, OutsideCopy, RestartPolicy, RunTask,
+    Stats, Stream, TaskRun, TaskSpec, UpdateApp,
 };
 use keeprun_core::Settings;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
@@ -31,6 +32,11 @@ const STABLE_RUN: Duration = Duration::from_secs(60);
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
 /// How often running apps are checked for copies started outside Keeprun.
 const COPY_CHECK: Duration = Duration::from_secs(10);
+/// How often health checks run, and how long a new run gets before the first one counts.
+const HEALTH_CHECK: Duration = Duration::from_secs(10);
+const HEALTH_GRACE: Duration = Duration::from_secs(20);
+/// Failed health checks in a row before an app with `health_restart` is restarted.
+const HEALTH_FAILURES: u32 = 3;
 
 pub fn now_ms() -> u64 {
     SystemTime::now()
@@ -86,6 +92,12 @@ struct Managed {
     env_cache: Mutex<EnvCache>,
     /// Copies running outside Keeprun, from the last check.
     outside: Mutex<Vec<OutsideCopy>>,
+    /// Last health check of the current run.
+    health: Mutex<Option<HealthStatus>>,
+    /// Restarted for failed health checks, and no check has passed since. A check that keeps
+    /// failing after a restart is likely wrong, e.g. a typo in the path: restarting again
+    /// would only loop.
+    health_restarted: Mutex<bool>,
 }
 
 type EnvVars = BTreeMap<String, String>;
@@ -289,6 +301,7 @@ impl Managed {
         let env_file_status = self.env_file_status(&spec, state);
         let rt = self.rt.lock().unwrap();
         // A user stop ends the run; its errors are no longer news.
+        let spec_has_health = spec.health_check.is_some();
         let issue = (spec.watch_errors && state != AppState::Stopped)
             .then(|| self.logs.issue.lock().unwrap().current(now_ms()))
             .flatten();
@@ -305,6 +318,9 @@ impl Managed {
             issue,
             env_file_status,
             outside: self.outside.lock().unwrap().clone(),
+            health: (state == AppState::Running && spec_has_health)
+                .then(|| self.health.lock().unwrap().clone())
+                .flatten(),
         }
     }
 }
@@ -364,6 +380,8 @@ impl Supervisor {
             task: Mutex::new(TaskSlot::default()),
             env_cache: Mutex::default(),
             outside: Mutex::default(),
+            health: Mutex::default(),
+            health_restarted: Mutex::default(),
         })
     }
 
@@ -479,6 +497,8 @@ impl Supervisor {
             disabled: false,
             watch_errors: new.watch_errors,
             env_file: clean_env_file(new.env_file),
+            health_check: None,
+            health_restart: false,
         };
         {
             let mut apps = self.apps.write().unwrap();
@@ -555,6 +575,23 @@ impl Supervisor {
         }
         if let Some(v) = u.env_file {
             spec.env_file = clean_env_file(Some(v));
+        }
+        if let Some(v) = u.health_check {
+            let v = v.trim();
+            spec.health_check = if v.is_empty() {
+                None
+            } else {
+                // Any port will do: this checks the form, not the app.
+                health::target(v, Some(1)).map_err(SupError::BadRequest)?;
+                Some(v.to_string())
+            };
+            if spec.health_check != before.health_check {
+                *m.health.lock().unwrap() = None;
+                *m.health_restarted.lock().unwrap() = false;
+            }
+        }
+        if let Some(v) = u.health_restart {
+            spec.health_restart = v;
         }
         Self::validate(&spec.name, &spec.cwd, &spec.command)?;
         let env = Self::spec_env(&spec);
@@ -769,6 +806,7 @@ impl Supervisor {
 
         // A new run starts clean. Errors from the previous one may already be fixed.
         m.logs.clear_issue();
+        *m.health.lock().unwrap() = None;
         m.logs.push(
             Stream::System,
             format!("Started: {} (in {})", spec.command, spec.cwd.display()),
@@ -1236,6 +1274,108 @@ impl Supervisor {
             .collect()
     }
 
+    /// Every 10 seconds, send each running app with a health check its request. A failure is
+    /// logged when it starts and when it ends, not every time. With `health_restart`, the app
+    /// restarts after 3 failures in a row.
+    pub fn watch_health(self: &Arc<Self>) {
+        let sup = self.clone();
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(HEALTH_CHECK);
+            loop {
+                tick.tick().await;
+                let apps: Vec<Arc<Managed>> = sup.apps.read().unwrap().values().cloned().collect();
+                for m in apps {
+                    let sup = sup.clone();
+                    // One slow app must not delay the checks of the others.
+                    tokio::spawn(async move { sup.check_health(&m).await });
+                }
+            }
+        });
+    }
+
+    async fn check_health(self: &Arc<Self>, m: &Arc<Managed>) {
+        let spec = m.spec.read().unwrap().clone();
+        let Some(check) = spec.health_check.clone() else {
+            return;
+        };
+        let (generation, young) = {
+            let rt = m.rt.lock().unwrap();
+            if rt.state != Some(AppState::Running) {
+                return;
+            }
+            let young = rt
+                .started_instant
+                .is_none_or(|t| t.elapsed() < HEALTH_GRACE);
+            (rt.generation, young)
+        };
+        if young {
+            return;
+        }
+        let port = {
+            let ports = job::listening_ports();
+            self.stats(m, &ports)
+                .and_then(|s| s.ports.first().copied())
+                .or_else(|| job::port_of(&Self::spec_env(&spec)))
+        };
+        let result = match health::target(&check, port) {
+            Ok(t) => health::check(&t).await,
+            Err(e) => Err(e),
+        };
+        // The run may have ended while the request was out.
+        if m.rt.lock().unwrap().generation != generation {
+            return;
+        }
+        let prev = m.health.lock().unwrap().clone();
+        if result.is_ok() {
+            *m.health_restarted.lock().unwrap() = false;
+        }
+        let failures = match &result {
+            Ok(_) => 0,
+            Err(_) => prev.as_ref().map_or(0, |h| h.failures) + 1,
+        };
+        let status = HealthStatus {
+            ok: result.is_ok(),
+            detail: match &result {
+                Ok(d) | Err(d) => d.clone(),
+            },
+            checked_at: now_ms(),
+            failures,
+        };
+        let was_ok = prev.as_ref().is_none_or(|h| h.ok);
+        match (&result, was_ok) {
+            (Err(e), true) => m
+                .logs
+                .push(Stream::System, format!("Health check failed: {e}")),
+            (Ok(_), false) => m
+                .logs
+                .push(Stream::System, "Health check passes again".into()),
+            _ => {}
+        }
+        *m.health.lock().unwrap() = Some(status);
+        if failures >= HEALTH_FAILURES && spec.health_restart {
+            if *m.health_restarted.lock().unwrap() {
+                if failures == HEALTH_FAILURES {
+                    m.logs.push(
+                        Stream::System,
+                        "Health check still fails after a restart. Not restarting again until it passes: check the health check path in Settings.".into(),
+                    );
+                }
+                return;
+            }
+            *m.health_restarted.lock().unwrap() = true;
+            let msg = format!(
+                "Health check failed {failures} times in a row ({}). Restarting.",
+                result.err().unwrap_or_default()
+            );
+            m.logs.push(Stream::System, msg.clone());
+            self.event(&spec.id, EventKind::Restarted, msg);
+            tracing::warn!(app = %spec.id, "health check failed, restarting");
+            if let Err(e) = self.restart(&spec.id).await {
+                tracing::warn!(app = %spec.id, "restart after failed health checks: {e}");
+            }
+        }
+    }
+
     /// End copies of these apps running outside Keeprun, and wait until they have exited.
     fn end_copies(&self, targets: &[Arc<Managed>]) {
         for (m, found) in self.find_copies(targets) {
@@ -1388,6 +1528,18 @@ fn describe_changes(a: &AppSpec, b: &AppSpec) -> String {
     }
     if a.tasks != b.tasks {
         parts.push("tasks".into());
+    }
+    if a.health_check != b.health_check {
+        parts.push(match &b.health_check {
+            Some(c) => format!("health check to {c}"),
+            None => "health check off".into(),
+        });
+    }
+    if a.health_restart != b.health_restart {
+        parts.push(format!(
+            "restart on failed health checks to {}",
+            if b.health_restart { "on" } else { "off" }
+        ));
     }
     if a.watch_errors != b.watch_errors {
         parts.push(format!(

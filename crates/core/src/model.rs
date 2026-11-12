@@ -82,6 +82,13 @@ pub struct AppSpec {
     /// Variables in `env` override the file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub env_file: Option<String>,
+    /// HTTP check while the app runs: a path on its port such as "/health", or a local
+    /// `http://` URL. Any 2xx or 3xx answer within 5 seconds passes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub health_check: Option<String>,
+    /// Restart the app when the health check fails 3 times in a row.
+    #[serde(default)]
+    pub health_restart: bool,
 }
 
 /// A saved one-off command for an app. Runs in the app folder with the app environment.
@@ -154,6 +161,9 @@ pub struct UpdateApp {
     pub watch_errors: Option<bool>,
     /// Env file to read on every start. An empty string unlinks it.
     pub env_file: Option<String>,
+    /// Health check path or local URL. An empty string removes it.
+    pub health_check: Option<String>,
+    pub health_restart: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -235,6 +245,22 @@ pub struct AppView {
     /// started by a coding agent. Checked every 10 seconds. Starting the app ends them.
     #[serde(default)]
     pub outside: Vec<OutsideCopy>,
+    /// Last health check of the current run. None without a check, before the first one, or
+    /// when the app does not run.
+    #[serde(default)]
+    pub health: Option<HealthStatus>,
+}
+
+/// Result of the health check.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct HealthStatus {
+    pub ok: bool,
+    /// e.g. "200 in 12 ms", "HTTP 503 from /health" or "Nothing answers on port 3000".
+    pub detail: String,
+    /// Unix time in milliseconds.
+    pub checked_at: u64,
+    /// Failed checks in a row.
+    pub failures: u32,
 }
 
 /// A copy of an app running outside Keeprun.

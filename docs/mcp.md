@@ -34,7 +34,7 @@ without naming it.
 | Tool | What it does |
 |---|---|
 | `list_apps` | Every app with state, URL, folder, command and current errors |
-| `app_status` | State, URL, ports, CPU, memory, restarts, errors, env variable names, tasks, and copies running outside Keeprun |
+| `app_status` | State, URL, ports, CPU, memory, restarts, errors, health check, env variable names, tasks, and copies running outside Keeprun |
 | `read_logs` | Recent output, with `tail`, `errors_only` and `search` |
 | `get_errors` | Errors the app printed while running, as a ready fix prompt |
 | `list_events` | Started, stopped, crashed, restarted, config changed |

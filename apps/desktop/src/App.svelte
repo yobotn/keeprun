@@ -431,7 +431,7 @@
               {:else}
                 <StatusDot state={selected.state} issue={showsIssue(selected)} />
                 {stateText(selected.state)}
-                {#if showsIssue(selected) && selected.state === "running"}<span class="text-warn">· {t("app.printingErrors")}</span>{/if}
+                {#if selected.state === "running" && selected.health && !selected.health.ok}<span class="text-warn">· {t("app.notResponding")}</span>{:else if showsIssue(selected) && selected.state === "running"}<span class="text-warn">· {t("app.printingErrors")}</span>{/if}
                 {#if selected.state === "exited" && selected.exit_code !== null}{t("app.exitCode", { code: selected.exit_code })}{/if}
                 {#if restartCountdown !== null}{t("app.restartIn", { seconds: restartCountdown })}{/if}
               {/if}

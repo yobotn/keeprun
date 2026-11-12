@@ -115,6 +115,13 @@ enum Cmd {
         /// Env file read on every start, e.g. .env.local. "none" unlinks it.
         #[arg(long)]
         env_file: Option<String>,
+        /// HTTP health check while the app runs: a path on its port such as /health, or a
+        /// local http:// URL. "none" removes it.
+        #[arg(long, value_name = "PATH")]
+        health: Option<String>,
+        /// Restart the app when the health check fails 3 times in a row: true or false.
+        #[arg(long)]
+        health_restart: Option<bool>,
     },
     /// Show, set or remove environment variables.
     Env {
@@ -326,6 +333,9 @@ fn status_text(a: &AppView) -> String {
     match (a.state, a.exit_code) {
         (AppState::Exited, Some(c)) => format!("Exited {c}"),
         (AppState::Restarting, _) => format!("Restarting ({})", a.restarts),
+        (AppState::Running, _) if a.health.as_ref().is_some_and(|h| !h.ok) => {
+            "Running, unhealthy".into()
+        }
         (s, _) if a.issue.is_some() => format!("{s}, errors"),
         (s, _) => s.to_string(),
     }
@@ -631,6 +641,8 @@ async fn run() -> Result<()> {
             port,
             watch_errors,
             env_file,
+            health,
+            health_restart,
         } => {
             let needs_restart =
                 cwd.is_some() || command.is_some() || port.is_some() || env_file.is_some();
@@ -664,6 +676,14 @@ async fn run() -> Result<()> {
                         f
                     }
                 }),
+                health_check: health.map(|h| {
+                    if h.eq_ignore_ascii_case("none") {
+                        String::new()
+                    } else {
+                        h
+                    }
+                }),
+                health_restart,
                 ..Default::default()
             };
             let v: AppView = c.send(Method::PATCH, &format!("/apps/{app}"), &u).await?;

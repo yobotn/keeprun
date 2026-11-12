@@ -53,11 +53,16 @@ AppView = NewApp & {
   stats: { cpu_percent: number; memory_bytes: number; processes: number; ports: number[] } | null;
   issue: AppIssue | null;                            // errors while running, see below
   env_file_status: EnvFileStatus | null;             // null without a linked env file
+  health_check?: string;                             // "/health" or a local http:// URL; PATCH "" removes it
+  health_restart: boolean;                           // restart after 3 failed checks in a row
+  health: HealthStatus | null;                       // last check of the current run
   outside: OutsideCopy[];                            // copies running outside Keeprun
 }
 // A copy of the app started outside Keeprun, e.g. `npm run dev` by a coding agent: a process
 // that listens on a port and runs a file from the app folder. Checked every 10 seconds.
 OutsideCopy = { pid: number; name: string; ports: number[] }
+// Checked every 10 s while the app runs, from 20 s after it starts. 2xx or 3xx within 5 s passes.
+HealthStatus = { ok: boolean; detail: string; checked_at: number; failures: number }
 // Keys only, never values. changed: keys that differ from what the running process got,
 // so a restart applies them. error: the file cannot be read; the app starts without it.
 EnvFileStatus = { keys: string[]; port: number | null; changed: string[]; error: string | null }

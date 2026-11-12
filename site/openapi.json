@@ -330,7 +330,9 @@
           "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } },
           "disabled": { "type": "boolean", "description": "true switches the app off: it cannot start and does not start with the agent. Stop it first, or the change returns 409." },
           "watch_errors": { "type": "boolean", "description": "Watch the output for errors while the app runs, and report them as issue." },
-          "env_file": { "type": "string", "description": "Env file read on every start. An empty string unlinks it. Restart a running app to apply." }
+          "env_file": { "type": "string", "description": "Env file read on every start. An empty string unlinks it. Restart a running app to apply." },
+          "health_check": { "type": "string", "description": "HTTP check while the app runs: a path on its port such as /health, or a local http:// URL. An empty string removes it.", "examples": ["/health"] },
+          "health_restart": { "type": "boolean", "description": "Restart the app when the health check fails 3 times in a row." }
         }
       },
       "RunTask": {
@@ -377,6 +379,8 @@
           "disabled": { "type": "boolean", "description": "Switched off. Starting it returns 409." },
           "watch_errors": { "type": "boolean" },
           "env_file": { "type": "string", "description": "Linked env file. Absent when there is none." },
+          "health_check": { "type": "string", "description": "Health check path or local URL. Absent when there is none." },
+          "health_restart": { "type": "boolean" },
           "restart": { "$ref": "#/components/schemas/RestartPolicy" },
           "max_restarts": { "type": "integer" },
           "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } },
@@ -390,7 +394,19 @@
           "task": { "oneOf": [{ "$ref": "#/components/schemas/TaskRun" }, { "type": "null" }] },
           "issue": { "oneOf": [{ "$ref": "#/components/schemas/AppIssue" }, { "type": "null" }], "description": "Errors in the output of the current run. Null when there are none, when the app is stopped, or when watch_errors is off." },
           "env_file_status": { "oneOf": [{ "$ref": "#/components/schemas/EnvFileStatus" }, { "type": "null" }], "description": "The linked env file as the agent sees it now. Null when the app has no env file." },
+          "health": { "oneOf": [{ "$ref": "#/components/schemas/HealthStatus" }, { "type": "null" }], "description": "Last health check of the current run. Null without a check, before the first one, or when the app does not run." },
           "outside": { "type": "array", "items": { "$ref": "#/components/schemas/OutsideCopy" }, "description": "Copies of the app running outside Keeprun, e.g. npm run dev started by a coding agent. Checked every 10 seconds." }
+        }
+      },
+      "HealthStatus": {
+        "type": "object",
+        "description": "Checked every 10 seconds while the app runs, from 20 seconds after it starts. A 2xx or 3xx answer within 5 seconds passes.",
+        "required": ["ok", "detail", "checked_at", "failures"],
+        "properties": {
+          "ok": { "type": "boolean" },
+          "detail": { "type": "string", "examples": ["200 in 12 ms", "Nothing answers on port 3000"] },
+          "checked_at": { "type": "integer", "description": "Unix time in milliseconds." },
+          "failures": { "type": "integer", "description": "Failed checks in a row." }
         }
       },
       "OutsideCopy": {

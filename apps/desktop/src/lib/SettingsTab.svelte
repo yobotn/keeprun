@@ -28,6 +28,8 @@
       max_restarts: a.max_restarts,
       autostart: a.autostart,
       watch_errors: a.watch_errors,
+      health_check: a.health_check ?? "",
+      health_restart: a.health_restart ?? false,
       tags: a.tags.join(", "),
       port: a.env.PORT ?? "",
     };
@@ -83,6 +85,8 @@
         max_restarts: Number(form.max_restarts) || 0,
         autostart: form.autostart,
         watch_errors: form.watch_errors,
+        health_check: form.health_check.trim(),
+        health_restart: form.health_restart,
         tags: splitTags(form.tags),
       });
       form = fresh(v);
@@ -201,6 +205,24 @@
           <span class="hint block">{t("settings.watchErrorsHint")}</span>
         </span>
       </label>
+
+      <div>
+        <label class="label" for="s-health">{t("settings.health")}</label>
+        <input id="s-health" class="input font-mono" bind:value={form.health_check} placeholder="/health" dir="ltr" spellcheck="false" />
+        <p class="hint">{t("settings.healthHint")}</p>
+        <label class="mt-2 flex items-start gap-3">
+          <input
+            type="checkbox"
+            class="mt-0.5 size-4 accent-[var(--accent)]"
+            bind:checked={form.health_restart}
+            disabled={!form.health_check.trim()}
+          />
+          <span>
+            <span class="text-[13px] font-medium">{t("settings.healthRestart")}</span>
+            <span class="hint block">{t("settings.healthRestartHint")}</span>
+          </span>
+        </label>
+      </div>
 
       <div>
         <label class="label" for="s-tags">{t("settings.tags")}</label>

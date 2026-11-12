@@ -169,6 +169,19 @@
     </div>
   {/if}
 
+  {#if running && app.health && !app.health.ok}
+    <p class="alert alert-warn mb-4 flex items-start gap-2" role="status">
+      <TriangleAlert size={15} class="mt-0.5 shrink-0" aria-hidden="true" />
+      <span>
+        <span class="font-medium">{t("overview.unhealthy")}</span>
+        <span class="selectable block text-xs opacity-80" dir="ltr">{app.health.detail}</span>
+        <span class="block text-xs opacity-80">
+          {t(app.health_restart ? "overview.unhealthyRestart" : "overview.unhealthyHint", { count: app.health.failures })}
+        </span>
+      </span>
+    </p>
+  {/if}
+
   {#if app.outside?.length}
     <div class="alert alert-warn mb-4 flex items-start gap-3" role="status">
       <TriangleAlert size={15} class="mt-0.5 shrink-0" aria-hidden="true" />
@@ -265,6 +278,18 @@
       <button class="btn-icon !size-6" onclick={() => open(() => openPath(app.cwd), t("overview.theFolder"))} title={t("overview.openFolder")}><FolderOpen size={13} /></button>
     </dd>
     <GitInfo {app} />
+    {#if app.health_check}
+      <dt class="text-fg-muted">{t("overview.health")}</dt>
+      <dd class="flex min-w-0 flex-wrap items-center gap-x-2 text-[13px]">
+        <span class="selectable font-mono text-[12.5px]" dir="ltr">{app.health_check}</span>
+        {#if running && app.health}
+          <span class={app.health.ok ? "text-accent" : "text-danger"} dir="ltr">· {app.health.detail}</span>
+          <span class="text-xs text-fg-muted">{formatTime(app.health.checked_at)}</span>
+        {:else}
+          <span class="text-xs text-fg-muted">{t(running ? "overview.healthSoon" : "overview.healthWhenRunning")}</span>
+        {/if}
+      </dd>
+    {/if}
     <dt class="text-fg-muted">{t("overview.command")}</dt>
     <dd class="selectable break-all font-mono text-[12.5px]">{app.command}</dd>
     <dt class="text-fg-muted">{t("overview.pid")}</dt>

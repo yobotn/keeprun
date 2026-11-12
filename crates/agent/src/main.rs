@@ -11,6 +11,7 @@ mod api;
 mod copies;
 mod db;
 mod dpapi;
+mod health;
 mod job;
 mod port;
 mod service;
@@ -175,6 +176,7 @@ pub async fn serve(
     // Only after the port is bound, so a second agent instance never starts apps.
     sup.autostart()?;
     sup.watch_copies();
+    sup.watch_health();
 
     axum::serve(listener, api::router(state))
         .with_graceful_shutdown(shutdown)

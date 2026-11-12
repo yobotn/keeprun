@@ -45,6 +45,20 @@ export interface AppSpec {
   watch_errors: boolean;
   /** Env file read on every start, relative to `cwd` or absolute. `env` overrides it. */
   env_file?: string | null;
+  /** HTTP check while the app runs: a path on its port such as "/health", or a local URL. */
+  health_check?: string | null;
+  /** Restart when the health check fails 3 times in a row. */
+  health_restart?: boolean;
+}
+
+/** Last health check of the current run. */
+export interface HealthStatus {
+  ok: boolean;
+  /** e.g. "200 in 12 ms" or "Nothing answers on port 3000". */
+  detail: string;
+  checked_at: number;
+  /** Failed checks in a row. */
+  failures: number;
 }
 
 /** The linked env file as the agent sees it. Keys only: values may be secret. */
@@ -102,6 +116,7 @@ export interface AppView extends AppSpec {
   env_file_status: EnvFileStatus | null;
   /** Copies of the app running outside Keeprun, e.g. `npm run dev` by a coding agent. */
   outside: OutsideCopy[];
+  health: HealthStatus | null;
 }
 
 /** Git state of an app folder, read as the signed-in user. */

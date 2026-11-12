@@ -19,6 +19,7 @@ keeprun add [name] [--cwd <folder>]    Add an app. Without a command, the best d
 keeprun set <app> [--name] [--cwd] [--command] [--restart] [--max-restarts n] [--watch-errors false]
                   [--autostart true|false] [--tags a,b] [--port n, 0 removes it]
                   [--env-file .env.local, none unlinks it]
+                  [--health /health, none removes it] [--health-restart true|false]
 keeprun env <app>                      Show variables (secrets masked, --reveal to show), the
                                        env file keys, and keys changed since the app started
 keeprun env <app> -e K=V [--secret]    Set variables

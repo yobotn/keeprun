@@ -575,6 +575,9 @@ fn summary(a: &AppView) -> Value {
     if let Some(i) = &a.issue {
         v["errors"] = json!(i.summary);
     }
+    if let Some(h) = a.health.as_ref().filter(|h| !h.ok) {
+        v["unhealthy"] = json!(h.detail);
+    }
     if !a.outside.is_empty() {
         v["outside_copies"] = json!(a.outside);
     }
@@ -597,6 +600,12 @@ fn detail(a: &AppView) -> Value {
     }
     if let Some(i) = &a.issue {
         v["errors"] = json!({ "first": i.summary, "count": i.count, "last_at": time(i.last_at), "output": i.excerpt });
+    }
+    if let Some(check) = &a.spec.health_check {
+        v["health_check"] = json!(check);
+    }
+    if let Some(h) = &a.health {
+        v["health"] = json!({ "ok": h.ok, "detail": h.detail, "failures_in_a_row": h.failures, "checked_at": time(h.checked_at) });
     }
     v["env_keys"] = json!(a.spec.env.keys().collect::<Vec<_>>());
     if let Some(f) = &a.spec.env_file {

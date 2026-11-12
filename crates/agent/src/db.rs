@@ -227,6 +227,8 @@ mod tests {
             disabled: false,
             watch_errors: true,
             env_file: None,
+            health_check: None,
+            health_restart: false,
         };
         db.insert_app(&spec).unwrap();
         let raw: String = db
