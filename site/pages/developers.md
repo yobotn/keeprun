@@ -52,9 +52,9 @@ Invoke-RestMethod http://127.0.0.1:7171/apps -Headers @{ Authorization = "Bearer
 
 ## MCP server
 
-An MCP server, `keeprun mcp`, is planned so MCP clients such as Claude Code and Claude Desktop can
-check status, read logs and restart apps without shell access.
-[Vote for it on GitHub](https://github.com/{{REPO}}/issues/1).
+`keeprun mcp` runs an MCP server over stdio, so MCP clients such as Claude Code and Claude Desktop
+check status, read logs and errors, and restart apps with typed tools. Add it to Claude Code with
+`claude mcp add --scope user keeprun -- keeprun mcp`. See the [MCP server docs](/docs/mcp.html).
 
 ## For AI agents
 

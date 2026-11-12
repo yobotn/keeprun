@@ -8,18 +8,7 @@ decide what ships next.
 Add a thumbs up to the ones you want, and comment with how you would use it. Missing something?
 [Open an issue](https://github.com/yobotn/keeprun/issues/new).
 
-## MCP server for coding agents
-
-[Vote on issue #1](https://github.com/yobotn/keeprun/issues/1)
-
-A `keeprun mcp` command that runs a local MCP server, so coding agents and MCP clients such as
-Claude Code, Claude Desktop and IDE agents can check status, read logs and restart apps without
-shell access.
-
-- Read-mostly by default: list, status, logs, events, start, stop and restart. Adding, removing,
-  changing environment variables and running commands only when you turn them on.
-- Secret values are never returned.
-- Uses the existing local API, so there is no new port or service.
+Shipped from this list: the [MCP server for coding agents](mcp.md).
 
 ## Run each app as its own account
 

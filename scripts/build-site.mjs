@@ -155,7 +155,7 @@ writeFileSync(join(out, ".nojekyll"), "");
 cpSync(join(root, "docs", "assets"), join(out, "assets"), { recursive: true });
 
 // Docs. Order of the side menu; other files follow alphabetically.
-const order = ["getting-started", "deployment", "configuration", "cli", "api", "security", "troubleshooting", "roadmap", "releasing"];
+const order = ["getting-started", "deployment", "configuration", "cli", "mcp", "api", "security", "troubleshooting", "roadmap", "releasing"];
 // One-line summaries for search results, link previews and llms.txt.
 const summaries = {
   "getting-started":
@@ -164,12 +164,13 @@ const summaries = {
     "Install Keeprun silently with the MSI on many machines with Intune, SCCM or Group Policy: properties, upgrades, repair, user access and updates.",
   configuration: "Keeprun settings, the dev and prod environments, ports, data folders and service names.",
   cli: "Reference for the keeprun command line: add, start, stop, logs, environment variables, tasks and JSON output for scripts.",
+  mcp: "Connect Claude Code and other MCP clients to Keeprun: app status, logs, errors and restarts as typed tools.",
   api: "The local HTTP and WebSocket API of the Keeprun agent, with token authentication.",
   security:
     "Keeprun security model: local-only API, token access, DPAPI-encrypted secrets, Job Object isolation and signed updates.",
   troubleshooting: "Fixes for common Keeprun problems: the service does not start, ports in use, apps that crash or do not stop.",
   roadmap:
-    "Planned Keeprun features, such as an MCP server for coding agents, per-app accounts and a reverse proxy. Vote on GitHub.",
+    "Planned Keeprun features, such as per-app accounts, a reverse proxy and deploy from Git. Vote on GitHub.",
   releasing: "How Keeprun versions are built, signed and published, and how the website and update manifest are deployed.",
 };
 const files = readdirSync(join(root, "docs"))

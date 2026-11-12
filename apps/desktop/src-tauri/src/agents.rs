@@ -19,7 +19,8 @@ fn note(id: &str) -> String {
          - Logs: `keeprun logs {id}` (add `-f` to follow)\n\
          - Errors as a fix prompt: `keeprun issue {id}`\n\
          - Restart, e.g. after changing config or dependencies: `keeprun restart {id}`\n\
-         - Status and port: `keeprun list`\n"
+         - Status and port: `keeprun list`\n\
+         - The same as MCP tools: `claude mcp add --scope user keeprun -- keeprun mcp`\n"
     )
 }
 

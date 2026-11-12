@@ -209,6 +209,29 @@ enum Cmd {
         #[arg(last = true)]
         command: Vec<String>,
     },
+    /// Run an MCP server over stdio, so coding agents check status, read logs and restart
+    /// apps with typed tools. Tools default to the app in the current folder.
+    ///
+    /// Add it to Claude Code:
+    ///   claude mcp add keeprun -- keeprun mcp
+    Mcp {
+        /// Only read status, logs, errors and events. No start, stop or restart.
+        #[arg(long)]
+        read_only: bool,
+        /// Also allow running saved tasks (build, migrate, test).
+        #[arg(long)]
+        allow_tasks: bool,
+    },
+}
+
+mod mcp;
+
+/// Unix time in milliseconds.
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 struct Client {
@@ -466,6 +489,16 @@ async fn run() -> Result<()> {
     let c = Client::new(settings)?;
     match cli.cmd {
         Cmd::Status | Cmd::Detect { .. } => unreachable!(),
+        Cmd::Mcp {
+            read_only,
+            allow_tasks,
+        } => {
+            let access = mcp::Access {
+                control: !read_only,
+                tasks: allow_tasks && !read_only,
+            };
+            mcp::serve(c, access).await?;
+        }
         Cmd::List => {
             let apps: Vec<AppView> = c.get("/apps").await?;
             if json {

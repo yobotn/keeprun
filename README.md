@@ -47,7 +47,8 @@ Docker, no WSL, no cloud.
 It also helps while you develop. Add your dev server, API and workers once, and Keeprun keeps them
 running in the background, with no terminal tab per process. Your terminal stays free for the
 work itself, such as a coding agent like Claude Code, which can check `keeprun logs` and run
-`keeprun restart` instead of tying up a shell waiting on a server.
+`keeprun restart` instead of tying up a shell waiting on a server, or use the same through the
+[MCP server](docs/mcp.md).
 
 ## Features
 
@@ -176,6 +177,7 @@ Read the [security model](docs/security.md).
 | [Deployment](docs/deployment.md) | Silent install, upgrades, repair, access, updates, signing |
 | [Configuration](docs/configuration.md) | Settings, dev and prod environments |
 | [Keeprun CLI](docs/cli.md) | Every command, tasks, JSON output |
+| [MCP server](docs/mcp.md) | Status, logs and restarts for Claude Code and other MCP clients |
 | [Keeprun Agent API](docs/api.md) | Local HTTP and WebSocket API |
 | [Security](docs/security.md) | Threat model and design choices |
 | [Troubleshooting](docs/troubleshooting.md) | Common problems and fixes |
