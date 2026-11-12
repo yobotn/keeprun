@@ -2,7 +2,7 @@
   import { X } from "@lucide/svelte";
   import { languages, locale, setLocale, systemLang, t } from "./i18n/index.svelte";
   import { applyTheme, theme, type Theme } from "./theme.svelte";
-  import { prefs, setTray } from "./prefs.svelte";
+  import { prefs, setEditor, setTray, type Editor } from "./prefs.svelte";
 
   let { onclose }: { onclose: () => void } = $props();
   let dialog: HTMLDialogElement;
@@ -49,6 +49,18 @@
         {/each}
       </div>
     </fieldset>
+
+    <div>
+      <label class="label" for="p-editor">{t("prefs.editor")}</label>
+      <select id="p-editor" class="input" value={prefs.editor} onchange={(e) => setEditor(e.currentTarget.value as Editor)}>
+        <option value="auto">{t("prefs.editorAuto")}</option>
+        <option value="vscode">Visual Studio Code</option>
+        <option value="cursor">Cursor</option>
+        <option value="windsurf">Windsurf</option>
+        <option value="default">{t("prefs.editorDefault")}</option>
+      </select>
+      <p class="hint mt-1">{t("prefs.editorHint")}</p>
+    </div>
 
     <label class="flex items-start gap-3">
       <span class="switch mt-0.5">

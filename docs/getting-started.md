@@ -56,6 +56,9 @@ work when the service runs as LocalSystem, which does not see per-user tools on 
   shows app health: green when all is well, yellow while apps start or stop, orange while an app
   crashes and restarts, red when an app failed or the agent cannot be reached. No dot means
   nothing is running. Turn this off in **Preferences** (the gear button) to quit on close.
+- File paths in logs and in error output, such as `src\routes\users.ts:42:17` in a stack trace,
+  are links. Click one to open the file at that line in VS Code, Cursor or Windsurf, whichever is
+  installed. Paths relative to the app folder work too. Choose the editor in **Preferences**.
 - **Preferences** also sets the language and theme. The UI is available in Arabic, Chinese
   (Simplified), Dutch, English, French, German, Hebrew, Italian, Japanese, Korean, Polish,
   Portuguese (Brazil), Russian, Spanish, Turkish and Ukrainian, and follows the Windows language by

@@ -494,7 +494,7 @@
           {#if tab === "overview"}
             <Overview app={selected} {now} agentWorking={waiting.includes(selected.id)} onshowevents={() => (tab = "events")} />
           {:else if tab === "logs"}
-            <LogPanel appId={selected.id} />
+            <LogPanel appId={selected.id} cwd={selected.cwd} />
           {:else if tab === "tasks"}
             <TasksTab app={selected} {now} onchanged={refresh} />
           {:else if tab === "environment"}

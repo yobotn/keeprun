@@ -2,9 +2,11 @@
   import { ArrowDown, Copy, Eraser, Pause, Play, Search } from "@lucide/svelte";
   import { api, config, formatTime, type LogLine } from "./api";
   import { locale, t } from "./i18n/index.svelte";
+  import SourceText from "./SourceText.svelte";
 
   // `taskSince` shows only task output from that time on (used by the Tasks tab).
-  let { appId, taskSince }: { appId: string; taskSince?: number } = $props();
+  // `cwd` is the app folder, which relative file paths in the output start from.
+  let { appId, cwd, taskSince }: { appId: string; cwd: string; taskSince?: number } = $props();
 
   // `seq` keys the rows, so dropping old lines does not redraw every row.
   type Row = LogLine & { seq: number };
@@ -15,6 +17,14 @@
   let connected = $state(false);
   let atBottom = $state(true);
   let copied = $state(false);
+  /** A file path in the output could not be opened. */
+  let fileError = $state("");
+  let fileErrorTimer: ReturnType<typeof setTimeout> | undefined;
+  function showFileError(message: string) {
+    fileError = message;
+    clearTimeout(fileErrorTimer);
+    fileErrorTimer = setTimeout(() => (fileError = ""), 8000);
+  }
   let scroller: HTMLDivElement | undefined = $state();
   let searchInput: HTMLInputElement | undefined = $state();
   let pending: Row[] = [];
@@ -188,6 +198,9 @@
       {t(copied ? "common.copied" : paused ? "logs.paused" : offline || (!connected && lines.length === 0) ? "logs.connecting" : "logs.live")}
     </span>
   </div>
+  {#if fileError}
+    <p class="selectable alert mx-6 mt-2" role="alert">{fileError}</p>
+  {/if}
   <div class="relative min-h-0 flex-1">
     <div
       bind:this={scroller}
@@ -213,7 +226,7 @@
               ? 'text-danger'
               : l.stream === 'system'
                 ? 'text-fg-muted'
-                : ''}">{l.text}</span
+                : ''}"><SourceText text={l.text} {cwd} onerror={showFileError} /></span
           >
         </div>
       {/each}

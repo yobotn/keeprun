@@ -179,7 +179,7 @@
       {/if}
     </div>
     {#key run.started_at}
-      <LogPanel appId={app.id} taskSince={run.started_at} />
+      <LogPanel appId={app.id} cwd={app.cwd} taskSince={run.started_at} />
     {/key}
   {:else}
     <p class="px-6 py-4 text-[13px] text-fg-muted">{t("tasks.outputHere")}</p>

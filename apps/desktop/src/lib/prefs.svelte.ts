@@ -21,6 +21,9 @@ function write(key: string, value: string | null) {
   }
 }
 
+export const editors = ["auto", "vscode", "cursor", "windsurf", "default"] as const;
+export type Editor = (typeof editors)[number];
+
 export const prefs = $state({
   /** Keep Keeprun in the notification area when the window closes. On by default. */
   tray: read("keeprun.tray") !== "off",
@@ -28,7 +31,19 @@ export const prefs = $state({
   lastTab: read("keeprun.lastTab"),
   /** Sidebar sections the user collapsed. */
   collapsed: (read("keeprun.collapsed") ?? "").split(",").filter(Boolean),
+  /** Where file paths in app output open: the first editor found, one editor, or the default app. */
+  editor: readEditor(),
 });
+
+function readEditor(): Editor {
+  const v = read("keeprun.editor");
+  return editors.find((e) => e === v) ?? "auto";
+}
+
+export function setEditor(editor: Editor) {
+  prefs.editor = editor;
+  write("keeprun.editor", editor);
+}
 
 export function setTray(on: boolean) {
   prefs.tray = on;

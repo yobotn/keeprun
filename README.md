@@ -78,7 +78,7 @@ the next start.
 <tr>
 <td valign="top">
 <img src="docs/assets/icons/scroll-text.svg" width="20" align="left">&nbsp;<b>Logs and events</b><br>
-Live output with search, rotated by size, plus a history of starts, stops, crashes and changes.
+Live output with search, rotated by size. File paths in stack traces open in your editor at the line. Plus a history of starts, stops, crashes and changes.
 </td>
 <td valign="top">
 <img src="docs/assets/icons/gauge.svg" width="20" align="left">&nbsp;<b>Health at a glance</b><br>

@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 
+mod editor;
 mod tray;
 mod update;
 
@@ -191,6 +192,7 @@ pub fn run() {
             looks_secret,
             take_launch_folder,
             set_agent_port,
+            editor::open_in_editor,
             tray::set_tray_enabled,
             tray::agent_waiting,
             tray::set_tray_text,

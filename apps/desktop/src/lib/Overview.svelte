@@ -4,6 +4,7 @@
   import { api, appPort, formatBytes, formatDuration, formatTime, isActive, type AppView } from "./api";
   import { t } from "./i18n/index.svelte";
   import EventsList from "./EventsList.svelte";
+  import SourceText from "./SourceText.svelte";
 
   let {
     app,
@@ -142,7 +143,7 @@
           {#if app.issue.excerpt.length}
             <details class="mt-2">
               <summary class="cursor-pointer text-xs">{t("overview.issueOutput")}</summary>
-              <pre class="selectable mt-1 max-h-64 overflow-auto rounded border border-border bg-bg p-2 font-mono text-[11.5px] leading-[1.45] text-fg" dir="ltr">{app.issue.excerpt.join("\n")}</pre>
+              <pre class="selectable mt-1 max-h-64 overflow-auto rounded border border-border bg-bg p-2 font-mono text-[11.5px] leading-[1.45] text-fg" dir="ltr">{#each app.issue.excerpt as line, i}{#if i}{"\n"}{/if}<SourceText text={line} cwd={app.cwd} onerror={(m) => (openError = m)} />{/each}</pre>
             </details>
           {/if}
           {#if issueError}<p class="mt-2 text-xs text-danger" role="alert">{issueError}</p>{/if}

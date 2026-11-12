@@ -242,6 +242,9 @@ export const desktop = {
   setTrayText: (text: TrayText) => invoke<void>("set_tray_text", { text }),
   /** Ids of apps whose errors wait while a coding agent still works in their folder. */
   agentWaiting: () => invoke<string[]>("agent_waiting"),
+  /** Open a source file from app output at a line. Rejects with `not-found` or `no-editor`. */
+  openInEditor: (cwd: string, path: string, line: number, col: number | undefined, editor: string) =>
+    invoke<void>("open_in_editor", { cwd, path, line, col: col ?? null, editor }),
   /** Folder Keeprun was started with from the Explorer menu, once. */
   takeLaunchFolder: () => invoke<string | null>("take_launch_folder"),
 };
