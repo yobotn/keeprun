@@ -82,7 +82,7 @@ fn find_launcher(file: &str, folders: &[&str]) -> Option<PathBuf> {
 }
 
 /// Errors the UI translates: `not-found` and `no-editor`. Anything else is shown as is.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn open_in_editor(
     app: tauri::AppHandle,
     cwd: PathBuf,

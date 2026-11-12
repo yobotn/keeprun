@@ -386,28 +386,37 @@ fn refresh<R: Runtime>(app: &AppHandle<R>, apps: Option<&[AppView]>) {
         .filter(|a| settled.contains(&a.spec.id))
         .map(|a| (a.spec.id.clone(), a.spec.name.clone()))
         .collect();
-    {
+    // Tray and menu calls run on the main thread and wait for it. Never hold a lock across
+    // them: a command on the main thread that takes the same lock would wait for this thread
+    // while it waits for the main thread, and the window would hang.
+    let text = state.text.lock().unwrap().clone();
+    let menu_changed = {
         let mut current = state.issue_apps.lock().unwrap();
-        if *current != issues {
-            let m = menu(app, &state.text.lock().unwrap(), &issues);
-            if let (Some(t), Ok(m)) = (tray(app), m) {
-                let _ = t.set_menu(Some(m));
-            }
-            *current = issues;
+        let changed = *current != issues;
+        if changed {
+            current.clone_from(&issues);
+        }
+        changed
+    };
+    if menu_changed {
+        if let (Some(t), Ok(m)) = (tray(app), menu(app, &text, &issues)) {
+            let _ = t.set_menu(Some(m));
         }
     }
-    let (level, tip) = tooltip(&state.text.lock().unwrap(), apps, &settled);
-    let mut last = state.last.lock().unwrap();
-    if last.as_ref().is_some_and(|(l, t)| *l == level && *t == tip) {
-        return;
-    }
+    let (level, tip) = tooltip(&text, apps, &settled);
+    let previous = {
+        let mut last = state.last.lock().unwrap();
+        if last.as_ref().is_some_and(|(l, t)| *l == level && *t == tip) {
+            return;
+        }
+        last.replace((level, tip.clone())).map(|(l, _)| l)
+    };
     if let Some(t) = tray(app) {
-        if last.as_ref().map(|(l, _)| *l) != Some(level) {
+        if previous != Some(level) {
             let _ = t.set_icon(Some(icon(level)));
         }
         let _ = t.set_tooltip(Some(&tip));
     }
-    *last = Some((level, tip));
 }
 
 /// Ids of apps whose errors wait for a coding agent to finish, as of the last poll. The UI
@@ -432,10 +441,9 @@ pub fn set_tray_enabled<R: Runtime>(app: AppHandle<R>, enabled: bool) {
 #[tauri::command]
 pub fn set_tray_text<R: Runtime>(app: AppHandle<R>, text: TrayText) {
     let state = app.state::<Tray>();
-    if let Some(t) = tray(&app) {
-        if let Ok(m) = menu(&app, &text, &state.issue_apps.lock().unwrap()) {
-            let _ = t.set_menu(Some(m));
-        }
+    let issues = state.issue_apps.lock().unwrap().clone();
+    if let (Some(t), Ok(m)) = (tray(&app), menu(&app, &text, &issues)) {
+        let _ = t.set_menu(Some(m));
     }
     *state.text.lock().unwrap() = text;
     // Rebuild the tooltip with the new text on the next poll.

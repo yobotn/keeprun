@@ -28,7 +28,7 @@ struct Connection {
 }
 
 /// Re-read on every call so the UI picks up a token created after it started.
-#[tauri::command]
+#[tauri::command(async)]
 fn agent_connection() -> Result<Connection, String> {
     let s = Settings::load().map_err(|e| format!("{e:#}"))?;
     let (token, error) = match keeprun_core::token::read(&s.token_path()) {
@@ -46,12 +46,12 @@ fn agent_connection() -> Result<Connection, String> {
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn detect(path: PathBuf) -> Result<Detection, String> {
     keeprun_core::detect::detect(&path)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn read_env_file(path: PathBuf) -> Result<BTreeMap<String, String>, String> {
     let text = std::fs::read_to_string(&path)
         .map_err(|e| format!("Cannot read {}: {e}", path.display()))?;
