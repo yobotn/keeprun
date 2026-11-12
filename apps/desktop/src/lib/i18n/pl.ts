@@ -196,6 +196,14 @@ const catalog: Catalog = {
   "overview.copyPrompt": "Kopiuj prompt naprawy",
   "overview.copyPromptHint": "Kopiuje błąd, folder i polecenia jako prompt dla agenta kodującego",
   "overview.dismiss": "Odrzuć",
+  "overview.outside": "Ta aplikacja działa też poza Keeprun",
+  "overview.outsideHint": "Uruchomiona z terminala lub przez agenta programistycznego. Jej wyjście nie trafia do Keeprun i może zajmować port aplikacji. Uruchomienie aplikacji tutaj najpierw ją zakończy.",
+  "overview.outsidePort": "port {port}",
+  "overview.endOutside": "Zakończ",
+  "overview.endOutsideHint": "Kończy procesy działające poza Keeprun",
+  "overview.tellAgents": "Powiadom agentów programistycznych",
+  "overview.tellAgentsHint": "Dodaje notatkę do CLAUDE.md lub AGENTS.md w folderze aplikacji: używać Keeprun do logów i restartów zamiast uruchamiać aplikację",
+  "overview.agentsTold": "{file} każe agentom programistycznym używać Keeprun.",
 
   // Events
   "events.none": "Brak zdarzeń.",

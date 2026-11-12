@@ -100,6 +100,14 @@ export interface AppView extends AppSpec {
   task: TaskRun | null;
   issue: AppIssue | null;
   env_file_status: EnvFileStatus | null;
+  /** Copies of the app running outside Keeprun, e.g. `npm run dev` by a coding agent. */
+  outside: OutsideCopy[];
+}
+
+export interface OutsideCopy {
+  pid: number;
+  name: string;
+  ports: number[];
 }
 
 export type NewApp = Omit<AppSpec, "id" | "disabled" | "watch_errors"> & { watch_errors?: boolean };
@@ -224,6 +232,7 @@ export const api = {
   stopTask: (id: string) => call<AppView>("POST", `/apps/${enc(id)}/tasks/stop`),
   issue: (id: string) => call<IssueReport>("GET", `/apps/${enc(id)}/issue`),
   clearIssue: (id: string) => call<AppView>("DELETE", `/apps/${enc(id)}/issue`),
+  endOutside: (id: string) => call<AppView>("POST", `/apps/${enc(id)}/outside/end`),
   events: (id: string, limit = 100) => call<AppEvent[]>("GET", `/apps/${enc(id)}/events?limit=${limit}`),
   async logSocket(id: string): Promise<WebSocket> {
     const c = await connection();
@@ -245,6 +254,10 @@ export const desktop = {
   /** Open a source file from app output at a line. Rejects with `not-found` or `no-editor`. */
   openInEditor: (cwd: string, path: string, line: number, col: number | undefined, editor: string) =>
     invoke<void>("open_in_editor", { cwd, path, line, col: col ?? null, editor }),
+  /** CLAUDE.md or AGENTS.md in the app folder when it tells coding agents to use Keeprun. */
+  agentNoteFile: (cwd: string) => invoke<string | null>("agent_note_file", { cwd }),
+  /** Add that note. Returns the file name. */
+  addAgentNote: (cwd: string, appId: string) => invoke<string>("add_agent_note", { cwd, appId }),
   /** Folder Keeprun was started with from the Explorer menu, once. */
   takeLaunchFolder: () => invoke<string | null>("take_launch_folder"),
 };

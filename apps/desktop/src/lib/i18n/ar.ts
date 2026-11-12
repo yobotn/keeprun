@@ -201,6 +201,14 @@ const ar: Catalog = {
   "overview.copyPrompt": "نسخ موجّه الإصلاح",
   "overview.copyPromptHint": "ينسخ الخطأ والمجلد والأوامر كموجّه لوكيل برمجة",
   "overview.dismiss": "تجاهل",
+  "overview.outside": "هذا التطبيق يعمل أيضًا خارج Keeprun",
+  "overview.outsideHint": "بدأ من طرفية أو بواسطة وكيل برمجة. لا تصل مخرجاته إلى Keeprun، وقد يشغل منفذ التطبيق. تشغيل التطبيق هنا يُنهيه أولًا.",
+  "overview.outsidePort": "المنفذ {port}",
+  "overview.endOutside": "إنهاؤه",
+  "overview.endOutsideHint": "يُنهي العمليات التي تعمل خارج Keeprun",
+  "overview.tellAgents": "إبلاغ وكلاء البرمجة",
+  "overview.tellAgentsHint": "يضيف ملاحظة إلى CLAUDE.md أو AGENTS.md في مجلد التطبيق: استخدام Keeprun للسجلات وإعادة التشغيل بدل تشغيل التطبيق",
+  "overview.agentsTold": "يطلب {file} من وكلاء البرمجة استخدام Keeprun.",
 
   // Events
   "events.none": "لا توجد أحداث بعد.",

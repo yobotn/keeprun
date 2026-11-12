@@ -21,6 +21,7 @@ The full API is described in the [OpenAPI 3.1 specification](https://keeprun.app
 | POST | `/apps/{id}/start` | | `AppView`. 409 if running or disabled, 400 with the reason if it cannot start (port in use, missing folder). |
 | POST | `/apps/{id}/stop` | | `AppView` |
 | POST | `/apps/{id}/restart` | | `AppView` |
+| POST | `/apps/{id}/outside/end` | | `AppView`. Ends the copies listed in `outside`. Starting the app ends them too. |
 | POST | `/apps/{id}/tasks/run` | `{name}` (saved task) or `{command}` | `AppView` with `task`. Returns once started. 409 if a task is running. |
 | POST | `/apps/{id}/tasks/stop` | | `AppView`. Ends the task's process tree. |
 | GET | `/apps/{id}/logs/recent` | `?tail=200` | `LogLine[]` |
@@ -52,7 +53,11 @@ AppView = NewApp & {
   stats: { cpu_percent: number; memory_bytes: number; processes: number; ports: number[] } | null;
   issue: AppIssue | null;                            // errors while running, see below
   env_file_status: EnvFileStatus | null;             // null without a linked env file
+  outside: OutsideCopy[];                            // copies running outside Keeprun
 }
+// A copy of the app started outside Keeprun, e.g. `npm run dev` by a coding agent: a process
+// that listens on a port and runs a file from the app folder. Checked every 10 seconds.
+OutsideCopy = { pid: number; name: string; ports: number[] }
 // Keys only, never values. changed: keys that differ from what the running process got,
 // so a restart applies them. error: the file cannot be read; the app starts without it.
 EnvFileStatus = { keys: string[]; port: number | null; changed: string[]; error: string | null }

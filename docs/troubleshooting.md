@@ -12,6 +12,14 @@ Your account is not allowed to use Keeprun. An Administrator runs
 Another process holds the port set in `PORT`. Stop it (`taskkill /PID 4120`) or change `PORT`
 in the Environment tab.
 
+**"Another copy is running outside Keeprun."**
+Something else started the same app, for example `npm run dev` in a terminal or a coding
+agent. Keeprun checks every 10 seconds for a process outside Keeprun that listens on a port and
+runs a file from the app folder. Click **End it** on the Overview tab, or start the app in
+Keeprun, which ends the copy first. **Tell coding agents** adds a note to the app's
+`CLAUDE.md` (or `AGENTS.md`) so agents use `keeprun logs` and `keeprun restart` instead of
+starting their own copy.
+
 **An app works in my terminal but not in Keeprun.**
 The service runs as LocalSystem with the machine PATH. Use full paths in the command (the
 detector does this), and set variables your terminal profile normally sets in the

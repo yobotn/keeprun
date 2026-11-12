@@ -140,6 +140,20 @@
         }
       }
     },
+    "/apps/{id}/outside/end": {
+      "parameters": [{ "$ref": "#/components/parameters/AppId" }],
+      "post": {
+        "operationId": "endOutsideCopies",
+        "tags": ["Control"],
+        "summary": "End copies of an app running outside Keeprun",
+        "description": "Ends the copies listed in outside and waits until they have exited. Starting the app ends them too.",
+        "responses": {
+          "200": { "description": "The copies have ended.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppView" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
     "/apps/{id}/tasks/run": {
       "parameters": [{ "$ref": "#/components/parameters/AppId" }],
       "post": {
@@ -375,7 +389,18 @@
           "stats": { "oneOf": [{ "$ref": "#/components/schemas/Stats" }, { "type": "null" }] },
           "task": { "oneOf": [{ "$ref": "#/components/schemas/TaskRun" }, { "type": "null" }] },
           "issue": { "oneOf": [{ "$ref": "#/components/schemas/AppIssue" }, { "type": "null" }], "description": "Errors in the output of the current run. Null when there are none, when the app is stopped, or when watch_errors is off." },
-          "env_file_status": { "oneOf": [{ "$ref": "#/components/schemas/EnvFileStatus" }, { "type": "null" }], "description": "The linked env file as the agent sees it now. Null when the app has no env file." }
+          "env_file_status": { "oneOf": [{ "$ref": "#/components/schemas/EnvFileStatus" }, { "type": "null" }], "description": "The linked env file as the agent sees it now. Null when the app has no env file." },
+          "outside": { "type": "array", "items": { "$ref": "#/components/schemas/OutsideCopy" }, "description": "Copies of the app running outside Keeprun, e.g. npm run dev started by a coding agent. Checked every 10 seconds." }
+        }
+      },
+      "OutsideCopy": {
+        "type": "object",
+        "description": "A process outside Keeprun that listens on a port and runs a file from the app folder.",
+        "required": ["pid", "name", "ports"],
+        "properties": {
+          "pid": { "type": "integer", "description": "The topmost process of the copy that runs from the app folder." },
+          "name": { "type": "string", "description": "Executable file name, e.g. node.exe." },
+          "ports": { "type": "array", "items": { "type": "integer" } }
         }
       },
       "EnvFileStatus": {

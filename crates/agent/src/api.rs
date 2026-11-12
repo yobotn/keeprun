@@ -36,6 +36,7 @@ pub fn router(state: AppState) -> Router {
         .route("/apps/{id}/start", post(start_app))
         .route("/apps/{id}/stop", post(stop_app))
         .route("/apps/{id}/restart", post(restart_app))
+        .route("/apps/{id}/outside/end", post(end_outside))
         .route("/apps/{id}/tasks/run", post(run_task))
         .route("/apps/{id}/tasks/stop", post(stop_task))
         .route("/apps/{id}/logs", get(logs_ws))
@@ -168,6 +169,14 @@ async fn stop_app(
     Path(id): Path<String>,
 ) -> ApiResult<keeprun_core::model::AppView> {
     st.sup.stop(&id).await.map(Json)
+}
+
+/// End copies of the app running outside Keeprun.
+async fn end_outside(
+    State(st): State<AppState>,
+    Path(id): Path<String>,
+) -> ApiResult<keeprun_core::model::AppView> {
+    st.sup.end_outside(&id).await.map(Json)
 }
 
 async fn restart_app(

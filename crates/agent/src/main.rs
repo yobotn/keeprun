@@ -8,6 +8,7 @@
 //! `keeprun-agent service`    Entry point used by the Service Control Manager.
 
 mod api;
+mod copies;
 mod db;
 mod dpapi;
 mod job;
@@ -173,6 +174,7 @@ pub async fn serve(
     }
     // Only after the port is bound, so a second agent instance never starts apps.
     sup.autostart()?;
+    sup.watch_copies();
 
     axum::serve(listener, api::router(state))
         .with_graceful_shutdown(shutdown)

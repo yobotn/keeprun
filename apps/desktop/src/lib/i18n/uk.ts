@@ -194,6 +194,14 @@ const catalog: Catalog = {
   "overview.copyPrompt": "Скопіювати промпт для виправлення",
   "overview.copyPromptHint": "Копіює помилку, теку й команди як промпт для агента для коду",
   "overview.dismiss": "Приховати",
+  "overview.outside": "Цей застосунок запущено ще й поза Keeprun",
+  "overview.outsideHint": "Запущено з термінала або агентом для програмування. Його вивід не потрапляє в Keeprun, і він може займати порт застосунку. Запуск застосунку тут спершу завершить його.",
+  "overview.outsidePort": "порт {port}",
+  "overview.endOutside": "Завершити",
+  "overview.endOutsideHint": "Завершує процеси, запущені поза Keeprun",
+  "overview.tellAgents": "Повідомити агентам",
+  "overview.tellAgentsHint": "Додає нотатку в CLAUDE.md або AGENTS.md у теці застосунку: використовувати Keeprun для логів і перезапусків, а не запускати застосунок самим",
+  "overview.agentsTold": "{file} просить агентів для програмування використовувати Keeprun.",
 
   // Події
   "events.none": "Подій поки немає.",

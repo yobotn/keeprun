@@ -183,6 +183,14 @@ const catalog: Catalog = {
   "overview.copyPrompt": "수정 프롬프트 복사",
   "overview.copyPromptHint": "오류, 폴더, 명령을 코딩 에이전트용 프롬프트로 복사합니다",
   "overview.dismiss": "닫기",
+  "overview.outside": "이 앱이 Keeprun 밖에서도 실행 중입니다",
+  "overview.outsideHint": "터미널이나 코딩 에이전트가 시작했습니다. 출력이 Keeprun에 전달되지 않으며 앱 포트를 점유하고 있을 수 있습니다. 여기서 앱을 시작하면 먼저 종료합니다.",
+  "overview.outsidePort": "포트 {port}",
+  "overview.endOutside": "종료",
+  "overview.endOutsideHint": "Keeprun 밖에서 실행 중인 프로세스를 종료합니다",
+  "overview.tellAgents": "코딩 에이전트에 알리기",
+  "overview.tellAgentsHint": "앱 폴더의 CLAUDE.md 또는 AGENTS.md에 메모를 추가합니다: 앱을 직접 시작하지 말고 로그와 재시작에 Keeprun 사용",
+  "overview.agentsTold": "{file}에서 코딩 에이전트에게 Keeprun을 사용하도록 안내합니다.",
 
   // 이벤트
   "events.none": "아직 이벤트가 없습니다.",

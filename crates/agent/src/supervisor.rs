@@ -4,17 +4,18 @@
 //! again when the agent starts (boot, crash, upgrade) if `autostart` is on. An app the user
 //! stopped stays stopped. Agent shutdown does not change desired state.
 
+use crate::copies;
 use crate::db::Db;
 use crate::job::{self, Job};
 use anyhow::{anyhow, Context, Result};
 use keeprun_core::issue::{self, IssueTracker};
 use keeprun_core::model::{
     changed_keys, read_env_file, slugify, AppSpec, AppState, AppView, EnvFileStatus, Event,
-    EventKind, IssueReport, LogLine, NewApp, RestartPolicy, RunTask, Stats, Stream, TaskRun,
-    TaskSpec, UpdateApp,
+    EventKind, IssueReport, LogLine, NewApp, OutsideCopy, RestartPolicy, RunTask, Stats, Stream,
+    TaskRun, TaskSpec, UpdateApp,
 };
 use keeprun_core::Settings;
-use std::collections::{BTreeMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
@@ -28,6 +29,8 @@ const LOG_FILE_MAX_BYTES: u64 = 10 * 1024 * 1024;
 /// A run longer than this resets the restart counter.
 const STABLE_RUN: Duration = Duration::from_secs(60);
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
+/// How often running apps are checked for copies started outside Keeprun.
+const COPY_CHECK: Duration = Duration::from_secs(10);
 
 pub fn now_ms() -> u64 {
     SystemTime::now()
@@ -81,6 +84,8 @@ struct Managed {
     logs: LogHub,
     task: Mutex<TaskSlot>,
     env_cache: Mutex<EnvCache>,
+    /// Copies running outside Keeprun, from the last check.
+    outside: Mutex<Vec<OutsideCopy>>,
 }
 
 type EnvVars = BTreeMap<String, String>;
@@ -299,6 +304,7 @@ impl Managed {
             task: self.task.lock().unwrap().run.clone(),
             issue,
             env_file_status,
+            outside: self.outside.lock().unwrap().clone(),
         }
     }
 }
@@ -357,6 +363,7 @@ impl Supervisor {
             logs,
             task: Mutex::new(TaskSlot::default()),
             env_cache: Mutex::default(),
+            outside: Mutex::default(),
         })
     }
 
@@ -733,6 +740,8 @@ impl Supervisor {
                 .push(Stream::System, format!("Env file not loaded: {e}"));
         }
         m.rt.lock().unwrap().env_file_loaded = file.and_then(Result::ok);
+        // A copy started outside Keeprun would hold the port and print errors nobody sees here.
+        self.end_copies(std::slice::from_ref(m));
         let started = Self::port_conflict(&env).map_or_else(
             || job::spawn_in_job(&spec.cwd, &spec.command, &env),
             |msg| Err(anyhow!(msg)),
@@ -1130,6 +1139,130 @@ impl Supervisor {
     pub async fn restart(self: &Arc<Self>, id: &str) -> Result<AppView, SupError> {
         self.stop_inner(id).await?;
         self.start(id)
+    }
+
+    /// Every 10 seconds, look for copies of the apps running outside Keeprun, e.g. started by
+    /// a coding agent. They show on the app with a button that ends them. Ending them here
+    /// without asking would only make an agent start its copy again.
+    pub fn watch_copies(self: &Arc<Self>) {
+        let sup = self.clone();
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(COPY_CHECK);
+            loop {
+                tick.tick().await;
+                let sup = sup.clone();
+                let _ = tokio::task::spawn_blocking(move || {
+                    let apps: Vec<Arc<Managed>> = sup
+                        .apps
+                        .read()
+                        .unwrap()
+                        .values()
+                        .filter(|m| !m.spec.read().unwrap().disabled)
+                        .cloned()
+                        .collect();
+                    for (m, found) in sup.find_copies(&apps) {
+                        *m.outside.lock().unwrap() = found
+                            .iter()
+                            .map(|(c, ports)| OutsideCopy {
+                                pid: c.root,
+                                name: c.name.clone(),
+                                ports: ports.clone(),
+                            })
+                            .collect();
+                    }
+                })
+                .await;
+            }
+        });
+    }
+
+    /// Copies of these apps running outside Keeprun, with the ports each listens on.
+    #[allow(clippy::type_complexity)]
+    fn find_copies(
+        &self,
+        targets: &[Arc<Managed>],
+    ) -> Vec<(Arc<Managed>, Vec<(copies::Copy, Vec<u16>)>)> {
+        let mut own = HashSet::new();
+        let mut folders = vec![];
+        for m in self.apps.read().unwrap().values() {
+            for job in [
+                m.rt.lock().unwrap().job.clone(),
+                m.task.lock().unwrap().job.clone(),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                own.extend(job.process_ids());
+            }
+            folders.push(copies::folder_key(&m.spec.read().unwrap().cwd));
+        }
+        let ports = job::listening_ports();
+        let listening: HashSet<u32> = ports.iter().map(|(p, _)| *p).collect();
+        let procs: Vec<copies::Proc> = job::processes()
+            .into_iter()
+            .map(|(pid, parent, name)| copies::Proc { pid, parent, name })
+            .collect();
+        // Each process is read once per check, however many apps look at it.
+        let cache = std::cell::RefCell::new(HashMap::new());
+        let probe = |pid: u32| {
+            if let Some(i) = cache.borrow().get(&pid) {
+                return Option::clone(i);
+            }
+            let i = job::process_info(pid);
+            cache.borrow_mut().insert(pid, i.clone());
+            i
+        };
+        targets
+            .iter()
+            .map(|m| {
+                let folder = copies::folder_key(&m.spec.read().unwrap().cwd);
+                let others: Vec<String> =
+                    folders.iter().filter(|f| **f != folder).cloned().collect();
+                let found = copies::find(&procs, &folder, &others, &own, &listening, &probe)
+                    .into_iter()
+                    .map(|c| {
+                        let mut p: Vec<u16> = ports
+                            .iter()
+                            .filter(|(pid, _)| c.pids.contains(pid))
+                            .map(|(_, port)| *port)
+                            .collect();
+                        p.sort();
+                        p.dedup();
+                        (c, p)
+                    })
+                    .collect();
+                (m.clone(), found)
+            })
+            .collect()
+    }
+
+    /// End copies of these apps running outside Keeprun, and wait until they have exited.
+    fn end_copies(&self, targets: &[Arc<Managed>]) {
+        for (m, found) in self.find_copies(targets) {
+            for (c, _) in &found {
+                job::kill(&c.pids);
+                let id = m.spec.read().unwrap().id.clone();
+                tracing::info!(app = %id, pid = c.root, "ended a copy running outside Keeprun");
+                m.logs.push(
+                    Stream::System,
+                    format!(
+                        "Ended a copy of this app that was running outside Keeprun: {} (PID {})",
+                        c.name, c.root
+                    ),
+                );
+            }
+            m.outside.lock().unwrap().clear();
+        }
+    }
+
+    /// User action: end the copies of an app running outside Keeprun.
+    pub async fn end_outside(self: &Arc<Self>, id: &str) -> Result<AppView, SupError> {
+        let m = self.get(id)?;
+        let sup = self.clone();
+        tokio::task::spawn_blocking(move || sup.end_copies(&[m]))
+            .await
+            .map_err(|e| anyhow!(e))?;
+        self.view(id)
     }
 
     /// Stop every running app without changing desired state. Used on agent shutdown.

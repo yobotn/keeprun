@@ -192,6 +192,14 @@ const he: Catalog = {
   "overview.copyPrompt": "העתקת פרומפט תיקון",
   "overview.copyPromptHint": "מעתיק את השגיאה, התיקייה והפקודות כפרומפט לסוכן קוד",
   "overview.dismiss": "סגירה",
+  "overview.outside": "האפליקציה הזו פועלת גם מחוץ ל-Keeprun",
+  "overview.outsideHint": "הופעלה ממסוף או על ידי סוכן קוד. הפלט שלה לא מגיע ל-Keeprun, והיא עשויה לתפוס את הפורט של האפליקציה. הפעלת האפליקציה כאן תסיים אותה קודם.",
+  "overview.outsidePort": "פורט {port}",
+  "overview.endOutside": "לסיים",
+  "overview.endOutsideHint": "מסיים את התהליכים שפועלים מחוץ ל-Keeprun",
+  "overview.tellAgents": "ליידע סוכני קוד",
+  "overview.tellAgentsHint": "מוסיף הערה ל-CLAUDE.md או ל-AGENTS.md בתיקיית האפליקציה: להשתמש ב-Keeprun ללוגים ולהפעלה מחדש במקום להפעיל את האפליקציה",
+  "overview.agentsTold": "{file} מנחה סוכני קוד להשתמש ב-Keeprun.",
 
   // Events
   "events.none": "אין עדיין אירועים.",

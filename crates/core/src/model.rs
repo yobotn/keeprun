@@ -231,6 +231,21 @@ pub struct AppView {
     /// State of the linked env file. None when the app has no env file.
     #[serde(default)]
     pub env_file_status: Option<EnvFileStatus>,
+    /// Copies of the app running outside Keeprun, e.g. `npm run dev` in a terminal or
+    /// started by a coding agent. Checked every 10 seconds. Starting the app ends them.
+    #[serde(default)]
+    pub outside: Vec<OutsideCopy>,
+}
+
+/// A copy of an app running outside Keeprun.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OutsideCopy {
+    /// The topmost process of the copy that runs from the app folder.
+    pub pid: u32,
+    /// Its executable file name, e.g. "node.exe".
+    pub name: String,
+    /// Ports the copy listens on.
+    pub ports: Vec<u16>,
 }
 
 /// The linked env file as the agent sees it. Keys only: values may be secret.

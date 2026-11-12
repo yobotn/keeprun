@@ -183,6 +183,14 @@ export const en = {
   "overview.copyPrompt": "Copy fix prompt",
   "overview.copyPromptHint": "Copies the error, folder and commands as a prompt for a coding agent",
   "overview.dismiss": "Dismiss",
+  "overview.outside": "This app is also running outside Keeprun",
+  "overview.outsideHint": "Started from a terminal or by a coding agent. Its output does not reach Keeprun, and it may hold the app's port. Starting the app here ends it first.",
+  "overview.outsidePort": "port {port}",
+  "overview.endOutside": "End it",
+  "overview.endOutsideHint": "Ends the processes running outside Keeprun",
+  "overview.tellAgents": "Tell coding agents",
+  "overview.tellAgentsHint": "Adds a note to CLAUDE.md or AGENTS.md in the app folder: use Keeprun for logs and restarts instead of starting the app",
+  "overview.agentsTold": "{file} tells coding agents to use Keeprun.",
 
   // Events
   "events.none": "No events yet.",

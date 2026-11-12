@@ -184,6 +184,14 @@ const tr: Catalog = {
   "overview.copyPrompt": "Düzeltme istemini kopyala",
   "overview.copyPromptHint": "Hatayı, klasörü ve komutları bir kodlama ajanı için istem olarak kopyalar",
   "overview.dismiss": "Kapat",
+  "overview.outside": "Bu uygulama Keeprun dışında da çalışıyor",
+  "overview.outsideHint": "Bir terminalden veya bir kodlama ajanı tarafından başlatıldı. Çıktısı Keeprun'a ulaşmaz ve uygulamanın portunu tutuyor olabilir. Uygulamayı burada başlatmak önce onu sonlandırır.",
+  "overview.outsidePort": "port {port}",
+  "overview.endOutside": "Sonlandır",
+  "overview.endOutsideHint": "Keeprun dışında çalışan işlemleri sonlandırır",
+  "overview.tellAgents": "Kodlama ajanlarına bildir",
+  "overview.tellAgentsHint": "Uygulama klasöründeki CLAUDE.md veya AGENTS.md dosyasına not ekler: uygulamayı başlatmak yerine günlükler ve yeniden başlatmalar için Keeprun'u kullan",
+  "overview.agentsTold": "{file}, kodlama ajanlarına Keeprun'u kullanmalarını söylüyor.",
 
   // Events
   "events.none": "Henüz olay yok.",

@@ -184,6 +184,14 @@ const catalog: Catalog = {
   "overview.copyPrompt": "Herstelprompt kopiëren",
   "overview.copyPromptHint": "Kopieert de fout, de map en de opdrachten als prompt voor een codeeragent",
   "overview.dismiss": "Negeren",
+  "overview.outside": "Deze app draait ook buiten Keeprun",
+  "overview.outsideHint": "Gestart vanuit een terminal of door een coding agent. De uitvoer komt niet in Keeprun en de app-poort kan bezet zijn. De app hier starten beëindigt deze eerst.",
+  "overview.outsidePort": "poort {port}",
+  "overview.endOutside": "Beëindigen",
+  "overview.endOutsideHint": "Beëindigt de processen die buiten Keeprun draaien",
+  "overview.tellAgents": "Coding agents informeren",
+  "overview.tellAgentsHint": "Voegt een notitie toe aan CLAUDE.md of AGENTS.md in de app-map: gebruik Keeprun voor logs en herstarts in plaats van de app zelf te starten",
+  "overview.agentsTold": "{file} vraagt coding agents Keeprun te gebruiken.",
 
   // Events
   "events.none": "Nog geen gebeurtenissen.",

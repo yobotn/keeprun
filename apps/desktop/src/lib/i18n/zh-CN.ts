@@ -184,6 +184,14 @@ const catalog: Catalog = {
   "overview.copyPrompt": "复制修复提示词",
   "overview.copyPromptHint": "将错误、文件夹和命令复制为编程智能体可用的提示词",
   "overview.dismiss": "忽略",
+  "overview.outside": "此应用也在 Keeprun 之外运行",
+  "overview.outsideHint": "由终端或编码代理启动。它的输出不会进入 Keeprun，并且可能占用应用的端口。在此处启动应用会先结束它。",
+  "overview.outsidePort": "端口 {port}",
+  "overview.endOutside": "结束",
+  "overview.endOutsideHint": "结束在 Keeprun 之外运行的进程",
+  "overview.tellAgents": "告知编码代理",
+  "overview.tellAgentsHint": "在应用文件夹的 CLAUDE.md 或 AGENTS.md 中添加说明：使用 Keeprun 查看日志和重启，而不是自行启动应用",
+  "overview.agentsTold": "{file} 已告知编码代理使用 Keeprun。",
 
   // 事件
   "events.none": "还没有事件。",

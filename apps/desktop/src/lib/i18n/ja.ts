@@ -184,6 +184,14 @@ const catalog: Catalog = {
   "overview.copyPrompt": "修正プロンプトをコピー",
   "overview.copyPromptHint": "エラー、フォルダー、コマンドをコーディングエージェント向けのプロンプトとしてコピーします",
   "overview.dismiss": "閉じる",
+  "overview.outside": "このアプリは Keeprun の外でも実行されています",
+  "overview.outsideHint": "ターミナルまたはコーディングエージェントから起動されました。その出力は Keeprun に届かず、アプリのポートを使用している可能性があります。ここでアプリを起動すると、先にそれを終了します。",
+  "overview.outsidePort": "ポート {port}",
+  "overview.endOutside": "終了する",
+  "overview.endOutsideHint": "Keeprun の外で実行中のプロセスを終了します",
+  "overview.tellAgents": "コーディングエージェントに伝える",
+  "overview.tellAgentsHint": "アプリフォルダーの CLAUDE.md または AGENTS.md にメモを追加します: アプリを起動せず、ログと再起動には Keeprun を使う",
+  "overview.agentsTold": "{file} でコーディングエージェントに Keeprun を使うよう伝えています。",
 
   // イベント
   "events.none": "イベントはまだありません。",

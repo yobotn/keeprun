@@ -1,7 +1,7 @@
 <script lang="ts">
   import { openPath, openUrl } from "@tauri-apps/plugin-opener";
-  import { Copy, ExternalLink, FolderOpen, LoaderCircle, TriangleAlert } from "@lucide/svelte";
-  import { api, appPort, formatBytes, formatDuration, formatTime, isActive, type AppView } from "./api";
+  import { Bot, Copy, ExternalLink, FolderOpen, LoaderCircle, TriangleAlert } from "@lucide/svelte";
+  import { api, appPort, desktop, formatBytes, formatDuration, formatTime, isActive, type AppView } from "./api";
   import { t } from "./i18n/index.svelte";
   import EventsList from "./EventsList.svelte";
   import SourceText from "./SourceText.svelte";
@@ -86,6 +86,45 @@
     }
   }
 
+  // A copy started outside Keeprun, e.g. by a coding agent: offer to end it, and to tell
+  // coding agents to use Keeprun so they do not start another one.
+  let ending = $state(false);
+  let outsideError = $state("");
+  let noteFile = $state<string | null>(null);
+  let noting = $state(false);
+  $effect(() => {
+    const cwd = app.cwd;
+    if (!app.outside?.length) return;
+    let live = true;
+    desktop.agentNoteFile(cwd).then(
+      (f) => live && (noteFile = f),
+      () => {},
+    );
+    return () => (live = false);
+  });
+  async function endOutside() {
+    outsideError = "";
+    ending = true;
+    try {
+      await api.endOutside(app.id);
+    } catch (e) {
+      outsideError = (e as Error).message;
+    } finally {
+      ending = false;
+    }
+  }
+  async function tellAgents() {
+    outsideError = "";
+    noting = true;
+    try {
+      noteFile = await desktop.addAgentNote(app.cwd, app.id);
+    } catch (e) {
+      outsideError = String(e);
+    } finally {
+      noting = false;
+    }
+  }
+
   const policy = $derived({
     never: t("overview.policyNever"),
     "on-failure": t("overview.policyOnFailure"),
@@ -124,6 +163,31 @@
         {#if envError}<p class="mt-2 text-xs text-danger" role="alert">{envError}</p>{/if}
       </div>
       <button class="btn btn-primary shrink-0" onclick={restartForEnv} disabled={envRestarting}>{t("overview.restart")}</button>
+    </div>
+  {/if}
+
+  {#if app.outside?.length}
+    <div class="alert alert-warn mb-4 flex items-start gap-3" role="status">
+      <TriangleAlert size={15} class="mt-0.5 shrink-0" aria-hidden="true" />
+      <div class="min-w-0 flex-1">
+        <p class="font-medium">{t("overview.outside")}</p>
+        {#each app.outside as c (c.pid)}
+          <p class="selectable mt-1 font-mono text-[12px]" dir="ltr">
+            {c.name} · PID {c.pid}{#each c.ports as port} · {t("overview.outsidePort", { port })}{/each}
+          </p>
+        {/each}
+        <p class="mt-1 text-xs opacity-80">{t("overview.outsideHint")}</p>
+        <p class="mt-2 flex items-center gap-1.5 text-xs">
+          <Bot size={13} class="shrink-0" aria-hidden="true" />
+          {#if noteFile}
+            {t("overview.agentsTold", { file: noteFile })}
+          {:else}
+            <button class="hover:underline" onclick={tellAgents} disabled={noting} title={t("overview.tellAgentsHint")}>{t("overview.tellAgents")}</button>
+          {/if}
+        </p>
+        {#if outsideError}<p class="selectable mt-2 text-xs text-danger" role="alert">{outsideError}</p>{/if}
+      </div>
+      <button class="btn btn-primary shrink-0" onclick={endOutside} disabled={ending} title={t("overview.endOutsideHint")}>{t("overview.endOutside")}</button>
     </div>
   {/if}
 
