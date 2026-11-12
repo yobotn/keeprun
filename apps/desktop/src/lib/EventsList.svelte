@@ -7,8 +7,11 @@
   let events = $state<AppEvent[]>([]);
   let error = $state("");
 
+  // The app list is polled and each poll is a new object. Reload only when the app changes.
+  const currentId = $derived(appId);
+
   $effect(() => {
-    const id = appId;
+    const id = currentId;
     let alive = true;
     const load = () =>
       api

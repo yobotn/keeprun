@@ -59,8 +59,12 @@
     lines = next.length > config.logMaxLines ? next.slice(next.length - config.logMaxLines) : next;
   }
 
+  // The app list is polled and each poll is a new object. Reconnect only when the app changes,
+  // not every second: that cleared the pane, flashed "Connecting" and replayed the buffer.
+  const currentId = $derived(appId);
+
   $effect(() => {
-    const id = appId;
+    const id = currentId;
     lines = [];
     pending = [];
     let ws: WebSocket | null = null;

@@ -92,9 +92,11 @@
   let outsideError = $state("");
   let noteFile = $state<string | null>(null);
   let noting = $state(false);
+  // Each status poll is a new object: ask again only when the folder or the notice changes.
+  const noteFolder = $derived(app.outside?.length ? app.cwd : null);
   $effect(() => {
-    const cwd = app.cwd;
-    if (!app.outside?.length) return;
+    const cwd = noteFolder;
+    if (!cwd) return;
     let live = true;
     desktop.agentNoteFile(cwd).then(
       (f) => live && (noteFile = f),
