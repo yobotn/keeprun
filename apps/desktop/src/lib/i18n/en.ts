@@ -192,6 +192,23 @@ export const en = {
   "overview.tellAgentsHint": "Adds a note to CLAUDE.md or AGENTS.md in the app folder: use Keeprun for logs and restarts instead of starting the app",
   "overview.agentsTold": "{file} tells coding agents to use Keeprun.",
 
+  // Git
+  "git.label": "Git",
+  "git.detached": "Detached HEAD",
+  "git.behindHint": "Commits on {upstream} not pulled yet: {count}",
+  "git.aheadHint": "Commits not pushed to {upstream}: {count}",
+  "git.changedHint": "Uncommitted changes: {count}",
+  "git.pull": "Pull",
+  "git.pullRestart": "Pull and restart",
+  "git.pullHint": "Fast-forwards to {upstream}. When dependencies changed, runs the install task first. Never merges.",
+  "git.noUpstream": "Not tracking a remote branch",
+  "git.upToDate": "Already up to date.",
+  "git.pulled": "New commits: {count}.",
+  "git.installed": "Dependencies changed, the install task ran.",
+  "git.installFailed": "Dependencies changed and the install task failed. See the Tasks tab.",
+  "git.noInstallTask": "Dependencies changed. Install them before the app needs them.",
+  "git.restarted": "Restarted.",
+
   // Events
   "events.none": "No events yet.",
 

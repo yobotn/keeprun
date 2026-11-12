@@ -4,6 +4,7 @@
   import { api, appPort, desktop, formatBytes, formatDuration, formatTime, isActive, type AppView } from "./api";
   import { t } from "./i18n/index.svelte";
   import EventsList from "./EventsList.svelte";
+  import GitInfo from "./GitInfo.svelte";
   import SourceText from "./SourceText.svelte";
 
   let {
@@ -263,6 +264,7 @@
       <span class="selectable truncate font-mono text-[12.5px]">{app.cwd}</span>
       <button class="btn-icon !size-6" onclick={() => open(() => openPath(app.cwd), t("overview.theFolder"))} title={t("overview.openFolder")}><FolderOpen size={13} /></button>
     </dd>
+    <GitInfo {app} />
     <dt class="text-fg-muted">{t("overview.command")}</dt>
     <dd class="selectable break-all font-mono text-[12.5px]">{app.command}</dd>
     <dt class="text-fg-muted">{t("overview.pid")}</dt>

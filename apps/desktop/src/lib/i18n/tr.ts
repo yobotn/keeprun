@@ -193,6 +193,23 @@ const tr: Catalog = {
   "overview.tellAgentsHint": "Uygulama klasöründeki CLAUDE.md veya AGENTS.md dosyasına not ekler: uygulamayı başlatmak yerine günlükler ve yeniden başlatmalar için Keeprun'u kullan",
   "overview.agentsTold": "{file}, kodlama ajanlarına Keeprun'u kullanmalarını söylüyor.",
 
+  // Git
+  "git.label": "Git",
+  "git.detached": "Ayrık HEAD",
+  "git.behindHint": "{upstream} üzerinde henüz çekilmemiş commit: {count}",
+  "git.aheadHint": "{upstream} dalına gönderilmemiş commit: {count}",
+  "git.changedHint": "Commit edilmemiş değişiklik: {count}",
+  "git.pull": "Pull",
+  "git.pullRestart": "Pull ve yeniden başlat",
+  "git.pullHint": "{upstream} dalına ileri sarar. Bağımlılıklar değiştiyse önce install görevini çalıştırır. Asla merge yapmaz.",
+  "git.noUpstream": "Uzak bir dalı izlemiyor",
+  "git.upToDate": "Zaten güncel.",
+  "git.pulled": "Yeni commit: {count}.",
+  "git.installed": "Bağımlılıklar değişti, install görevi çalıştı.",
+  "git.installFailed": "Bağımlılıklar değişti ve install görevi başarısız oldu. Görevler sekmesine bakın.",
+  "git.noInstallTask": "Bağımlılıklar değişti. Uygulamanın ihtiyacından önce bunları kurun.",
+  "git.restarted": "Yeniden başlatıldı.",
+
   // Events
   "events.none": "Henüz olay yok.",
 

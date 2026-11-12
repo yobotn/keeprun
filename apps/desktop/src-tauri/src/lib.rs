@@ -12,6 +12,7 @@ use tauri::{Emitter, Manager};
 
 mod agents;
 mod editor;
+mod git;
 mod tray;
 mod update;
 
@@ -196,6 +197,9 @@ pub fn run() {
             editor::open_in_editor,
             agents::agent_note_file,
             agents::add_agent_note,
+            git::git_status,
+            git::git_fetch,
+            git::git_pull,
             tray::set_tray_enabled,
             tray::agent_waiting,
             tray::set_tray_text,

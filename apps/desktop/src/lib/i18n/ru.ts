@@ -203,6 +203,23 @@ const catalog: Catalog = {
   "overview.tellAgentsHint": "Добавляет заметку в CLAUDE.md или AGENTS.md в папке приложения: использовать Keeprun для логов и перезапусков, а не запускать приложение самим",
   "overview.agentsTold": "{file} просит агентов для программирования использовать Keeprun.",
 
+  // Git
+  "git.label": "Git",
+  "git.detached": "Отсоединённый HEAD",
+  "git.behindHint": "Коммиты в {upstream}, ещё не полученные: {count}",
+  "git.aheadHint": "Коммиты, не отправленные в {upstream}: {count}",
+  "git.changedHint": "Незакоммиченные изменения: {count}",
+  "git.pull": "Pull",
+  "git.pullRestart": "Pull и перезапуск",
+  "git.pullHint": "Перематывает до {upstream}. Если зависимости изменились, сначала запускает задачу install. Никогда не делает merge.",
+  "git.noUpstream": "Не отслеживает удалённую ветку",
+  "git.upToDate": "Уже актуально.",
+  "git.pulled": "Новые коммиты: {count}.",
+  "git.installed": "Зависимости изменились, задача install выполнена.",
+  "git.installFailed": "Зависимости изменились, а задача install завершилась с ошибкой. См. вкладку «Задачи».",
+  "git.noInstallTask": "Зависимости изменились. Установите их, прежде чем они понадобятся приложению.",
+  "git.restarted": "Перезапущено.",
+
   // События
   "events.none": "Событий пока нет.",
 

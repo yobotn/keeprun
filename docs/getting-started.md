@@ -59,6 +59,14 @@ work when the service runs as LocalSystem, which does not see per-user tools on 
 - File paths in logs and in error output, such as `src\routes\users.ts:42:17` in a stack trace,
   are links. Click one to open the file at that line in VS Code, Cursor or Windsurf, whichever is
   installed. Paths relative to the app folder work too. Choose the editor in **Preferences**.
+- When the app folder is in a Git repository, the Overview tab shows the branch, commits to pull
+  or push, uncommitted changes and the last commit. **Pull and restart** fast-forwards the
+  branch (it never merges), runs the app's `install` task when a lockfile or other dependency
+  list changed, then restarts the app. Git runs as you, with your credentials.
+- When something else runs a copy of the app, such as `npm run dev` started by a coding agent,
+  the Overview tab says so and offers **End it**. **Tell coding agents** adds a note to the
+  app's `CLAUDE.md` or `AGENTS.md` so they use Keeprun instead, or connect them with the
+  [MCP server](mcp.md).
 - **Preferences** also sets the language and theme. The UI is available in Arabic, Chinese
   (Simplified), Dutch, English, French, German, Hebrew, Italian, Japanese, Korean, Polish,
   Portuguese (Brazil), Russian, Spanish, Turkish and Ukrainian, and follows the Windows language by

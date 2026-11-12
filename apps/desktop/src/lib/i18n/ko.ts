@@ -192,6 +192,23 @@ const catalog: Catalog = {
   "overview.tellAgentsHint": "앱 폴더의 CLAUDE.md 또는 AGENTS.md에 메모를 추가합니다: 앱을 직접 시작하지 말고 로그와 재시작에 Keeprun 사용",
   "overview.agentsTold": "{file}에서 코딩 에이전트에게 Keeprun을 사용하도록 안내합니다.",
 
+  // Git
+  "git.label": "Git",
+  "git.detached": "분리된 HEAD",
+  "git.behindHint": "{upstream}에서 아직 가져오지 않은 커밋: {count}",
+  "git.aheadHint": "{upstream}에 푸시하지 않은 커밋: {count}",
+  "git.changedHint": "커밋하지 않은 변경: {count}",
+  "git.pull": "Pull",
+  "git.pullRestart": "Pull 후 재시작",
+  "git.pullHint": "{upstream}까지 빨리 감기합니다. 종속성이 바뀌었으면 먼저 install 작업을 실행합니다. 병합하지 않습니다.",
+  "git.noUpstream": "원격 브랜치를 추적하지 않음",
+  "git.upToDate": "이미 최신입니다.",
+  "git.pulled": "새 커밋: {count}.",
+  "git.installed": "종속성이 바뀌어 install 작업을 실행했습니다.",
+  "git.installFailed": "종속성이 바뀌었고 install 작업이 실패했습니다. 작업 탭을 확인하세요.",
+  "git.noInstallTask": "종속성이 바뀌었습니다. 앱에 필요하기 전에 설치하세요.",
+  "git.restarted": "재시작했습니다.",
+
   // 이벤트
   "events.none": "아직 이벤트가 없습니다.",
 

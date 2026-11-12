@@ -193,6 +193,23 @@ const catalog: Catalog = {
   "overview.tellAgentsHint": "アプリフォルダーの CLAUDE.md または AGENTS.md にメモを追加します: アプリを起動せず、ログと再起動には Keeprun を使う",
   "overview.agentsTold": "{file} でコーディングエージェントに Keeprun を使うよう伝えています。",
 
+  // Git
+  "git.label": "Git",
+  "git.detached": "detached HEAD",
+  "git.behindHint": "{upstream} にあるまだ取り込んでいないコミット: {count}",
+  "git.aheadHint": "{upstream} にまだプッシュしていないコミット: {count}",
+  "git.changedHint": "コミットしていない変更: {count}",
+  "git.pull": "Pull",
+  "git.pullRestart": "Pull して再起動",
+  "git.pullHint": "{upstream} まで早送りします。依存関係が変わったときは先に install タスクを実行します。マージはしません。",
+  "git.noUpstream": "リモートブランチを追跡していません",
+  "git.upToDate": "すでに最新です。",
+  "git.pulled": "新しいコミット: {count}。",
+  "git.installed": "依存関係が変わったため install タスクを実行しました。",
+  "git.installFailed": "依存関係が変わり、install タスクが失敗しました。タスクタブを確認してください。",
+  "git.noInstallTask": "依存関係が変わりました。アプリが必要とする前にインストールしてください。",
+  "git.restarted": "再起動しました。",
+
   // イベント
   "events.none": "イベントはまだありません。",
 

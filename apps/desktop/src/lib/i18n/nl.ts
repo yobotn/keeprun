@@ -193,6 +193,23 @@ const catalog: Catalog = {
   "overview.tellAgentsHint": "Voegt een notitie toe aan CLAUDE.md of AGENTS.md in de app-map: gebruik Keeprun voor logs en herstarts in plaats van de app zelf te starten",
   "overview.agentsTold": "{file} vraagt coding agents Keeprun te gebruiken.",
 
+  // Git
+  "git.label": "Git",
+  "git.detached": "Losgekoppelde HEAD",
+  "git.behindHint": "Commits op {upstream} nog niet opgehaald: {count}",
+  "git.aheadHint": "Commits niet gepusht naar {upstream}: {count}",
+  "git.changedHint": "Niet-gecommitte wijzigingen: {count}",
+  "git.pull": "Pull",
+  "git.pullRestart": "Pull en herstart",
+  "git.pullHint": "Spoelt door naar {upstream}. Als afhankelijkheden zijn gewijzigd, draait eerst de install-taak. Voegt nooit samen.",
+  "git.noUpstream": "Volgt geen externe branch",
+  "git.upToDate": "Al bijgewerkt.",
+  "git.pulled": "Nieuwe commits: {count}.",
+  "git.installed": "Afhankelijkheden gewijzigd, de install-taak is gedraaid.",
+  "git.installFailed": "Afhankelijkheden gewijzigd en de install-taak is mislukt. Zie het tabblad Taken.",
+  "git.noInstallTask": "Afhankelijkheden gewijzigd. Installeer ze voordat de app ze nodig heeft.",
+  "git.restarted": "Herstart.",
+
   // Events
   "events.none": "Nog geen gebeurtenissen.",
 

@@ -210,6 +210,23 @@ const ar: Catalog = {
   "overview.tellAgentsHint": "يضيف ملاحظة إلى CLAUDE.md أو AGENTS.md في مجلد التطبيق: استخدام Keeprun للسجلات وإعادة التشغيل بدل تشغيل التطبيق",
   "overview.agentsTold": "يطلب {file} من وكلاء البرمجة استخدام Keeprun.",
 
+  // Git
+  "git.label": "Git",
+  "git.detached": "HEAD منفصل",
+  "git.behindHint": "إيداعات على {upstream} لم تُسحب بعد: {count}",
+  "git.aheadHint": "إيداعات لم تُدفع إلى {upstream}: {count}",
+  "git.changedHint": "تغييرات غير مودعة: {count}",
+  "git.pull": "سحب",
+  "git.pullRestart": "سحب وإعادة تشغيل",
+  "git.pullHint": "يتقدم سريعًا إلى {upstream}. إذا تغيرت الاعتماديات يشغّل مهمة install أولًا. لا يدمج أبدًا.",
+  "git.noUpstream": "لا يتتبع فرعًا بعيدًا",
+  "git.upToDate": "محدّث بالفعل.",
+  "git.pulled": "إيداعات جديدة: {count}.",
+  "git.installed": "تغيرت الاعتماديات، وشُغّلت مهمة install.",
+  "git.installFailed": "تغيرت الاعتماديات وفشلت مهمة install. راجع تبويب المهام.",
+  "git.noInstallTask": "تغيرت الاعتماديات. ثبّتها قبل أن يحتاجها التطبيق.",
+  "git.restarted": "أُعيد التشغيل.",
+
   // Events
   "events.none": "لا توجد أحداث بعد.",
 

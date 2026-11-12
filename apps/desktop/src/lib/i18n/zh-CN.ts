@@ -193,6 +193,23 @@ const catalog: Catalog = {
   "overview.tellAgentsHint": "在应用文件夹的 CLAUDE.md 或 AGENTS.md 中添加说明：使用 Keeprun 查看日志和重启，而不是自行启动应用",
   "overview.agentsTold": "{file} 已告知编码代理使用 Keeprun。",
 
+  // Git
+  "git.label": "Git",
+  "git.detached": "分离的 HEAD",
+  "git.behindHint": "{upstream} 上尚未拉取的提交：{count}",
+  "git.aheadHint": "尚未推送到 {upstream} 的提交：{count}",
+  "git.changedHint": "未提交的更改：{count}",
+  "git.pull": "拉取",
+  "git.pullRestart": "拉取并重启",
+  "git.pullHint": "快进到 {upstream}。如果依赖有变化，先运行 install 任务。从不合并。",
+  "git.noUpstream": "未跟踪远程分支",
+  "git.upToDate": "已是最新。",
+  "git.pulled": "新提交：{count}。",
+  "git.installed": "依赖有变化，已运行 install 任务。",
+  "git.installFailed": "依赖有变化，install 任务失败。请查看任务标签页。",
+  "git.noInstallTask": "依赖有变化。请在应用需要之前安装它们。",
+  "git.restarted": "已重启。",
+
   // 事件
   "events.none": "还没有事件。",
 

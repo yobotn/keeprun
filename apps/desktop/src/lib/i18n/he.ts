@@ -201,6 +201,23 @@ const he: Catalog = {
   "overview.tellAgentsHint": "מוסיף הערה ל-CLAUDE.md או ל-AGENTS.md בתיקיית האפליקציה: להשתמש ב-Keeprun ללוגים ולהפעלה מחדש במקום להפעיל את האפליקציה",
   "overview.agentsTold": "{file} מנחה סוכני קוד להשתמש ב-Keeprun.",
 
+  // Git
+  "git.label": "Git",
+  "git.detached": "HEAD מנותק",
+  "git.behindHint": "קומיטים ב-{upstream} שעוד לא נמשכו: {count}",
+  "git.aheadHint": "קומיטים שלא נדחפו ל-{upstream}: {count}",
+  "git.changedHint": "שינויים שלא נשמרו בקומיט: {count}",
+  "git.pull": "Pull",
+  "git.pullRestart": "Pull והפעלה מחדש",
+  "git.pullHint": "מתקדם עד {upstream}. אם התלויות השתנו, מריץ קודם את משימת install. אף פעם לא ממזג.",
+  "git.noUpstream": "לא עוקב אחרי ענף מרוחק",
+  "git.upToDate": "כבר מעודכן.",
+  "git.pulled": "קומיטים חדשים: {count}.",
+  "git.installed": "התלויות השתנו, משימת install רצה.",
+  "git.installFailed": "התלויות השתנו ומשימת install נכשלה. ראה את לשונית המשימות.",
+  "git.noInstallTask": "התלויות השתנו. התקן אותן לפני שהאפליקציה תצטרך אותן.",
+  "git.restarted": "הופעל מחדש.",
+
   // Events
   "events.none": "אין עדיין אירועים.",
 

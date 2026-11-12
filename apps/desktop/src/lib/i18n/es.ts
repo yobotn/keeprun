@@ -205,6 +205,23 @@ const catalog: Catalog = {
   "overview.tellAgentsHint": "Añade una nota a CLAUDE.md o AGENTS.md en la carpeta de la app: usar Keeprun para los registros y reinicios en lugar de iniciar la app",
   "overview.agentsTold": "{file} indica a los agentes de programación que usen Keeprun.",
 
+  // Git
+  "git.label": "Git",
+  "git.detached": "HEAD separado",
+  "git.behindHint": "Commits en {upstream} sin traer: {count}",
+  "git.aheadHint": "Commits sin subir a {upstream}: {count}",
+  "git.changedHint": "Cambios sin confirmar: {count}",
+  "git.pull": "Pull",
+  "git.pullRestart": "Pull y reiniciar",
+  "git.pullHint": "Avanza rápido hasta {upstream}. Si cambiaron las dependencias, ejecuta primero la tarea install. Nunca hace merge.",
+  "git.noUpstream": "No sigue una rama remota",
+  "git.upToDate": "Ya está al día.",
+  "git.pulled": "Commits nuevos: {count}.",
+  "git.installed": "Cambiaron las dependencias, se ejecutó la tarea install.",
+  "git.installFailed": "Cambiaron las dependencias y falló la tarea install. Mira la pestaña Tareas.",
+  "git.noInstallTask": "Cambiaron las dependencias. Instálalas antes de que la app las necesite.",
+  "git.restarted": "Reiniciada.",
+
   // Events
   "events.none": "Todavía no hay eventos.",
 

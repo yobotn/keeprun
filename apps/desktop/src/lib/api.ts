@@ -104,6 +104,25 @@ export interface AppView extends AppSpec {
   outside: OutsideCopy[];
 }
 
+/** Git state of an app folder, read as the signed-in user. */
+export interface GitStatus {
+  /** Null on a detached HEAD. */
+  branch: string | null;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  /** Changed and untracked files. */
+  changed: number;
+  commit: { hash: string; subject: string; author: string; time: number } | null;
+}
+
+export interface GitPulled {
+  commits: number;
+  /** A lockfile or other dependency list changed. */
+  dependencies: boolean;
+  status: GitStatus;
+}
+
 export interface OutsideCopy {
   pid: number;
   name: string;
@@ -221,6 +240,7 @@ const enc = encodeURIComponent;
 
 export const api = {
   list: () => call<AppView[]>("GET", "/apps"),
+  get: (id: string) => call<AppView>("GET", `/apps/${enc(id)}`),
   add: (app: NewApp) => call<AppView>("POST", "/apps", app),
   update: (id: string, u: UpdateApp) => call<AppView>("PATCH", `/apps/${enc(id)}`, u),
   remove: (id: string) => call<void>("DELETE", `/apps/${enc(id)}`),
@@ -258,6 +278,12 @@ export const desktop = {
   agentNoteFile: (cwd: string) => invoke<string | null>("agent_note_file", { cwd }),
   /** Add that note. Returns the file name. */
   addAgentNote: (cwd: string, appId: string) => invoke<string>("add_agent_note", { cwd, appId }),
+  /** Null when the folder is not in a Git repository or Git is not installed. */
+  gitStatus: (cwd: string) => invoke<GitStatus | null>("git_status", { cwd }),
+  /** Fetch without asking for credentials, then the state. */
+  gitFetch: (cwd: string) => invoke<GitStatus>("git_fetch", { cwd }),
+  /** Fast-forward only. Rejects with Git's message when it cannot. */
+  gitPull: (cwd: string) => invoke<GitPulled>("git_pull", { cwd }),
   /** Folder Keeprun was started with from the Explorer menu, once. */
   takeLaunchFolder: () => invoke<string | null>("take_launch_folder"),
 };
