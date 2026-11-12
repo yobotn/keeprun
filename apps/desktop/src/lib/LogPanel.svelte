@@ -31,11 +31,29 @@
   let seq = 0;
   /** Lines held while paused or scrolled up, shown on the Latest button. */
   let held = $state(0);
-  /** After a reconnect the agent replays its buffer: replace the lines then, instead of
-   * clearing them on connect and leaving the pane blank until the replay arrives. */
+  /** On connect the agent replays its buffer. It is collected until it stops arriving, then
+   * only the lines not shown yet are added, so a reconnect never redraws the pane. */
   let replay = false;
+  /** The first replay has arrived. Until then the pane stays empty, without a placeholder. */
+  let ready = $state(false);
   /** Shown as offline only after a moment, so a quick reconnect does not flash. */
   let offline = $state(false);
+  /** Time of the last line when the pane was cleared: a replay does not bring those back. */
+  let clearedAt = -1;
+
+  const same = (a: LogLine, b: LogLine) =>
+    a.ts === b.ts && a.text === b.text && a.stream === b.stream && a.task === b.task;
+
+  /** The replayed lines that are not shown yet. The replay ends with the newest lines, so
+   * everything after the last shown line is new. Without it (the agent restarted and its
+   * buffer started over), every replayed line is new. */
+  function unseen(replayed: Row[]): Row[] {
+    const fresh = replayed.filter((l) => l.ts > clearedAt);
+    const last = lines[lines.length - 1];
+    if (!last) return fresh;
+    for (let i = fresh.length - 1; i >= 0; i--) if (same(fresh[i], last)) return fresh.slice(i + 1);
+    return fresh;
+  }
 
   // Scrolled up, new lines wait: the text being read stays put until you scroll down.
   const holding = $derived(paused || !atBottom);
@@ -52,8 +70,8 @@
 
   function flush() {
     if (holding || pending.length === 0) return;
-    const next = replay ? pending : lines.concat(pending);
-    replay = false;
+    if (replay) return;
+    const next = lines.concat(pending);
     pending = [];
     held = 0;
     lines = next.length > config.logMaxLines ? next.slice(next.length - config.logMaxLines) : next;
@@ -71,10 +89,32 @@
     let closed = false;
     held = 0;
     replay = false;
+    ready = false;
+    offline = false;
+    clearedAt = -1;
     let retry: ReturnType<typeof setTimeout>;
-    let offlineTimer: ReturnType<typeof setTimeout> | undefined;
-    let emptyReplay: ReturnType<typeof setTimeout> | undefined;
+    // "Connecting" shows only when it takes a while, never for a normal connect.
+    let offlineTimer: ReturnType<typeof setTimeout> | undefined = setTimeout(() => (offline = true), 3000);
+    let settle: ReturnType<typeof setTimeout> | undefined;
     let frame = 0;
+
+    const schedule = () => {
+      // Batch per animation frame so busy apps do not freeze the UI.
+      if (!frame)
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          flush();
+          held = pending.length;
+        });
+    };
+    // The replay is over once lines stop arriving for a moment, or right away when it is empty.
+    const endReplay = () => {
+      if (!replay) return;
+      replay = false;
+      ready = true;
+      pending = unseen(pending);
+      schedule();
+    };
 
     const open = async () => {
       ws = await api.logSocket(id);
@@ -85,24 +125,16 @@
         // The agent replays its buffer on connect, which repeats anything still pending.
         pending = [];
         replay = true;
-        // Nothing replayed, e.g. the agent restarted: the old lines are gone.
-        emptyReplay = setTimeout(() => {
-          if (replay && pending.length === 0) {
-            replay = false;
-            lines = [];
-          }
-        }, 1000);
+        clearTimeout(settle);
+        settle = setTimeout(endReplay, 300);
       };
       ws.onmessage = (e) => {
         pending.push({ ...JSON.parse(e.data), seq: seq++ });
         if (pending.length > config.logMaxLines) pending.splice(0, pending.length - config.logMaxLines);
-        // Batch per animation frame so busy apps do not freeze the UI.
-        if (!frame)
-          frame = requestAnimationFrame(() => {
-            frame = 0;
-            flush();
-            held = pending.length;
-          });
+        if (replay) {
+          clearTimeout(settle);
+          settle = setTimeout(endReplay, 100);
+        } else schedule();
       };
       ws.onclose = () => {
         if (connected) offlineTimer = setTimeout(() => (offline = true), 3000);
@@ -116,7 +148,7 @@
       closed = true;
       clearTimeout(retry);
       clearTimeout(offlineTimer);
-      clearTimeout(emptyReplay);
+      clearTimeout(settle);
       if (frame) cancelAnimationFrame(frame);
       ws?.close();
     };
@@ -193,13 +225,14 @@
     <button
       class="btn-icon"
       onclick={() => {
+        clearedAt = Math.max(clearedAt, ...lines.map((l) => l.ts), ...pending.map((l) => l.ts));
         lines = [];
         pending = [];
         held = 0;
       }}
       title={t("logs.clear")}><Eraser size={15} /></button>
     <span class="min-w-20 text-end text-xs {offline ? 'text-warn' : 'text-fg-muted'}">
-      {t(copied ? "common.copied" : paused ? "logs.paused" : offline || (!connected && lines.length === 0) ? "logs.connecting" : "logs.live")}
+      {#if copied}{t("common.copied")}{:else if paused}{t("logs.paused")}{:else if offline}{t("logs.connecting")}{:else if connected}{t("logs.live")}{/if}
     </span>
   </div>
   {#if fileError}
@@ -214,7 +247,7 @@
       dir="ltr"
       aria-live="off"
     >
-      {#if visible.length === 0}
+      {#if ready && visible.length === 0}
         <p class="text-fg-muted" dir={locale.lang.rtl ? "rtl" : "ltr"}>
           {t(query || errorsOnly ? "logs.noMatch" : taskSince === undefined ? "logs.noOutput" : "logs.noTaskOutput")}
         </p>
