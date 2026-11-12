@@ -176,7 +176,7 @@
         <p class="font-medium">{t("overview.outside")}</p>
         {#each app.outside as c (c.pid)}
           <p class="selectable mt-1 font-mono text-[12px]" dir="ltr">
-            {c.name} · PID {c.pid}{#each c.ports as port} · {t("overview.outsidePort", { port })}{/each}
+            {[c.name, `PID ${c.pid}`, ...c.ports.map((port) => t("overview.outsidePort", { port }))].join(" · ")}
           </p>
         {/each}
         <p class="mt-1 text-xs opacity-80">{t("overview.outsideHint")}</p>
