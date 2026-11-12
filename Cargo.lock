@@ -2330,7 +2330,7 @@ dependencies = [
 
 [[package]]
 name = "keeprun-agent"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "anyhow",
  "axum",
@@ -2351,7 +2351,7 @@ dependencies = [
 
 [[package]]
 name = "keeprun-cli"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -2366,7 +2366,7 @@ dependencies = [
 
 [[package]]
 name = "keeprun-core"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "anyhow",
  "getrandom 0.3.4",
@@ -2377,7 +2377,7 @@ dependencies = [
 
 [[package]]
 name = "keeprun-desktop"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "keeprun-core",
  "reqwest 0.12.28",
