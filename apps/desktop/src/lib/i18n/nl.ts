@@ -138,7 +138,6 @@ const catalog: Catalog = {
     other: "{count} apps geven fouten",
   },
   "tray.copyPrompt": "Herstelprompt voor {name} kopiëren",
-  "tray.issueTitle": "{name} geeft fouten",
   "tray.copied": "Prompt gekopieerd. Plak hem in je codeeragent.",
 
   // Overview
@@ -177,6 +176,7 @@ const catalog: Catalog = {
   "overview.issue": "Draait, maar de uitvoer toont fouten",
   "overview.issueSeen": "{count}× gezien, laatst om {time}",
   "overview.issueOutput": "Foutuitvoer tonen",
+  "overview.agentWorking": "Een coding agent werkt nog in deze map. Blijven er daarna fouten over, dan verschijnen ze hier.",
   "overview.copyPrompt": "Herstelprompt kopiëren",
   "overview.copyPromptHint": "Kopieert de fout, de map en de opdrachten als prompt voor een codeeragent",
   "overview.dismiss": "Negeren",

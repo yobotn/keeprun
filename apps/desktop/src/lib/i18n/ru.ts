@@ -149,7 +149,6 @@ const catalog: Catalog = {
     other: "{count} приложения выводят ошибки",
   },
   "tray.copyPrompt": "Скопировать промпт для исправления: {name}",
-  "tray.issueTitle": "{name}: ошибки в выводе",
   "tray.copied": "Промпт скопирован. Вставьте его в своего агента для кода.",
 
   // Обзор
@@ -187,6 +186,7 @@ const catalog: Catalog = {
   "overview.issue": "Работает, но в выводе есть ошибки",
   "overview.issueSeen": "Замечено {count}×, последний раз в {time}",
   "overview.issueOutput": "Показать вывод с ошибкой",
+  "overview.agentWorking": "В этой папке ещё работает агент для программирования. Если после его завершения ошибки останутся, они появятся здесь.",
   "overview.copyPrompt": "Скопировать промпт для исправления",
   "overview.copyPromptHint": "Копирует ошибку, папку и команды в виде промпта для агента для кода",
   "overview.dismiss": "Скрыть",

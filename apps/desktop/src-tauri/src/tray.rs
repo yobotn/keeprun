@@ -2,7 +2,9 @@
 //! and keeps Keeprun running when the window is closed.
 //!
 //! An app that runs but prints errors, such as a dev server whose build broke, turns the dot
-//! orange, gets a "Copy fix prompt" menu item, and shows one Windows notification per issue.
+//! red and gets a "Copy fix prompt" menu item. This is silent, with no Windows notification,
+//! and waits while a coding agent is still working in the app's folder: errors from half-done
+//! edits usually go away. The details are in the app.
 //!
 //! Health is polled here, not in the webview: a hidden webview throttles its timers, and the
 //! icon must stay current while the window is closed. The UI only sends its translated text.
@@ -10,10 +12,10 @@
 use keeprun_core::model::{AppState, AppView, IssueReport};
 use keeprun_core::Settings;
 use serde::Deserialize;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
@@ -24,8 +26,6 @@ use tauri_plugin_notification::NotificationExt;
 const TRAY_ID: &str = "keeprun";
 const POLL: Duration = Duration::from_secs(2);
 const BASE_ICON: &[u8] = include_bytes!("../icons/32x32.png");
-/// At most one notification per app in this time, so an error that comes and goes stays quiet.
-const NOTIFY_GAP: Duration = Duration::from_secs(5 * 60);
 const ISSUE_ITEM: &str = "issue:";
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -35,9 +35,9 @@ pub enum Level {
     Good,
     /// Apps are starting or stopping.
     Busy,
-    /// An app crashed and is restarting, exited with an error, or prints errors.
+    /// An app crashed and is restarting, or exited with an error.
     Warning,
-    /// An app failed, or the agent cannot be reached.
+    /// An app failed or prints errors, or the agent cannot be reached.
     Bad,
 }
 
@@ -70,8 +70,6 @@ pub struct TrayText {
     errors: BTreeMap<u32, String>,
     /// Menu item, "Copy fix prompt for {name}".
     copy_prompt: String,
-    /// Notification title, "{name} has errors".
-    issue_title: String,
     /// Notification after copying from the menu.
     copied: String,
 }
@@ -88,7 +86,6 @@ impl Default for TrayText {
             restarting: BTreeMap::new(),
             errors: BTreeMap::new(),
             copy_prompt: "Copy fix prompt for {name}".into(),
-            issue_title: "{name} has errors".into(),
             copied: "Fix prompt copied. Paste it into your coding agent.".into(),
         }
     }
@@ -101,10 +98,8 @@ pub struct Tray {
     last: Mutex<Option<(Level, String)>>,
     /// Apps with an issue, as (id, name), in the current menu.
     issue_apps: Mutex<Vec<(String, String)>>,
-    /// Per app: the issue last notified about (its first_at), and when.
-    notified: Mutex<HashMap<String, (u64, Instant)>>,
-    /// Set after the first poll, so issues that existed before the app opened stay quiet.
-    primed: AtomicBool,
+    /// Apps that print errors while a coding agent still works in their folder.
+    waiting: Mutex<Vec<String>>,
 }
 
 impl Default for Tray {
@@ -114,8 +109,7 @@ impl Default for Tray {
             text: Mutex::default(),
             last: Mutex::default(),
             issue_apps: Mutex::default(),
-            notified: Mutex::default(),
-            primed: AtomicBool::new(false),
+            waiting: Mutex::default(),
         }
     }
 }
@@ -133,8 +127,17 @@ fn has_issue(a: &AppView) -> bool {
         && matches!(a.state, AppState::Running | AppState::Starting)
 }
 
-/// Count apps by health. Disabled apps do not count.
-fn assess(apps: &[AppView]) -> (Level, usize, usize, u32, u32, u32) {
+/// Ids of apps whose errors show: no coding agent is still working in their folder.
+fn settled_issues(apps: &[AppView]) -> HashSet<String> {
+    apps.iter()
+        .filter(|a| has_issue(a) && !keeprun_core::sessions::agent_working(&a.spec.cwd))
+        .map(|a| a.spec.id.clone())
+        .collect()
+}
+
+/// Count apps by health. Disabled apps do not count. Only apps in `settled` count as
+/// printing errors.
+fn assess(apps: &[AppView], settled: &HashSet<String>) -> (Level, usize, usize, u32, u32, u32) {
     let apps: Vec<_> = apps.iter().filter(|a| !a.spec.disabled).collect();
     let running = apps.iter().filter(|a| a.state == AppState::Running).count();
     let failed = apps.iter().filter(|a| a.state == AppState::Failed).count() as u32;
@@ -148,10 +151,13 @@ fn assess(apps: &[AppView]) -> (Level, usize, usize, u32, u32, u32) {
     let busy = apps
         .iter()
         .any(|a| matches!(a.state, AppState::Starting | AppState::Stopping));
-    let issues = apps.iter().filter(|a| has_issue(a)).count() as u32;
-    let level = if failed > 0 {
+    let issues = apps
+        .iter()
+        .filter(|a| has_issue(a) && settled.contains(&a.spec.id))
+        .count() as u32;
+    let level = if failed > 0 || issues > 0 {
         Level::Bad
-    } else if restarting > 0 || issues > 0 {
+    } else if restarting > 0 {
         Level::Warning
     } else if busy {
         Level::Busy
@@ -163,11 +169,15 @@ fn assess(apps: &[AppView]) -> (Level, usize, usize, u32, u32, u32) {
     (level, running, apps.len(), failed, restarting, issues)
 }
 
-fn tooltip(text: &TrayText, apps: Option<&[AppView]>) -> (Level, String) {
+fn tooltip(
+    text: &TrayText,
+    apps: Option<&[AppView]>,
+    settled: &HashSet<String>,
+) -> (Level, String) {
     let Some(apps) = apps else {
         return (Level::Bad, format!("Keeprun\n{}", text.unreachable));
     };
-    let (level, running, total, failed, restarting, issues) = assess(apps);
+    let (level, running, total, failed, restarting, issues) = assess(apps, settled);
     let mut lines = vec!["Keeprun".to_string()];
     lines.push(if total == 0 {
         text.no_apps.clone()
@@ -356,38 +366,6 @@ fn copy_prompt<R: Runtime>(app: AppHandle<R>, id: String) {
     });
 }
 
-/// Notify once per new issue, and at most once per `NOTIFY_GAP` per app.
-fn notify_issues<R: Runtime>(app: &AppHandle<R>, apps: &[AppView]) {
-    let state = app.state::<Tray>();
-    let primed = state.primed.swap(true, Ordering::Relaxed);
-    let mut notified = state.notified.lock().unwrap();
-    let now = Instant::now();
-    for a in apps.iter().filter(|a| has_issue(a)) {
-        let Some(issue) = &a.issue else { continue };
-        let prev = notified.get(&a.spec.id).copied();
-        if prev.is_some_and(|(first_at, _)| first_at == issue.first_at) {
-            continue;
-        }
-        let quiet = prev.filter(|(_, at)| now.duration_since(*at) < NOTIFY_GAP);
-        let at = quiet.map_or(now, |(_, at)| at);
-        notified.insert(a.spec.id.clone(), (issue.first_at, at));
-        if primed && quiet.is_none() {
-            let title = state
-                .text
-                .lock()
-                .unwrap()
-                .issue_title
-                .replace("{name}", &a.spec.name);
-            let _ = app
-                .notification()
-                .builder()
-                .title(title)
-                .body(&issue.summary)
-                .show();
-        }
-    }
-}
-
 fn tray<R: Runtime>(app: &AppHandle<R>) -> Option<TrayIcon<R>> {
     app.tray_by_id(TRAY_ID)
 }
@@ -395,13 +373,17 @@ fn tray<R: Runtime>(app: &AppHandle<R>) -> Option<TrayIcon<R>> {
 /// Update the icon, tooltip and menu when they change.
 fn refresh<R: Runtime>(app: &AppHandle<R>, apps: Option<&[AppView]>) {
     let state = app.state::<Tray>();
-    if let Some(apps) = apps {
-        notify_issues(app, apps);
-    }
+    let settled = settled_issues(apps.unwrap_or_default());
+    *state.waiting.lock().unwrap() = apps
+        .unwrap_or_default()
+        .iter()
+        .filter(|a| has_issue(a) && !settled.contains(&a.spec.id))
+        .map(|a| a.spec.id.clone())
+        .collect();
     let issues: Vec<(String, String)> = apps
         .unwrap_or_default()
         .iter()
-        .filter(|a| has_issue(a))
+        .filter(|a| settled.contains(&a.spec.id))
         .map(|a| (a.spec.id.clone(), a.spec.name.clone()))
         .collect();
     {
@@ -414,7 +396,7 @@ fn refresh<R: Runtime>(app: &AppHandle<R>, apps: Option<&[AppView]>) {
             *current = issues;
         }
     }
-    let (level, tip) = tooltip(&state.text.lock().unwrap(), apps);
+    let (level, tip) = tooltip(&state.text.lock().unwrap(), apps, &settled);
     let mut last = state.last.lock().unwrap();
     if last.as_ref().is_some_and(|(l, t)| *l == level && *t == tip) {
         return;
@@ -426,6 +408,13 @@ fn refresh<R: Runtime>(app: &AppHandle<R>, apps: Option<&[AppView]>) {
         let _ = t.set_tooltip(Some(&tip));
     }
     *last = Some((level, tip));
+}
+
+/// Ids of apps whose errors wait for a coding agent to finish, as of the last poll. The UI
+/// holds their error banner back too.
+#[tauri::command]
+pub fn agent_waiting<R: Runtime>(app: AppHandle<R>) -> Vec<String> {
+    app.state::<Tray>().waiting.lock().unwrap().clone()
 }
 
 /// Turn the notification area icon on or off. Off: closing the window quits the app.
@@ -457,6 +446,10 @@ pub fn set_tray_text<R: Runtime>(app: AppHandle<R>, text: TrayText) {
 mod tests {
     use super::*;
 
+    fn none() -> HashSet<String> {
+        HashSet::new()
+    }
+
     fn view(state: AppState, exit_code: Option<i32>, disabled: bool) -> AppView {
         serde_json::from_value(serde_json::json!({
             "id": "a", "name": "a", "cwd": "C:\\", "command": "x",
@@ -469,37 +462,70 @@ mod tests {
     #[test]
     fn levels() {
         use AppState::*;
-        assert_eq!(assess(&[]).0, Level::Idle);
-        assert_eq!(assess(&[view(Stopped, None, false)]).0, Level::Idle);
-        assert_eq!(assess(&[view(Running, None, false)]).0, Level::Good);
+        assert_eq!(assess(&[], &none()).0, Level::Idle);
         assert_eq!(
-            assess(&[view(Running, None, false), view(Starting, None, false)]).0,
+            assess(&[view(Stopped, None, false)], &none()).0,
+            Level::Idle
+        );
+        assert_eq!(
+            assess(&[view(Running, None, false)], &none()).0,
+            Level::Good
+        );
+        assert_eq!(
+            assess(
+                &[view(Running, None, false), view(Starting, None, false)],
+                &none()
+            )
+            .0,
             Level::Busy
         );
         assert_eq!(
-            assess(&[view(Running, None, false), view(Restarting, Some(1), false)]).0,
+            assess(
+                &[view(Running, None, false), view(Restarting, Some(1), false)],
+                &none()
+            )
+            .0,
             Level::Warning
         );
-        assert_eq!(assess(&[view(Exited, Some(0), false)]).0, Level::Idle);
-        assert_eq!(assess(&[view(Exited, Some(3), false)]).0, Level::Warning);
         assert_eq!(
-            assess(&[view(Failed, Some(1), false), view(Restarting, None, false)]).0,
+            assess(&[view(Exited, Some(0), false)], &none()).0,
+            Level::Idle
+        );
+        assert_eq!(
+            assess(&[view(Exited, Some(3), false)], &none()).0,
+            Level::Warning
+        );
+        assert_eq!(
+            assess(
+                &[view(Failed, Some(1), false), view(Restarting, None, false)],
+                &none()
+            )
+            .0,
             Level::Bad
         );
         // Disabled apps never count.
         assert_eq!(
-            assess(&[view(Failed, Some(1), true), view(Running, None, false)]).0,
+            assess(
+                &[view(Failed, Some(1), true), view(Running, None, false)],
+                &none()
+            )
+            .0,
             Level::Good
         );
         assert_eq!(
-            assess(&[view(Running, None, false), view(Stopped, None, true)]).2,
+            assess(
+                &[view(Running, None, false), view(Stopped, None, true)],
+                &none()
+            )
+            .2,
             1
         );
     }
 
     #[test]
-    fn errors_while_running_warn() {
+    fn errors_turn_red_once_settled() {
         let mut broken = view(AppState::Running, None, false);
+        broken.spec.id = "b".into();
         broken.issue = Some(keeprun_core::model::AppIssue {
             first_at: 1,
             last_at: 1,
@@ -508,19 +534,28 @@ mod tests {
             excerpt: vec![],
         });
         let apps = [view(AppState::Running, None, false), broken.clone()];
-        let (level, _, _, _, _, issues) = assess(&apps);
-        assert_eq!((level, issues), (Level::Warning, 1));
         let text = TrayText {
             errors: BTreeMap::from([(1, "1 app has errors".into())]),
             ..Default::default()
         };
+        // A coding agent is still working in the folder: nothing shows yet.
+        let (level, _, _, _, _, issues) = assess(&apps, &none());
+        assert_eq!((level, issues), (Level::Good, 0));
         assert_eq!(
-            tooltip(&text, Some(&apps)).1,
+            tooltip(&text, Some(&apps), &none()).1,
+            "Keeprun\n2 of 2 apps running"
+        );
+        // It finished and the errors are still there.
+        let settled = HashSet::from(["b".to_string()]);
+        let (level, _, _, _, _, issues) = assess(&apps, &settled);
+        assert_eq!((level, issues), (Level::Bad, 1));
+        assert_eq!(
+            tooltip(&text, Some(&apps), &settled).1,
             "Keeprun\n2 of 2 apps running\n1 app has errors"
         );
         // A failed app is red, and not counted again as an issue.
         broken.state = AppState::Failed;
-        let (level, _, _, failed, _, issues) = assess(&[broken]);
+        let (level, _, _, failed, _, issues) = assess(&[broken], &settled);
         assert_eq!((level, failed, issues), (Level::Bad, 1, 0));
     }
 
@@ -534,10 +569,13 @@ mod tests {
             view(AppState::Running, None, false),
             view(AppState::Failed, Some(1), false),
         ];
-        let (level, tip) = tooltip(&text, Some(&apps));
+        let (level, tip) = tooltip(&text, Some(&apps), &none());
         assert_eq!(level, Level::Bad);
         assert_eq!(tip, "Keeprun\n1 of 2 apps running\n1 app failed");
-        assert_eq!(tooltip(&text, None).1, "Keeprun\nAgent not reachable");
+        assert_eq!(
+            tooltip(&text, None, &none()).1,
+            "Keeprun\nAgent not reachable"
+        );
     }
 
     #[test]

@@ -138,7 +138,6 @@ const catalog: Catalog = {
     other: "앱 {count}개에서 오류 출력 중",
   },
   "tray.copyPrompt": "{name} 수정 프롬프트 복사",
-  "tray.issueTitle": "{name}에서 오류가 발생했습니다",
   "tray.copied": "프롬프트를 복사했습니다. 코딩 에이전트에 붙여 넣으세요.",
 
   // 개요
@@ -176,6 +175,7 @@ const catalog: Catalog = {
   "overview.issue": "실행 중이지만 출력에 오류가 있습니다",
   "overview.issueSeen": "{count}회 발생, 마지막 {time}",
   "overview.issueOutput": "오류 출력 보기",
+  "overview.agentWorking": "코딩 에이전트가 아직 이 폴더에서 작업 중입니다. 작업이 끝난 뒤에도 오류가 남아 있으면 여기에 표시됩니다.",
   "overview.copyPrompt": "수정 프롬프트 복사",
   "overview.copyPromptHint": "오류, 폴더, 명령을 코딩 에이전트용 프롬프트로 복사합니다",
   "overview.dismiss": "닫기",

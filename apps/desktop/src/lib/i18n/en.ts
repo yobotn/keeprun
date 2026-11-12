@@ -138,7 +138,6 @@ export const en = {
     other: "{count} apps have errors",
   },
   "tray.copyPrompt": "Copy fix prompt for {name}",
-  "tray.issueTitle": "{name} has errors",
   "tray.copied": "Fix prompt copied. Paste it into your coding agent.",
 
   // Overview
@@ -176,6 +175,7 @@ export const en = {
   "overview.issue": "Running, but the output shows errors",
   "overview.issueSeen": "Seen {count}×, last at {time}",
   "overview.issueOutput": "Show error output",
+  "overview.agentWorking": "A coding agent is still working in this folder. If errors remain when it finishes, they show here.",
   "overview.copyPrompt": "Copy fix prompt",
   "overview.copyPromptHint": "Copies the error, folder and commands as a prompt for a coding agent",
   "overview.dismiss": "Dismiss",

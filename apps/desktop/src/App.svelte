@@ -42,6 +42,9 @@
 
   let conn = $state<Connection | null>(null);
   let apps = $state<AppView[]>([]);
+  /** Apps printing errors while a coding agent still works in their folder. Their errors wait. */
+  let waiting = $state<string[]>([]);
+  const showsIssue = (a: AppView) => !!a.issue && !waiting.includes(a.id);
   let selectedId = $state<string | null>(null);
   let tab = $state<Tab>(tabs.includes(prefs.lastTab as Tab) ? (prefs.lastTab as Tab) : "overview");
   let agentError = $state("");
@@ -111,8 +114,17 @@
   }
 
   $effect(() => {
+    const pollWaiting = () =>
+      desktop
+        .agentWaiting()
+        .then((ids) => (waiting = ids))
+        .catch(() => {});
     refresh();
-    const poll = setInterval(refresh, config.pollMs);
+    pollWaiting();
+    const poll = setInterval(() => {
+      refresh();
+      pollWaiting();
+    }, config.pollMs);
     const tick = setInterval(() => (now = Date.now()), 1000);
     return () => {
       clearInterval(poll);
@@ -389,7 +401,7 @@
                   {#if app.disabled}
                     <Ban size={10} class="shrink-0 text-fg-muted" aria-hidden="true" />
                   {:else}
-                    <StatusDot state={app.state} issue={!!app.issue} />
+                    <StatusDot state={app.state} issue={showsIssue(app)} />
                   {/if}
                   <span class="flex-1 truncate">{app.name}</span>
                   {#if app.state === "running" && app.stats?.ports[0]}
@@ -417,9 +429,9 @@
                 <Ban size={12} />
                 {t("state.disabled")}
               {:else}
-                <StatusDot state={selected.state} issue={!!selected.issue} />
+                <StatusDot state={selected.state} issue={showsIssue(selected)} />
                 {stateText(selected.state)}
-                {#if selected.issue && selected.state === "running"}<span class="text-warn">· {t("app.printingErrors")}</span>{/if}
+                {#if showsIssue(selected) && selected.state === "running"}<span class="text-warn">· {t("app.printingErrors")}</span>{/if}
                 {#if selected.state === "exited" && selected.exit_code !== null}{t("app.exitCode", { code: selected.exit_code })}{/if}
                 {#if restartCountdown !== null}{t("app.restartIn", { seconds: restartCountdown })}{/if}
               {/if}
@@ -480,7 +492,7 @@
 
         {#key selected.id}
           {#if tab === "overview"}
-            <Overview app={selected} {now} onshowevents={() => (tab = "events")} />
+            <Overview app={selected} {now} agentWorking={waiting.includes(selected.id)} onshowevents={() => (tab = "events")} />
           {:else if tab === "logs"}
             <LogPanel appId={selected.id} />
           {:else if tab === "tasks"}

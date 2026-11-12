@@ -138,7 +138,6 @@ const tr: Catalog = {
     other: "{count} uygulama hata veriyor",
   },
   "tray.copyPrompt": "{name} için düzeltme istemini kopyala",
-  "tray.issueTitle": "{name} hata veriyor",
   "tray.copied": "İstem kopyalandı. Kodlama ajanınıza yapıştırın.",
 
   // Overview
@@ -177,6 +176,7 @@ const tr: Catalog = {
   "overview.issue": "Çalışıyor ama çıktıda hatalar var",
   "overview.issueSeen": "{count}× görüldü, en son {time}",
   "overview.issueOutput": "Hata çıktısını göster",
+  "overview.agentWorking": "Bu klasörde hâlâ bir kodlama ajanı çalışıyor. Bittiğinde hatalar kalırsa burada görünür.",
   "overview.copyPrompt": "Düzeltme istemini kopyala",
   "overview.copyPromptHint": "Hatayı, klasörü ve komutları bir kodlama ajanı için istem olarak kopyalar",
   "overview.dismiss": "Kapat",

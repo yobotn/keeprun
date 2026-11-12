@@ -149,7 +149,6 @@ const catalog: Catalog = {
     other: "{count} застосунку виводять помилки",
   },
   "tray.copyPrompt": "Скопіювати промпт для виправлення: {name}",
-  "tray.issueTitle": "{name}: помилки у виводі",
   "tray.copied": "Промпт скопійовано. Вставте його у свого агента для коду.",
 
   // Огляд
@@ -187,6 +186,7 @@ const catalog: Catalog = {
   "overview.issue": "Працює, але у виводі є помилки",
   "overview.issueSeen": "Помічено {count}×, востаннє о {time}",
   "overview.issueOutput": "Показати вивід із помилкою",
+  "overview.agentWorking": "У цій теці ще працює агент для програмування. Якщо після його завершення помилки залишаться, вони з’являться тут.",
   "overview.copyPrompt": "Скопіювати промпт для виправлення",
   "overview.copyPromptHint": "Копіює помилку, теку й команди як промпт для агента для коду",
   "overview.dismiss": "Приховати",

@@ -149,7 +149,6 @@ const catalog: Catalog = {
     other: "{count} app mostrano errori",
   },
   "tray.copyPrompt": "Copia il prompt di correzione per {name}",
-  "tray.issueTitle": "{name} mostra errori",
   "tray.copied": "Prompt copiato. Incollalo nel tuo agente di programmazione.",
 
   // Overview
@@ -189,6 +188,7 @@ const catalog: Catalog = {
   "overview.issue": "In esecuzione, ma l’output mostra errori",
   "overview.issueSeen": "Visto {count}×, l’ultima volta alle {time}",
   "overview.issueOutput": "Mostra l’output dell’errore",
+  "overview.agentWorking": "Un agente di programmazione sta ancora lavorando in questa cartella. Se restano errori quando finisce, compaiono qui.",
   "overview.copyPrompt": "Copia prompt di correzione",
   "overview.copyPromptHint": "Copia l’errore, la cartella e i comandi come prompt per un agente di programmazione",
   "overview.dismiss": "Ignora",

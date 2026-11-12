@@ -139,7 +139,6 @@ const catalog: Catalog = {
     other: "{count} 个应用正在输出错误",
   },
   "tray.copyPrompt": "复制 {name} 的修复提示词",
-  "tray.issueTitle": "{name} 出现错误",
   "tray.copied": "已复制提示词。请粘贴到你的编程智能体中。",
 
   // 概述
@@ -177,6 +176,7 @@ const catalog: Catalog = {
   "overview.issue": "正在运行，但输出中有错误",
   "overview.issueSeen": "出现 {count} 次，最近一次在 {time}",
   "overview.issueOutput": "显示错误输出",
+  "overview.agentWorking": "编码代理仍在此文件夹中工作。如果它完成后仍有错误，会显示在这里。",
   "overview.copyPrompt": "复制修复提示词",
   "overview.copyPromptHint": "将错误、文件夹和命令复制为编程智能体可用的提示词",
   "overview.dismiss": "忽略",

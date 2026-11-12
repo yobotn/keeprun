@@ -6,7 +6,9 @@
   // `taskSince` shows only task output from that time on (used by the Tasks tab).
   let { appId, taskSince }: { appId: string; taskSince?: number } = $props();
 
-  let lines = $state<LogLine[]>([]);
+  // `seq` keys the rows, so dropping old lines does not redraw every row.
+  type Row = LogLine & { seq: number };
+  let lines = $state<Row[]>([]);
   let paused = $state(false);
   let query = $state("");
   let errorsOnly = $state(false);
@@ -15,7 +17,18 @@
   let copied = $state(false);
   let scroller: HTMLDivElement | undefined = $state();
   let searchInput: HTMLInputElement | undefined = $state();
-  let pending: LogLine[] = [];
+  let pending: Row[] = [];
+  let seq = 0;
+  /** Lines held while paused or scrolled up, shown on the Latest button. */
+  let held = $state(0);
+  /** After a reconnect the agent replays its buffer: replace the lines then, instead of
+   * clearing them on connect and leaving the pane blank until the replay arrives. */
+  let replay = false;
+  /** Shown as offline only after a moment, so a quick reconnect does not flash. */
+  let offline = $state(false);
+
+  // Scrolled up, new lines wait: the text being read stays put until you scroll down.
+  const holding = $derived(paused || !atBottom);
 
   const visible = $derived.by(() => {
     const q = query.toLowerCase();
@@ -28,9 +41,11 @@
   });
 
   function flush() {
-    if (paused || pending.length === 0) return;
-    const next = lines.concat(pending);
+    if (holding || pending.length === 0) return;
+    const next = replay ? pending : lines.concat(pending);
+    replay = false;
     pending = [];
+    held = 0;
     lines = next.length > config.logMaxLines ? next.slice(next.length - config.logMaxLines) : next;
   }
 
@@ -40,26 +55,43 @@
     pending = [];
     let ws: WebSocket | null = null;
     let closed = false;
+    held = 0;
+    replay = false;
     let retry: ReturnType<typeof setTimeout>;
+    let offlineTimer: ReturnType<typeof setTimeout> | undefined;
+    let emptyReplay: ReturnType<typeof setTimeout> | undefined;
     let frame = 0;
 
     const open = async () => {
       ws = await api.logSocket(id);
       ws.onopen = () => {
         connected = true;
-        // The agent replays its buffer on connect.
-        lines = [];
+        clearTimeout(offlineTimer);
+        offline = false;
+        // The agent replays its buffer on connect, which repeats anything still pending.
+        pending = [];
+        replay = true;
+        // Nothing replayed, e.g. the agent restarted: the old lines are gone.
+        emptyReplay = setTimeout(() => {
+          if (replay && pending.length === 0) {
+            replay = false;
+            lines = [];
+          }
+        }, 1000);
       };
       ws.onmessage = (e) => {
-        pending.push(JSON.parse(e.data));
+        pending.push({ ...JSON.parse(e.data), seq: seq++ });
+        if (pending.length > config.logMaxLines) pending.splice(0, pending.length - config.logMaxLines);
         // Batch per animation frame so busy apps do not freeze the UI.
         if (!frame)
           frame = requestAnimationFrame(() => {
             frame = 0;
             flush();
+            held = pending.length;
           });
       };
       ws.onclose = () => {
+        if (connected) offlineTimer = setTimeout(() => (offline = true), 3000);
         connected = false;
         if (!closed) retry = setTimeout(open, 2000);
       };
@@ -69,13 +101,15 @@
     return () => {
       closed = true;
       clearTimeout(retry);
+      clearTimeout(offlineTimer);
+      clearTimeout(emptyReplay);
       if (frame) cancelAnimationFrame(frame);
       ws?.close();
     };
   });
 
   $effect(() => {
-    if (!paused) flush();
+    if (!holding) flush();
   });
 
   $effect(() => {
@@ -142,9 +176,16 @@
       {#if paused}<Play size={15} class="flip-rtl" />{:else}<Pause size={15} />{/if}
     </button>
     <button class="btn-icon" onclick={copy} title={t("logs.copy")}><Copy size={15} /></button>
-    <button class="btn-icon" onclick={() => (lines = [])} title={t("logs.clear")}><Eraser size={15} /></button>
-    <span class="min-w-20 text-end text-xs {connected ? 'text-fg-muted' : 'text-warn'}">
-      {t(copied ? "common.copied" : paused ? "logs.paused" : connected ? "logs.live" : "logs.connecting")}
+    <button
+      class="btn-icon"
+      onclick={() => {
+        lines = [];
+        pending = [];
+        held = 0;
+      }}
+      title={t("logs.clear")}><Eraser size={15} /></button>
+    <span class="min-w-20 text-end text-xs {offline ? 'text-warn' : 'text-fg-muted'}">
+      {t(copied ? "common.copied" : paused ? "logs.paused" : offline || (!connected && lines.length === 0) ? "logs.connecting" : "logs.live")}
     </span>
   </div>
   <div class="relative min-h-0 flex-1">
@@ -161,7 +202,7 @@
           {t(query || errorsOnly ? "logs.noMatch" : taskSince === undefined ? "logs.noOutput" : "logs.noTaskOutput")}
         </p>
       {/if}
-      {#each visible as l}
+      {#each visible as l (l.seq)}
         <div class="flex gap-3">
           <span class="shrink-0 tabular-nums text-fg-muted/70">{formatTime(l.ts)}</span>
           {#if l.task && taskSince === undefined}
@@ -178,7 +219,7 @@
       {/each}
     </div>
     {#if !atBottom}
-      <button class="btn absolute bottom-4 end-6 shadow-md" onclick={toBottom}><ArrowDown size={14} /> {t("logs.latest")}</button>
+      <button class="btn absolute bottom-4 end-6 shadow-md" onclick={toBottom}><ArrowDown size={14} /> {t("logs.latest")}{#if held}<span class="tabular-nums text-fg-muted">+{held}</span>{/if}</button>
     {/if}
   </div>
 </div>

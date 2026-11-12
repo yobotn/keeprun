@@ -240,6 +240,8 @@ export const desktop = {
   /** Show the notification area icon, and hide to it on close. */
   setTrayEnabled: (enabled: boolean) => invoke<void>("set_tray_enabled", { enabled }),
   setTrayText: (text: TrayText) => invoke<void>("set_tray_text", { text }),
+  /** Ids of apps whose errors wait while a coding agent still works in their folder. */
+  agentWaiting: () => invoke<string[]>("agent_waiting"),
   /** Folder Keeprun was started with from the Explorer menu, once. */
   takeLaunchFolder: () => invoke<string | null>("take_launch_folder"),
 };
@@ -256,8 +258,6 @@ export interface TrayText {
   errors: Record<number, string>;
   /** "Copy fix prompt for {name}" */
   copyPrompt: string;
-  /** "{name} has errors" */
-  issueTitle: string;
   copied: string;
 }
 

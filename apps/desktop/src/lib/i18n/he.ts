@@ -147,7 +147,6 @@ const he: Catalog = {
     other: "{count} אפליקציות מדפיסות שגיאות",
   },
   "tray.copyPrompt": "העתקת פרומפט תיקון עבור {name}",
-  "tray.issueTitle": "{name} מדפיס שגיאות",
   "tray.copied": "הפרומפט הועתק. הדביקו אותו בסוכן הקוד שלכם.",
 
   // Overview
@@ -185,6 +184,7 @@ const he: Catalog = {
   "overview.issue": "פועל, אבל הפלט מציג שגיאות",
   "overview.issueSeen": "נראה {count}×, לאחרונה ב-{time}",
   "overview.issueOutput": "הצגת פלט השגיאה",
+  "overview.agentWorking": "סוכן קוד עדיין עובד בתיקייה הזו. אם יישארו שגיאות כשיסיים, הן יוצגו כאן.",
   "overview.copyPrompt": "העתקת פרומפט תיקון",
   "overview.copyPromptHint": "מעתיק את השגיאה, התיקייה והפקודות כפרומפט לסוכן קוד",
   "overview.dismiss": "סגירה",

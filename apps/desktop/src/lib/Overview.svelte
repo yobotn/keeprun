@@ -1,11 +1,22 @@
 <script lang="ts">
   import { openPath, openUrl } from "@tauri-apps/plugin-opener";
-  import { Copy, ExternalLink, FolderOpen, TriangleAlert } from "@lucide/svelte";
+  import { Copy, ExternalLink, FolderOpen, LoaderCircle, TriangleAlert } from "@lucide/svelte";
   import { api, appPort, formatBytes, formatDuration, formatTime, isActive, type AppView } from "./api";
   import { t } from "./i18n/index.svelte";
   import EventsList from "./EventsList.svelte";
 
-  let { app, now, onshowevents }: { app: AppView; now: number; onshowevents: () => void } = $props();
+  let {
+    app,
+    now,
+    agentWorking = false,
+    onshowevents,
+  }: {
+    app: AppView;
+    now: number;
+    /** A coding agent still works in the app's folder: errors wait until it finishes. */
+    agentWorking?: boolean;
+    onshowevents: () => void;
+  } = $props();
 
   const running = $derived(app.state === "running");
   const urls = $derived(
@@ -115,7 +126,12 @@
     </div>
   {/if}
 
-  {#if app.issue}
+  {#if app.issue && agentWorking}
+    <p class="mb-4 flex items-center gap-2 text-xs text-fg-muted" role="status">
+      <LoaderCircle size={13} class="shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+      {t("overview.agentWorking")}
+    </p>
+  {:else if app.issue}
     <div class="alert alert-warn mb-4" role="status">
       <div class="flex items-start gap-3">
         <TriangleAlert size={15} class="mt-0.5 shrink-0" aria-hidden="true" />

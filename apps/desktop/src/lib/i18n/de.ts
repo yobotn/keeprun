@@ -138,7 +138,6 @@ const catalog: Catalog = {
     other: "{count} Apps melden Fehler",
   },
   "tray.copyPrompt": "Prompt zur Fehlerbehebung für {name} kopieren",
-  "tray.issueTitle": "{name} meldet Fehler",
   "tray.copied": "Prompt kopiert. Füge ihn in deinen Coding-Agenten ein.",
 
   // Overview
@@ -177,6 +176,7 @@ const catalog: Catalog = {
   "overview.issue": "Läuft, aber die Ausgabe zeigt Fehler",
   "overview.issueSeen": "{count}× gesehen, zuletzt um {time}",
   "overview.issueOutput": "Fehlerausgabe anzeigen",
+  "overview.agentWorking": "Ein Coding-Agent arbeitet noch in diesem Ordner. Bleiben danach Fehler übrig, erscheinen sie hier.",
   "overview.copyPrompt": "Prompt zur Fehlerbehebung kopieren",
   "overview.copyPromptHint": "Kopiert Fehler, Ordner und Befehle als Prompt für einen Coding-Agenten",
   "overview.dismiss": "Ausblenden",

@@ -192,6 +192,7 @@ pub fn run() {
             take_launch_folder,
             set_agent_port,
             tray::set_tray_enabled,
+            tray::agent_waiting,
             tray::set_tray_text,
             update::update_policy,
             update::check_update,

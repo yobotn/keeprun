@@ -156,7 +156,6 @@ const ar: Catalog = {
     other: "{count} تطبيق يطبع أخطاء",
   },
   "tray.copyPrompt": "نسخ موجّه الإصلاح لـ {name}",
-  "tray.issueTitle": "{name} يطبع أخطاء",
   "tray.copied": "تم نسخ الموجّه. الصقه في وكيل البرمجة.",
 
   // Overview
@@ -194,6 +193,7 @@ const ar: Catalog = {
   "overview.issue": "قيد التشغيل، لكن المخرجات تُظهر أخطاء",
   "overview.issueSeen": "ظهر {count}×، آخر مرة في {time}",
   "overview.issueOutput": "إظهار مخرجات الخطأ",
+  "overview.agentWorking": "لا يزال وكيل برمجة يعمل في هذا المجلد. إذا بقيت أخطاء بعد انتهائه فستظهر هنا.",
   "overview.copyPrompt": "نسخ موجّه الإصلاح",
   "overview.copyPromptHint": "ينسخ الخطأ والمجلد والأوامر كموجّه لوكيل برمجة",
   "overview.dismiss": "تجاهل",

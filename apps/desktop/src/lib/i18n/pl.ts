@@ -150,7 +150,6 @@ const catalog: Catalog = {
     other: "{count} aplikacji zgłasza błędy",
   },
   "tray.copyPrompt": "Kopiuj prompt naprawy dla {name}",
-  "tray.issueTitle": "{name} zgłasza błędy",
   "tray.copied": "Prompt skopiowany. Wklej go do swojego agenta kodującego.",
 
   // Overview
@@ -189,6 +188,7 @@ const catalog: Catalog = {
   "overview.issue": "Działa, ale wyjście pokazuje błędy",
   "overview.issueSeen": "Widziano {count}×, ostatnio o {time}",
   "overview.issueOutput": "Pokaż wyjście błędu",
+  "overview.agentWorking": "Agent programistyczny nadal pracuje w tym folderze. Jeśli po jego zakończeniu zostaną błędy, pojawią się tutaj.",
   "overview.copyPrompt": "Kopiuj prompt naprawy",
   "overview.copyPromptHint": "Kopiuje błąd, folder i polecenia jako prompt dla agenta kodującego",
   "overview.dismiss": "Odrzuć",

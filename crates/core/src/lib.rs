@@ -4,6 +4,7 @@ pub mod config;
 pub mod detect;
 pub mod issue;
 pub mod model;
+pub mod sessions;
 pub mod token;
 
 pub use config::{Env, Settings};

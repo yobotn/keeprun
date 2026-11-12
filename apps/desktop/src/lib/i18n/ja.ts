@@ -139,7 +139,6 @@ const catalog: Catalog = {
     other: "{count} 個のアプリがエラーを出力中",
   },
   "tray.copyPrompt": "{name} の修正プロンプトをコピー",
-  "tray.issueTitle": "{name} でエラーが発生しています",
   "tray.copied": "プロンプトをコピーしました。コーディングエージェントに貼り付けてください。",
 
   // 概要
@@ -177,6 +176,7 @@ const catalog: Catalog = {
   "overview.issue": "実行中ですが、出力にエラーがあります",
   "overview.issueSeen": "{count} 回検出、最後は {time}",
   "overview.issueOutput": "エラー出力を表示",
+  "overview.agentWorking": "コーディングエージェントがこのフォルダーで作業中です。終了後もエラーが残っていれば、ここに表示されます。",
   "overview.copyPrompt": "修正プロンプトをコピー",
   "overview.copyPromptHint": "エラー、フォルダー、コマンドをコーディングエージェント向けのプロンプトとしてコピーします",
   "overview.dismiss": "閉じる",
