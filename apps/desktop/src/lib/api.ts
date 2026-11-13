@@ -313,6 +313,8 @@ export interface TrayText {
   failed: Record<number, string>;
   restarting: Record<number, string>;
   errors: Record<number, string>;
+  /** "1 app not responding": its health check fails. */
+  unhealthy: Record<number, string>;
   /** "Copy fix prompt for {name}" */
   copyPrompt: string;
   copied: string;

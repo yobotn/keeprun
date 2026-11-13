@@ -143,6 +143,9 @@ const catalog: Catalog = {
   "tray.errors": {
     other: "{count} 个应用正在输出错误",
   },
+  "tray.unhealthy": {
+    other: "{count} 个应用无响应",
+  },
   "tray.copyPrompt": "复制 {name} 的修复提示词",
   "tray.copied": "已复制提示词。请粘贴到你的编程智能体中。",
 

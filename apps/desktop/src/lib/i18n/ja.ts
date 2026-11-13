@@ -143,6 +143,9 @@ const catalog: Catalog = {
   "tray.errors": {
     other: "{count} 個のアプリがエラーを出力中",
   },
+  "tray.unhealthy": {
+    other: "{count} 個のアプリが応答なし",
+  },
   "tray.copyPrompt": "{name} の修正プロンプトをコピー",
   "tray.copied": "プロンプトをコピーしました。コーディングエージェントに貼り付けてください。",
 

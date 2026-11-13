@@ -150,6 +150,11 @@ const catalog: Catalog = {
     many: "{count} apps mostrando erros",
     other: "{count} apps mostrando erros",
   },
+  "tray.unhealthy": {
+    one: "{count} app não responde",
+    many: "{count} apps não respondem",
+    other: "{count} apps não respondem",
+  },
   "tray.copyPrompt": "Copiar prompt de correção para {name}",
   "tray.copied": "Prompt copiado. Cole no seu agente de código.",
 

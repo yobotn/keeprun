@@ -142,6 +142,9 @@ const catalog: Catalog = {
   "tray.errors": {
     other: "앱 {count}개에서 오류 출력 중",
   },
+  "tray.unhealthy": {
+    other: "앱 {count}개 응답 없음",
+  },
   "tray.copyPrompt": "{name} 수정 프롬프트 복사",
   "tray.copied": "프롬프트를 복사했습니다. 코딩 에이전트에 붙여 넣으세요.",
 

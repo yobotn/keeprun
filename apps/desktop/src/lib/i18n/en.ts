@@ -142,6 +142,10 @@ export const en = {
     one: "{count} app has errors",
     other: "{count} apps have errors",
   },
+  "tray.unhealthy": {
+    one: "{count} app not responding",
+    other: "{count} apps not responding",
+  },
   "tray.copyPrompt": "Copy fix prompt for {name}",
   "tray.copied": "Fix prompt copied. Paste it into your coding agent.",
 

@@ -68,6 +68,9 @@ pub struct TrayText {
     restarting: BTreeMap<u32, String>,
     /// "1 app has errors"
     errors: BTreeMap<u32, String>,
+    /// "1 app not responding": its health check fails.
+    #[serde(default)]
+    unhealthy: BTreeMap<u32, String>,
     /// Menu item, "Copy fix prompt for {name}".
     copy_prompt: String,
     /// Notification after copying from the menu.
@@ -85,6 +88,7 @@ impl Default for TrayText {
             failed: BTreeMap::new(),
             restarting: BTreeMap::new(),
             errors: BTreeMap::new(),
+            unhealthy: BTreeMap::new(),
             copy_prompt: "Copy fix prompt for {name}".into(),
             copied: "Fix prompt copied. Paste it into your coding agent.".into(),
         }
@@ -137,7 +141,18 @@ fn settled_issues(apps: &[AppView]) -> HashSet<String> {
 
 /// Count apps by health. Disabled apps do not count. Only apps in `settled` count as
 /// printing errors.
-fn assess(apps: &[AppView], settled: &HashSet<String>) -> (Level, usize, usize, u32, u32, u32) {
+/// Counts behind the tray icon and tooltip.
+struct Assessment {
+    level: Level,
+    running: usize,
+    total: usize,
+    failed: u32,
+    restarting: u32,
+    issues: u32,
+    unhealthy: u32,
+}
+
+fn assess(apps: &[AppView], settled: &HashSet<String>) -> Assessment {
     let apps: Vec<_> = apps.iter().filter(|a| !a.spec.disabled).collect();
     let running = apps.iter().filter(|a| a.state == AppState::Running).count();
     let failed = apps.iter().filter(|a| a.state == AppState::Failed).count() as u32;
@@ -155,7 +170,13 @@ fn assess(apps: &[AppView], settled: &HashSet<String>) -> (Level, usize, usize, 
         .iter()
         .filter(|a| has_issue(a) && settled.contains(&a.spec.id))
         .count() as u32;
-    let level = if failed > 0 || issues > 0 {
+    // A failing health check needs no settling: a coding agent's half-done edit does not
+    // stop a server from answering.
+    let unhealthy = apps
+        .iter()
+        .filter(|a| a.state == AppState::Running && a.health.as_ref().is_some_and(|h| !h.ok))
+        .count() as u32;
+    let level = if failed > 0 || issues > 0 || unhealthy > 0 {
         Level::Bad
     } else if restarting > 0 {
         Level::Warning
@@ -166,7 +187,15 @@ fn assess(apps: &[AppView], settled: &HashSet<String>) -> (Level, usize, usize, 
     } else {
         Level::Idle
     };
-    (level, running, apps.len(), failed, restarting, issues)
+    Assessment {
+        level,
+        running,
+        total: apps.len(),
+        failed,
+        restarting,
+        issues,
+        unhealthy,
+    }
 }
 
 fn tooltip(
@@ -177,7 +206,15 @@ fn tooltip(
     let Some(apps) = apps else {
         return (Level::Bad, format!("Keeprun\n{}", text.unreachable));
     };
-    let (level, running, total, failed, restarting, issues) = assess(apps, settled);
+    let Assessment {
+        level,
+        running,
+        total,
+        failed,
+        restarting,
+        issues,
+        unhealthy,
+    } = assess(apps, settled);
     let mut lines = vec!["Keeprun".to_string()];
     lines.push(if total == 0 {
         text.no_apps.clone()
@@ -196,6 +233,9 @@ fn tooltip(
     }
     if issues > 0 {
         lines.push(pick(&text.errors, issues));
+    }
+    if unhealthy > 0 {
+        lines.push(pick(&text.unhealthy, unhealthy));
     }
     // Windows cuts tooltips at 127 characters.
     let mut tip = lines.join("\n");
@@ -470,13 +510,13 @@ mod tests {
     #[test]
     fn levels() {
         use AppState::*;
-        assert_eq!(assess(&[], &none()).0, Level::Idle);
+        assert_eq!(assess(&[], &none()).level, Level::Idle);
         assert_eq!(
-            assess(&[view(Stopped, None, false)], &none()).0,
+            assess(&[view(Stopped, None, false)], &none()).level,
             Level::Idle
         );
         assert_eq!(
-            assess(&[view(Running, None, false)], &none()).0,
+            assess(&[view(Running, None, false)], &none()).level,
             Level::Good
         );
         assert_eq!(
@@ -484,7 +524,7 @@ mod tests {
                 &[view(Running, None, false), view(Starting, None, false)],
                 &none()
             )
-            .0,
+            .level,
             Level::Busy
         );
         assert_eq!(
@@ -492,15 +532,15 @@ mod tests {
                 &[view(Running, None, false), view(Restarting, Some(1), false)],
                 &none()
             )
-            .0,
+            .level,
             Level::Warning
         );
         assert_eq!(
-            assess(&[view(Exited, Some(0), false)], &none()).0,
+            assess(&[view(Exited, Some(0), false)], &none()).level,
             Level::Idle
         );
         assert_eq!(
-            assess(&[view(Exited, Some(3), false)], &none()).0,
+            assess(&[view(Exited, Some(3), false)], &none()).level,
             Level::Warning
         );
         assert_eq!(
@@ -508,7 +548,7 @@ mod tests {
                 &[view(Failed, Some(1), false), view(Restarting, None, false)],
                 &none()
             )
-            .0,
+            .level,
             Level::Bad
         );
         // Disabled apps never count.
@@ -517,7 +557,7 @@ mod tests {
                 &[view(Failed, Some(1), true), view(Running, None, false)],
                 &none()
             )
-            .0,
+            .level,
             Level::Good
         );
         assert_eq!(
@@ -525,9 +565,24 @@ mod tests {
                 &[view(Running, None, false), view(Stopped, None, true)],
                 &none()
             )
-            .2,
+            .total,
             1
         );
+    }
+
+    #[test]
+    fn a_failing_health_check_turns_red() {
+        let mut hung = view(AppState::Running, None, false);
+        hung.health = Some(keeprun_core::model::HealthStatus {
+            ok: false,
+            detail: "No answer within 5 s".into(),
+            checked_at: 0,
+            failures: 1,
+        });
+        let a = assess(std::slice::from_ref(&hung), &none());
+        assert_eq!((a.level, a.unhealthy), (Level::Bad, 1));
+        hung.health.as_mut().unwrap().ok = true;
+        assert_eq!(assess(&[hung], &none()).level, Level::Good);
     }
 
     #[test]
@@ -547,7 +602,7 @@ mod tests {
             ..Default::default()
         };
         // A coding agent is still working in the folder: nothing shows yet.
-        let (level, _, _, _, _, issues) = assess(&apps, &none());
+        let Assessment { level, issues, .. } = assess(&apps, &none());
         assert_eq!((level, issues), (Level::Good, 0));
         assert_eq!(
             tooltip(&text, Some(&apps), &none()).1,
@@ -555,7 +610,7 @@ mod tests {
         );
         // It finished and the errors are still there.
         let settled = HashSet::from(["b".to_string()]);
-        let (level, _, _, _, _, issues) = assess(&apps, &settled);
+        let Assessment { level, issues, .. } = assess(&apps, &settled);
         assert_eq!((level, issues), (Level::Bad, 1));
         assert_eq!(
             tooltip(&text, Some(&apps), &settled).1,
@@ -563,7 +618,12 @@ mod tests {
         );
         // A failed app is red, and not counted again as an issue.
         broken.state = AppState::Failed;
-        let (level, _, _, failed, _, issues) = assess(&[broken], &settled);
+        let Assessment {
+            level,
+            failed,
+            issues,
+            ..
+        } = assess(&[broken], &settled);
         assert_eq!((level, failed, issues), (Level::Bad, 1, 0));
     }
 

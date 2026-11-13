@@ -142,6 +142,10 @@ const catalog: Catalog = {
     one: "{count} app geeft fouten",
     other: "{count} apps geven fouten",
   },
+  "tray.unhealthy": {
+    one: "{count} app reageert niet",
+    other: "{count} apps reageren niet",
+  },
   "tray.copyPrompt": "Herstelprompt voor {name} kopiëren",
   "tray.copied": "Prompt gekopieerd. Plak hem in je codeeragent.",
 

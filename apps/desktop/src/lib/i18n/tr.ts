@@ -142,6 +142,10 @@ const tr: Catalog = {
     one: "{count} uygulama hata veriyor",
     other: "{count} uygulama hata veriyor",
   },
+  "tray.unhealthy": {
+    one: "{count} uygulama yanıt vermiyor",
+    other: "{count} uygulama yanıt vermiyor",
+  },
   "tray.copyPrompt": "{name} için düzeltme istemini kopyala",
   "tray.copied": "İstem kopyalandı. Kodlama ajanınıza yapıştırın.",
 

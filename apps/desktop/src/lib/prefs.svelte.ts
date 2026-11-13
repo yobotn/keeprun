@@ -73,6 +73,7 @@ export function syncTrayText(max: number) {
     failed: Object.fromEntries(counts.map((n) => [n, t("tray.failed", { count: n })])),
     restarting: Object.fromEntries(counts.map((n) => [n, t("tray.restarting", { count: n })])),
     errors: Object.fromEntries(counts.map((n) => [n, t("tray.errors", { count: n })])),
+    unhealthy: Object.fromEntries(counts.map((n) => [n, t("tray.unhealthy", { count: n })])),
     copyPrompt: t("tray.copyPrompt", { name: "{name}" }),
     copied: t("tray.copied"),
   };

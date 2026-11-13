@@ -142,6 +142,10 @@ const catalog: Catalog = {
     one: "{count} App meldet Fehler",
     other: "{count} Apps melden Fehler",
   },
+  "tray.unhealthy": {
+    one: "{count} App antwortet nicht",
+    other: "{count} Apps antworten nicht",
+  },
   "tray.copyPrompt": "Prompt zur Fehlerbehebung für {name} kopieren",
   "tray.copied": "Prompt kopiert. Füge ihn in deinen Coding-Agenten ein.",
 
