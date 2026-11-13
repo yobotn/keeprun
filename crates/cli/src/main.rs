@@ -216,6 +216,18 @@ enum Cmd {
         #[arg(last = true)]
         command: Vec<String>,
     },
+    /// Update an app from Git: fast-forward its branch, run its install task when a lockfile or
+    /// other dependency list changed, then restart it if it runs. Never merges.
+    ///
+    /// Examples:
+    ///   keeprun pull hr-portal
+    ///   keeprun pull hr-portal --no-restart
+    Pull {
+        app: String,
+        /// Pull and install, but leave the app running as it is.
+        #[arg(long)]
+        no_restart: bool,
+    },
     /// Run an MCP server over stdio, so coding agents check status, read logs and restart
     /// apps with typed tools. Tools default to the app in the current folder.
     ///
@@ -869,6 +881,43 @@ async fn run() -> Result<()> {
                     "\nLast run: {what}, {state}, started {}",
                     time(r.started_at)
                 );
+            }
+        }
+        Cmd::Pull { app, no_restart } => {
+            let v: AppView = c.get(&format!("/apps/{app}")).await?;
+            let r = keeprun_core::git::pull(&v.spec.cwd, true).map_err(|e| match e.as_str() {
+                "no-git" => anyhow::anyhow!("Git is not installed or not on PATH."),
+                _ => anyhow::anyhow!("git pull in {}: {e}", v.spec.cwd.display()),
+            })?;
+            let branch = r.status.branch.as_deref().unwrap_or("HEAD");
+            if r.commits == 0 {
+                println!("{} is up to date ({branch}).", v.spec.id);
+                return Ok(());
+            }
+            println!("Pulled {branch}. New commits: {}.", r.commits);
+            if r.dependencies {
+                if v.spec.tasks.iter().any(|t| t.name == "install") {
+                    println!("Dependencies changed. Running the install task.");
+                    let body = RunTask {
+                        name: Some("install".into()),
+                        command: None,
+                    };
+                    let code = run_task(&c, &v.spec.id, &body, false).await?;
+                    if code != 0 {
+                        bail!("The install task failed with exit code {code}. The app was not restarted.");
+                    }
+                } else {
+                    println!(
+                        "Dependencies changed. Install them: {} has no install task (keeprun tasks {} --add install -- <command>).",
+                        v.spec.id, v.spec.id
+                    );
+                }
+            }
+            if !no_restart && v.state.is_active() {
+                let _: AppView = c
+                    .send(Method::POST, &format!("/apps/{}/restart", v.spec.id), &())
+                    .await?;
+                println!("Restarted {}.", v.spec.id);
             }
         }
         Cmd::Run {

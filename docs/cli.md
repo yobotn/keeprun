@@ -33,6 +33,8 @@ keeprun tasks <app> --rm <name>
 keeprun run <app> <task>               Run a saved task. Shows output, exits with its exit code.
 keeprun run <app> -- <command line>    Run a command once in the app folder with the app env
 keeprun logs <app> [-n 200] [-f]       Recent lines, -f to follow
+keeprun pull <app> [--no-restart]      Fast-forward its Git branch, run its install task when
+                                       dependencies changed, then restart it. Never merges.
 keeprun issue <app>                    Errors the app printed while running, as a prompt for a coding agent
 keeprun issue <app> --clear            Dismiss them
 keeprun events [app] [-n 30]           Started, stopped, crashed, restarted, config changed
