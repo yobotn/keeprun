@@ -8,10 +8,58 @@
 //! python.exe started in the folder (`node server.js`). Editors and language servers do not
 //! listen, and a shell or coding agent working in the folder is not a runtime. The copy ends
 //! from its topmost parent that also runs from the folder, with every process under it.
+//!
+//! Dev tools run from the folder too, such as Prisma Studio or Storybook. So Keeprun learns a
+//! [`Fingerprint`] of its own copy while it runs: the command lines and ports of its processes
+//! that listen. Once it knows one, only matching copies count. Until then, every match does.
 
 pub use crate::job::ProcInfo;
-use std::collections::{HashMap, HashSet};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::Path;
+
+/// What Keeprun's own copy of an app looks like, learned while it runs.
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Fingerprint {
+    /// [`signature`]s of its processes that listen.
+    pub commands: BTreeSet<String>,
+    pub ports: BTreeSet<u16>,
+}
+
+impl Fingerprint {
+    pub fn is_empty(&self) -> bool {
+        self.commands.is_empty() && self.ports.is_empty()
+    }
+
+    /// Is this copy the same app? It holds one of its ports, or runs one of its commands.
+    pub fn matches(&self, copy: &Copy, ports: &[u16], probe: Probe) -> bool {
+        ports.iter().any(|p| self.ports.contains(p))
+            || copy.pids.iter().any(|&pid| {
+                probe(pid)
+                    .is_some_and(|i| signature(&i.cmd).is_some_and(|s| self.commands.contains(&s)))
+            })
+    }
+}
+
+/// A command line without its program, quotes, case and number arguments, so the same app
+/// matches however it was started: `"C:\Program Files\nodejs\node.exe" C:\app\server.js`
+/// and `node c:/app/server.js 51234` both give `c:\app\server.js`. None when only the program
+/// is left, which says nothing about the app.
+pub fn signature(cmd: &str) -> Option<String> {
+    let cmd = normalize(cmd);
+    let cmd = cmd.trim_start();
+    // The program may be quoted, with spaces inside: "c:\program files\nodejs\node.exe".
+    let args = match cmd.strip_prefix('"') {
+        Some(rest) => rest.split_once('"')?.1,
+        None => cmd.split_once(char::is_whitespace)?.1,
+    };
+    let args = args.replace('"', " ");
+    let rest: Vec<&str> = args
+        .split_whitespace()
+        .filter(|w| !w.chars().all(|c| c.is_ascii_digit()))
+        .collect();
+    (!rest.is_empty()).then(|| rest.join(" "))
+}
 
 /// A process from a system snapshot.
 pub struct Proc {
@@ -389,6 +437,53 @@ mod tests {
                 pids: vec![13]
             }]
         );
+    }
+
+    #[test]
+    fn signatures_ignore_the_program_quotes_and_numbers() {
+        assert_eq!(
+            signature(r#""C:\Program Files\nodejs\node.exe" C:\App\server.js"#).as_deref(),
+            Some(r"c:\app\server.js")
+        );
+        assert_eq!(
+            signature("node c:/app/server.js 51234").as_deref(),
+            Some(r"c:\app\server.js")
+        );
+        assert_eq!(signature(r#""node.exe""#), None);
+    }
+
+    #[test]
+    fn a_fingerprint_tells_the_app_from_dev_tools_in_its_folder() {
+        let info: HashMap<u32, &str> = HashMap::from([
+            (
+                1,
+                r#""C:\Program Files\nodejs\node.exe" C:\shop\node_modules\next\dist\server\lib\start-server.js"#,
+            ),
+            (2, r"node C:\shop\node_modules\prisma\build\index.js studio"),
+        ]);
+        let probe = |pid: u32| {
+            info.get(&pid).map(|c| ProcInfo {
+                cmd: c.to_string(),
+                started: 0,
+                cwd: None,
+            })
+        };
+        let mut fp = Fingerprint::default();
+        fp.commands.insert(
+            signature(r"node c:\shop\node_modules\next\dist\server\lib\start-server.js").unwrap(),
+        );
+        fp.ports.insert(3000);
+        let copy = |pid| Copy {
+            root: pid,
+            name: "node.exe".into(),
+            pids: vec![pid],
+        };
+        // Same script, another port: Next moved to 3001 because Keeprun's copy holds 3000.
+        assert!(fp.matches(&copy(1), &[3001], &probe));
+        // Prisma Studio on its own port is not the app.
+        assert!(!fp.matches(&copy(2), &[5555], &probe));
+        // Whatever holds the app's port is in its way.
+        assert!(fp.matches(&copy(2), &[3000], &probe));
     }
 
     #[test]

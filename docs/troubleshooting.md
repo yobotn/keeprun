@@ -15,7 +15,9 @@ in the Environment tab.
 **"Another copy is running outside Keeprun."**
 Something else started the same app, for example `npm run dev` in a terminal or a coding
 agent. Keeprun checks every 10 seconds for a process outside Keeprun that listens on a port and
-runs a file from the app folder. Click **End it** on the Overview tab, or start the app in
+runs a file from the app folder. Once Keeprun has seen the app run, only processes that run
+the app's own command or hold its port count, so dev tools such as Prisma Studio or Storybook
+started from the folder are left alone. Click **End it** on the Overview tab, or start the app in
 Keeprun, which ends the copy first. **Tell coding agents** adds a note to the app's
 `CLAUDE.md` (or `AGENTS.md`) so agents use `keeprun logs` and `keeprun restart` instead of
 starting their own copy.

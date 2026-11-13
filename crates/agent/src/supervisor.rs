@@ -92,6 +92,9 @@ struct Managed {
     env_cache: Mutex<EnvCache>,
     /// Copies running outside Keeprun, from the last check.
     outside: Mutex<Vec<OutsideCopy>>,
+    /// What Keeprun's own copy looks like, to tell copies from dev tools in the same folder.
+    /// Saved next to the logs, so it survives agent restarts.
+    fingerprint: Mutex<copies::Fingerprint>,
     /// Last health check of the current run.
     health: Mutex<Option<HealthStatus>>,
     /// Restarted for failed health checks, and no check has passed since. A check that keeps
@@ -373,6 +376,10 @@ impl Supervisor {
 
     fn managed(&self, spec: AppSpec) -> Arc<Managed> {
         let logs = LogHub::new(self.settings.logs_dir().join(&spec.id));
+        let fingerprint = std::fs::read_to_string(self.fingerprint_path(&spec.id))
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok())
+            .unwrap_or_default();
         Arc::new(Managed {
             spec: RwLock::new(spec),
             rt: Mutex::new(Runtime::default()),
@@ -380,6 +387,7 @@ impl Supervisor {
             task: Mutex::new(TaskSlot::default()),
             env_cache: Mutex::default(),
             outside: Mutex::default(),
+            fingerprint: Mutex::new(fingerprint),
             health: Mutex::default(),
             health_restarted: Mutex::default(),
         })
@@ -1201,7 +1209,8 @@ impl Supervisor {
                     for (m, found) in sup.find_copies(&apps) {
                         *m.outside.lock().unwrap() = found
                             .iter()
-                            .map(|(c, ports)| OutsideCopy {
+                            .filter(|(_, _, known)| *known)
+                            .map(|(c, ports, _)| OutsideCopy {
                                 pid: c.root,
                                 name: c.name.clone(),
                                 ports: ports.clone(),
@@ -1214,12 +1223,18 @@ impl Supervisor {
         });
     }
 
-    /// Copies of these apps running outside Keeprun, with the ports each listens on.
+    fn fingerprint_path(&self, id: &str) -> PathBuf {
+        self.settings.logs_dir().join(id).join("fingerprint.json")
+    }
+
+    /// Copies of these apps running outside Keeprun, with the ports each listens on, and
+    /// whether each is known to be the app rather than a dev tool from its folder. Running apps
+    /// also update their fingerprint here.
     #[allow(clippy::type_complexity)]
     fn find_copies(
         &self,
         targets: &[Arc<Managed>],
-    ) -> Vec<(Arc<Managed>, Vec<(copies::Copy, Vec<u16>)>)> {
+    ) -> Vec<(Arc<Managed>, Vec<(copies::Copy, Vec<u16>, bool)>)> {
         let mut own = HashSet::new();
         let mut folders = vec![];
         for m in self.apps.read().unwrap().values() {
@@ -1250,9 +1265,13 @@ impl Supervisor {
             cache.borrow_mut().insert(pid, i.clone());
             i
         };
+        for m in targets {
+            self.learn(m, &ports, &probe);
+        }
         targets
             .iter()
             .map(|m| {
+                let fp = m.fingerprint.lock().unwrap().clone();
                 let folder = copies::folder_key(&m.spec.read().unwrap().cwd);
                 let others: Vec<String> =
                     folders.iter().filter(|f| **f != folder).cloned().collect();
@@ -1266,7 +1285,9 @@ impl Supervisor {
                             .collect();
                         p.sort();
                         p.dedup();
-                        (c, p)
+                        // Until Keeprun has seen the app run, every match counts.
+                        let known = fp.is_empty() || fp.matches(&c, &p, &probe);
+                        (c, p, known)
                     })
                     .collect();
                 (m.clone(), found)
@@ -1376,10 +1397,37 @@ impl Supervisor {
         }
     }
 
-    /// End copies of these apps running outside Keeprun, and wait until they have exited.
+    /// Add what a running app's own processes listen on, and run, to its fingerprint.
+    fn learn(&self, m: &Managed, ports: &[(u32, u16)], probe: copies::Probe) {
+        let Some(job) = m.rt.lock().unwrap().job.clone() else {
+            return;
+        };
+        if m.state() != AppState::Running {
+            return;
+        }
+        let pids: HashSet<u32> = job.process_ids().into_iter().collect();
+        let mut fp = m.fingerprint.lock().unwrap();
+        let before = fp.clone();
+        for &(pid, port) in ports.iter().filter(|(pid, _)| pids.contains(pid)) {
+            fp.ports.insert(port);
+            if let Some(s) = probe(pid).and_then(|i| copies::signature(&i.cmd)) {
+                fp.commands.insert(s);
+            }
+        }
+        if *fp != before {
+            let id = m.spec.read().unwrap().id.clone();
+            if let Ok(json) = serde_json::to_string(&*fp) {
+                let _ = std::fs::write(self.fingerprint_path(&id), json);
+            }
+        }
+    }
+
+    /// End copies of these apps running outside Keeprun, and wait until they have exited. Only
+    /// the ones known to be the app, as shown, so a start never takes down a dev tool such as
+    /// Prisma Studio running from the same folder.
     fn end_copies(&self, targets: &[Arc<Managed>]) {
         for (m, found) in self.find_copies(targets) {
-            for (c, _) in &found {
+            for (c, _, _) in found.iter().filter(|(_, _, known)| *known) {
                 job::kill(&c.pids);
                 let id = m.spec.read().unwrap().id.clone();
                 tracing::info!(app = %id, pid = c.root, "ended a copy running outside Keeprun");
