@@ -31,6 +31,11 @@ certificate, without setting up IIS or nginx.
 Update an app from a Git branch, a zip file or a network share. Previous versions are kept so you
 can roll back with one click or one command.
 
+The first step has shipped: **Pull and restart** on the Overview tab and `keeprun pull <app>`
+fast-forward the app's Git branch, run its install task when dependencies changed, and restart
+it. Still planned: zip files and network shares, scheduled or webhook-triggered updates, and
+rollback to the previous version.
+
 ## Several servers, directory sign-in and an audit log
 
 [Vote on issue #5](https://github.com/yobotn/keeprun/issues/5)

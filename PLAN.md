@@ -2,7 +2,7 @@
 
 Run and manage internal apps on Windows. Pick a folder, click Run, and it stays up.
 
-Status: M0 to M3 built. Next: pilot with existing customers, then v1.1. Last updated 2026-11-10.
+Status: M0 to M3 built, plus the MCP server, Git pull, health checks and outside-copy detection. Next: pilot with existing customers, then v1.1. Last updated 2026-11-13.
 
 ---
 
@@ -223,6 +223,11 @@ Enterprises pay for accountability, not for code. A clone of the repo does not i
 | Port changed with `keeprun-agent set-port` | One command checks the port is free, writes `config.toml` and restarts the service. UI and CLI read the same file. Installers take `KEEPRUN_PORT` (MSI) or `/PORT=` (NSIS). |
 | MSI Repair enabled | The Tauri template sets `ARPNOREPAIR`. Repair is the normal fix for a broken service registration, so the fragment clears it. |
 | Agent drops `NoDefaultCurrentDirectoryInExePath` for apps | Hardened servers set it, which stops `start.bat` in the app folder from being found. |
+| Copies of an app started outside Keeprun are shown, and ended on start | A coding agent running `npm run dev` itself starts a second copy that holds the port and prints errors Keeprun never sees. A copy is a process outside every Keeprun job that listens on a port and runs from the app folder (a file there on its command line, or node.exe and similar started there). Ending them silently every 10 seconds made agents restart them, so the agent only reports them; Start ends them, and **End it** on demand. |
+| Log pane depends on the app id, not the polled app object | The app list is a new object every second. Reading the id through it reconnected the log socket every second, which redrew the pane and replayed the buffer. A replay now only adds lines not shown yet. |
+| `keeprun mcp` is part of the CLI, over stdio | Reuses the CLI's token and API client, so no new port or service. Tools default to the app whose folder holds the client's current folder. Env values are never returned. |
+| Git runs in the desktop app and CLI, never the agent | The service account has none of the user's credentials, and Git refuses repositories another account owns. Pull is fast-forward only. A lockfile change runs the app's `install` task before the restart. |
+| Health checks are plain HTTP to this machine | No client library or TLS in the agent. A check that still fails after its one automatic restart stops restarting, since the check itself is likely wrong. |
 
 ## 11. Open items
 
