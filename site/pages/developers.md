@@ -56,6 +56,11 @@ Invoke-RestMethod http://127.0.0.1:7171/apps -Headers @{ Authorization = "Bearer
 check status, read logs and errors, and restart apps with typed tools. Add it to Claude Code with
 `claude mcp add --scope user keeprun -- keeprun mcp`. See the [MCP server docs](/docs/mcp.html).
 
+In a shell, `kr` is short for `keeprun`, and in an app's folder it needs no app name:
+`kr restart` waits until the app runs and prints its URL or the errors of the new run, and
+`kr migrate` runs the app's migrate task, then restarts it. `kr agent-setup` writes both into the
+app's `CLAUDE.md` or `AGENTS.md`. See [Migrations](/docs/cli.html#migrations).
+
 ## For AI agents
 
 - [llms.txt](/llms.txt): what Keeprun is and links to every docs page in Markdown.

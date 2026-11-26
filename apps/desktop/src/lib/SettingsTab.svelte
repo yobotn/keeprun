@@ -30,6 +30,7 @@
       watch_errors: a.watch_errors,
       health_check: a.health_check ?? "",
       health_restart: a.health_restart ?? false,
+      before_start: a.before_start ?? "",
       tags: a.tags.join(", "),
       port: a.env.PORT ?? "",
     };
@@ -87,6 +88,7 @@
         watch_errors: form.watch_errors,
         health_check: form.health_check.trim(),
         health_restart: form.health_restart,
+        before_start: form.before_start,
         tags: splitTags(form.tags),
       });
       form = fresh(v);
@@ -223,6 +225,19 @@
           </span>
         </label>
       </div>
+
+      {#if app.tasks.length}
+        <div>
+          <label class="label" for="s-before">{t("settings.beforeStart")}</label>
+          <select id="s-before" class="input w-64" bind:value={form.before_start}>
+            <option value="">{t("common.none")}</option>
+            {#each app.tasks as task (task.name)}
+              <option value={task.name}>{task.name}</option>
+            {/each}
+          </select>
+          <p class="hint">{t("settings.beforeStartHint")}</p>
+        </div>
+      {/if}
 
       <div>
         <label class="label" for="s-tags">{t("settings.tags")}</label>

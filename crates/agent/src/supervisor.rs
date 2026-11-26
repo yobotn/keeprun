@@ -10,10 +10,11 @@ use crate::health;
 use crate::job::{self, Job};
 use anyhow::{anyhow, Context, Result};
 use keeprun_core::issue::{self, IssueTracker};
+use keeprun_core::migrate;
 use keeprun_core::model::{
     changed_keys, read_env_file, slugify, AppSpec, AppState, AppView, EnvFileStatus, Event,
-    EventKind, HealthStatus, IssueReport, LogLine, NewApp, OutsideCopy, RestartPolicy, RunTask,
-    Stats, Stream, TaskRun, TaskSpec, UpdateApp,
+    EventKind, HealthStatus, IssueReport, LogLine, MigrationStatus, NewApp, OutsideCopy,
+    RestartPolicy, RunTask, Stats, Stream, TaskRun, TaskSpec, UpdateApp,
 };
 use keeprun_core::Settings;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
@@ -101,6 +102,8 @@ struct Managed {
     /// failing after a restart is likely wrong, e.g. a typo in the path: restarting again
     /// would only loop.
     health_restarted: Mutex<bool>,
+    /// Migration files added since the last successful migrate run, from the last check.
+    migration_files: Mutex<Vec<String>>,
 }
 
 type EnvVars = BTreeMap<String, String>;
@@ -140,6 +143,8 @@ struct Runtime {
     /// Env file variables the current process started with. None without a linked file or
     /// when it could not be read at start.
     env_file_loaded: Option<EnvVars>,
+    /// Starting, and the before-start task runs. No process yet.
+    prestart: bool,
 }
 
 pub struct LogHub {
@@ -148,6 +153,8 @@ pub struct LogHub {
     file: Mutex<Option<(PathBuf, File)>>,
     /// Errors in the app output of the current run. Task output does not count.
     issue: Mutex<IssueTracker>,
+    /// The first line of the current run that says the database needs migrating.
+    migration: Mutex<Option<String>>,
 }
 
 impl LogHub {
@@ -167,6 +174,7 @@ impl LogHub {
             buffer: Mutex::new(VecDeque::with_capacity(LOG_BUFFER_LINES)),
             file: Mutex::new(file),
             issue: Mutex::default(),
+            migration: Mutex::default(),
         }
     }
 
@@ -190,6 +198,13 @@ impl LogHub {
         }
         if !task && stream != Stream::System {
             self.issue.lock().unwrap().feed(&line.text, line.ts);
+            if migrate::is_pending(&line.text) {
+                let mut hint = self.migration.lock().unwrap();
+                if hint.is_none() {
+                    let text = issue::strip_ansi(&line.text);
+                    *hint = Some(text.trim().chars().take(300).collect());
+                }
+            }
         }
         self.write_file(&line);
         let _ = self.tx.send(line);
@@ -237,6 +252,10 @@ impl LogHub {
 
     fn clear_issue(&self) {
         self.issue.lock().unwrap().clear();
+    }
+
+    fn clear_migration(&self) {
+        *self.migration.lock().unwrap() = None;
     }
 }
 
@@ -308,7 +327,17 @@ impl Managed {
         let issue = (spec.watch_errors && state != AppState::Stopped)
             .then(|| self.logs.issue.lock().unwrap().current(now_ms()))
             .flatten();
+        let error = (state != AppState::Stopped)
+            .then(|| self.logs.migration.lock().unwrap().clone())
+            .flatten();
+        let new_files = self.migration_files.lock().unwrap().clone();
+        let migration = (error.is_some() || !new_files.is_empty()).then(|| MigrationStatus {
+            error,
+            new_files,
+            task: migrate::task(&spec.tasks).map(|t| t.name.clone()),
+        });
         AppView {
+            migration,
             spec,
             state,
             pid: rt.pid,
@@ -366,7 +395,7 @@ impl Supervisor {
                 if let Ok(m) = self.get(&stored.spec.id) {
                     if let Some(generation) = Self::begin(&m, None, false) {
                         tracing::info!(app = %stored.spec.id, "autostart");
-                        let _ = self.spawn_run(&m, generation, Trigger::Boot);
+                        let _ = self.launch(&m, generation, Trigger::Boot);
                     }
                 }
             }
@@ -390,6 +419,7 @@ impl Supervisor {
             fingerprint: Mutex::new(fingerprint),
             health: Mutex::default(),
             health_restarted: Mutex::default(),
+            migration_files: Mutex::default(),
         })
     }
 
@@ -507,6 +537,7 @@ impl Supervisor {
             env_file: clean_env_file(new.env_file),
             health_check: None,
             health_restart: false,
+            before_start: None,
         };
         {
             let mut apps = self.apps.write().unwrap();
@@ -526,6 +557,9 @@ impl Supervisor {
                 }
             })?;
             apps.insert(id.clone(), self.managed(spec));
+        }
+        if let Ok(m) = self.get(&id) {
+            self.check_migrations(&m);
         }
         self.event(&id, EventKind::Added, "App added");
         tracing::info!(app = %id, "app added");
@@ -601,6 +635,23 @@ impl Supervisor {
         if let Some(v) = u.health_restart {
             spec.health_restart = v;
         }
+        if let Some(v) = u.before_start {
+            let v = v.trim();
+            spec.before_start = (!v.is_empty()).then(|| v.to_string());
+        }
+        if let Some(task) = &spec.before_start {
+            if !spec.tasks.iter().any(|t| &t.name == task) {
+                return Err(SupError::BadRequest(
+                    if before.before_start.as_ref() == Some(task) {
+                        format!(
+                        "Task \"{task}\" runs before every start, so it cannot be removed. Turn that off first: keeprun set {id} --before-start none"
+                    )
+                    } else {
+                        format!("App \"{id}\" has no task named \"{task}\" to run before start.")
+                    },
+                ));
+            }
+        }
         Self::validate(&spec.name, &spec.cwd, &spec.command)?;
         let env = Self::spec_env(&spec);
         if job::port_of(&env) != job::port_of(&Self::spec_env(&before)) {
@@ -610,6 +661,12 @@ impl Supervisor {
             return self.view(id);
         }
         self.db.update_app(&spec)?;
+        if spec.cwd != before.cwd {
+            // Migrations of the old folder say nothing about the new one.
+            let _ = std::fs::remove_file(self.migrations_path(id));
+            m.migration_files.lock().unwrap().clear();
+            m.logs.clear_migration();
+        }
         let changed = describe_changes(&before, &spec);
         *m.spec.write().unwrap() = spec;
         let running = m.state().is_active();
@@ -697,7 +754,7 @@ impl Supervisor {
             let s = m.state().to_string().to_lowercase();
             return Err(SupError::Conflict(format!("App \"{id}\" is already {s}.")));
         };
-        self.spawn_run(&m, generation, Trigger::User)?;
+        self.launch(&m, generation, Trigger::User)?;
         // A stop may have won the race while the process was being created.
         if m.state().is_active() {
             self.db.set_desired_running(id, true)?;
@@ -814,6 +871,7 @@ impl Supervisor {
 
         // A new run starts clean. Errors from the previous one may already be fixed.
         m.logs.clear_issue();
+        m.logs.clear_migration();
         *m.health.lock().unwrap() = None;
         m.logs.push(
             Stream::System,
@@ -988,6 +1046,25 @@ impl Supervisor {
         let (pid, job, generation) = {
             let mut rt = m.rt.lock().unwrap();
             match rt.state {
+                Some(AppState::Starting) if rt.prestart => {
+                    // The before-start task runs and there is no process yet: end the task.
+                    rt.generation += 1;
+                    rt.state = Some(AppState::Stopped);
+                    rt.prestart = false;
+                    drop(rt);
+                    let mut slot = m.task.lock().unwrap();
+                    if let Some(job) = slot.job.clone() {
+                        slot.stop_requested = true;
+                        job.terminate(1);
+                    }
+                    drop(slot);
+                    m.logs.push(
+                        Stream::System,
+                        "Stopped before start. The before-start task was ended.".into(),
+                    );
+                    self.event(id, EventKind::Stopped, "Stopped before start");
+                    return Ok(());
+                }
                 Some(AppState::Running | AppState::Starting) => {}
                 Some(AppState::Stopping) => {
                     return Err(SupError::Conflict(format!(
@@ -1039,9 +1116,22 @@ impl Supervisor {
 
     /// Run a saved task or a one-off command in the app folder with the app environment.
     /// Returns once the process has started. Output goes to the app log, marked as task output.
+    /// With `restart`, the app restarts once the task succeeds, or starts if it ended or failed.
     pub fn run_task(self: &Arc<Self>, id: &str, req: RunTask) -> Result<AppView, SupError> {
         let m = self.get(id)?;
+        self.start_task(&m, id, req)?;
+        self.view(id)
+    }
+
+    /// Start a task. Returns its sequence number, to wait for its end with `task_end`.
+    fn start_task(
+        self: &Arc<Self>,
+        m: &Arc<Managed>,
+        id: &str,
+        req: RunTask,
+    ) -> Result<u64, SupError> {
         let spec = m.spec.read().unwrap().clone();
+        let restart = req.restart;
         let (name, command) = match (req.name, req.command) {
             (Some(n), None) => {
                 let t = spec.tasks.iter().find(|t| t.name == n).ok_or_else(|| {
@@ -1162,7 +1252,184 @@ impl Supervisor {
             };
             m2.logs.push_line(Stream::System, line, true);
             sup.event(&id2, kind, msg);
+            if stopped || code != Some(0) {
+                return;
+            }
+            let spec = m2.spec.read().unwrap().clone();
+            if migrate::task(&spec.tasks).is_some_and(|t| Some(&t.name) == name.as_ref()) {
+                sup.accept_migrations(&m2);
+            }
+            if restart {
+                let state = m2.state();
+                let result = if state.is_active() {
+                    m2.logs.push(
+                        Stream::System,
+                        format!("Task {label} succeeded. Restarting."),
+                    );
+                    sup.restart(&id2).await.map(|_| ())
+                } else if matches!(state, AppState::Failed | AppState::Exited) {
+                    m2.logs
+                        .push(Stream::System, format!("Task {label} succeeded. Starting."));
+                    sup.start(&id2).map(|_| ())
+                } else {
+                    Ok(())
+                };
+                if let Err(e) = result {
+                    m2.logs.push(
+                        Stream::System,
+                        format!("Restart after the task failed: {e}"),
+                    );
+                }
+            }
         });
+        Ok(seq)
+    }
+
+    /// Wait for task `seq` to end. Returns its exit code, or None when it was stopped, did not
+    /// report one, or a newer task replaced it.
+    async fn task_end(m: &Managed, seq: u64) -> Option<i32> {
+        loop {
+            {
+                let slot = m.task.lock().unwrap();
+                if slot.seq != seq {
+                    return None;
+                }
+                if let Some(r) = slot.run.as_ref().filter(|r| !r.running) {
+                    return if slot.stop_requested {
+                        None
+                    } else {
+                        r.exit_code
+                    };
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+    }
+
+    /// Start a claimed run: right away, or once the before-start task succeeds. Restarts after
+    /// a crash skip that task, so a crash loop never runs a migration again and again.
+    fn launch(
+        self: &Arc<Self>,
+        m: &Arc<Managed>,
+        generation: u64,
+        trigger: Trigger,
+    ) -> Result<(), SupError> {
+        let spec = m.spec.read().unwrap().clone();
+        let Some(task) = spec
+            .before_start
+            .clone()
+            .filter(|_| trigger != Trigger::Restart)
+        else {
+            return self.spawn_run(m, generation, trigger);
+        };
+        m.rt.lock().unwrap().prestart = true;
+        m.logs
+            .push(Stream::System, format!("Running task {task} before start"));
+        let req = RunTask {
+            name: Some(task.clone()),
+            command: None,
+            restart: false,
+        };
+        let seq = match self.start_task(m, &spec.id, req) {
+            Ok(seq) => seq,
+            Err(e) => {
+                let msg = format!(
+                    "Not started: task {task}, which runs before start, did not start: {e}"
+                );
+                self.prestart_failed(m, generation, &msg);
+                return if trigger == Trigger::User {
+                    Err(SupError::Conflict(msg))
+                } else {
+                    Ok(())
+                };
+            }
+        };
+        let sup = self.clone();
+        let m = m.clone();
+        tokio::spawn(async move {
+            let code = Self::task_end(&m, seq).await;
+            {
+                let mut rt = m.rt.lock().unwrap();
+                // A stop during the task ends the start.
+                if rt.generation != generation || rt.state != Some(AppState::Starting) {
+                    return;
+                }
+                rt.prestart = false;
+            }
+            if code == Some(0) {
+                let _ = sup.spawn_run(&m, generation, trigger);
+            } else {
+                let how = code.map_or_else(
+                    || "was stopped".to_string(),
+                    |c| format!("failed with exit code {c}"),
+                );
+                let msg = format!("Not started: task {task}, which runs before start, {how}.");
+                sup.prestart_failed(&m, generation, &msg);
+            }
+        });
+        Ok(())
+    }
+
+    fn prestart_failed(&self, m: &Managed, generation: u64, msg: &str) {
+        let id = m.spec.read().unwrap().id.clone();
+        {
+            let mut rt = m.rt.lock().unwrap();
+            if rt.generation != generation {
+                return;
+            }
+            rt.prestart = false;
+            if rt.state == Some(AppState::Starting) {
+                rt.state = Some(AppState::Failed);
+            }
+        }
+        m.logs.push(Stream::System, msg.to_string());
+        self.event(&id, EventKind::StartFailed, msg);
+    }
+
+    fn migrations_path(&self, id: &str) -> PathBuf {
+        self.settings.logs_dir().join(id).join("migrations.json")
+    }
+
+    /// Compare the app's migration files with the ones known at the last successful migrate
+    /// run. The first check only records them: Keeprun cannot know what ran before it.
+    fn check_migrations(&self, m: &Managed) {
+        let (id, cwd) = {
+            let spec = m.spec.read().unwrap();
+            (spec.id.clone(), spec.cwd.clone())
+        };
+        let now = migrate::files(&cwd);
+        let path = self.migrations_path(&id);
+        let known: Option<Vec<String>> = std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok());
+        let added = match known {
+            Some(k) => migrate::added(&k, &now),
+            None => {
+                if let Ok(json) = serde_json::to_string(&now) {
+                    if let Some(dir) = path.parent() {
+                        let _ = std::fs::create_dir_all(dir);
+                    }
+                    let _ = std::fs::write(&path, json);
+                }
+                vec![]
+            }
+        };
+        *m.migration_files.lock().unwrap() = added;
+    }
+
+    /// The migrations in the folder now count as applied, and an error that asked for them
+    /// is over.
+    fn accept_migrations(&self, m: &Managed) {
+        let id = m.spec.read().unwrap().id.clone();
+        let _ = std::fs::remove_file(self.migrations_path(&id));
+        self.check_migrations(m);
+        m.logs.clear_migration();
+    }
+
+    /// User action: the database is up to date, e.g. migrated from a terminal.
+    pub fn dismiss_migration(&self, id: &str) -> Result<AppView, SupError> {
+        let m = self.get(id)?;
+        self.accept_migrations(&m);
         self.view(id)
     }
 
@@ -1206,6 +1473,9 @@ impl Supervisor {
                         .filter(|m| !m.spec.read().unwrap().disabled)
                         .cloned()
                         .collect();
+                    for m in &apps {
+                        sup.check_migrations(m);
+                    }
                     for (m, found) in sup.find_copies(&apps) {
                         *m.outside.lock().unwrap() = found
                             .iter()
@@ -1583,6 +1853,12 @@ fn describe_changes(a: &AppSpec, b: &AppSpec) -> String {
             None => "health check off".into(),
         });
     }
+    if a.before_start != b.before_start {
+        parts.push(match &b.before_start {
+            Some(t) => format!("task before start to {t}"),
+            None => "task before start off".into(),
+        });
+    }
     if a.health_restart != b.health_restart {
         parts.push(format!(
             "restart on failed health checks to {}",
@@ -1853,6 +2129,7 @@ mod tests {
             RunTask {
                 name: Some("hello".into()),
                 command: None,
+                restart: false,
             },
         )
         .unwrap();
@@ -1874,6 +2151,7 @@ mod tests {
             RunTask {
                 name: None,
                 command: Some("exit /b 3".into()),
+                restart: false,
             },
         )
         .unwrap();
@@ -1885,7 +2163,8 @@ mod tests {
                 &id,
                 RunTask {
                     name: Some("nope".into()),
-                    command: None
+                    command: None,
+                    restart: false,
                 }
             ),
             Err(SupError::NotFound(_))
@@ -1895,6 +2174,7 @@ mod tests {
             RunTask {
                 name: None,
                 command: Some("ping -n 60 127.0.0.1 >nul".into()),
+                restart: false,
             },
         )
         .unwrap();
@@ -1903,7 +2183,8 @@ mod tests {
                 &id,
                 RunTask {
                     name: Some("hello".into()),
-                    command: None
+                    command: None,
+                    restart: false,
                 }
             ),
             Err(SupError::Conflict(_))
@@ -1981,6 +2262,7 @@ mod tests {
             RunTask {
                 name: None,
                 command: Some("echo TypeError: from task".into()),
+                restart: false,
             },
         )
         .unwrap();
@@ -2120,5 +2402,221 @@ mod tests {
             "command, environment (B), start with agent to off"
         );
         assert!(needs_restart(&a, &b));
+    }
+
+    /// A folder of its own, so migration files of one test do not show in another.
+    fn own_folder(s: &Supervisor, id: &str, name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("keeprun-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        s.update(
+            id,
+            UpdateApp {
+                cwd: Some(dir.clone()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        dir
+    }
+
+    fn tasks(list: &[(&str, &str)]) -> UpdateApp {
+        UpdateApp {
+            tasks: Some(
+                list.iter()
+                    .map(|(n, c)| TaskSpec {
+                        name: n.to_string(),
+                        command: c.to_string(),
+                    })
+                    .collect(),
+            ),
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn task_before_start_gates_the_start() {
+        let s = sup("prestart");
+        let id = app(
+            &s,
+            "gated",
+            "echo app-up& ping -n 60 127.0.0.1 >nul",
+            RestartPolicy::Never,
+            0,
+        );
+        s.update(
+            &id,
+            tasks(&[("migrate", "echo migrating"), ("broken", "exit /b 4")]),
+        )
+        .unwrap();
+        // Only a saved task can run before start.
+        assert!(matches!(
+            s.update(
+                &id,
+                UpdateApp {
+                    before_start: Some("nope".into()),
+                    ..Default::default()
+                }
+            ),
+            Err(SupError::BadRequest(_))
+        ));
+        s.update(
+            &id,
+            UpdateApp {
+                before_start: Some("migrate".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // It cannot be removed while it runs before start.
+        assert!(matches!(
+            s.update(&id, tasks(&[("broken", "exit /b 4")])),
+            Err(SupError::BadRequest(_))
+        ));
+
+        s.start(&id).unwrap();
+        assert_eq!(
+            wait_for(&s, &id, AppState::Running, 15).await,
+            AppState::Running
+        );
+        let logs = s.recent_logs(&id, 100).unwrap();
+        let at = |t: &str| logs.iter().position(|l| l.text.contains(t));
+        assert!(at("migrating").unwrap() < at("Started:").unwrap());
+        s.stop(&id).await.unwrap();
+
+        // A failing task keeps the app from starting.
+        s.update(
+            &id,
+            UpdateApp {
+                before_start: Some("broken".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        s.start(&id).unwrap();
+        assert_eq!(
+            wait_for(&s, &id, AppState::Failed, 15).await,
+            AppState::Failed
+        );
+        let logs = s.recent_logs(&id, 20).unwrap();
+        assert!(logs
+            .iter()
+            .any(|l| l.text.contains("Not started: task broken")));
+        assert!(!logs.iter().rev().take(3).any(|l| l.text.contains("app-up")));
+
+        // A stop while the task runs ends the task and the start.
+        s.update(
+            &id,
+            UpdateApp {
+                before_start: Some("slow".into()),
+                ..tasks(&[("slow", "ping -n 60 127.0.0.1 >nul")])
+            },
+        )
+        .unwrap();
+        s.start(&id).unwrap();
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        assert_eq!(s.view(&id).unwrap().state, AppState::Starting);
+        s.stop(&id).await.unwrap();
+        assert_eq!(s.view(&id).unwrap().state, AppState::Stopped);
+        assert!(!wait_task(&s, &id, 5).await.running);
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        assert_eq!(s.view(&id).unwrap().state, AppState::Stopped);
+    }
+
+    #[tokio::test]
+    async fn migration_needed_from_output_and_new_files() {
+        let s = sup("migration");
+        let id = app(
+            &s,
+            "schema",
+            "echo error: relation \"users\" does not exist& ping -n 60 127.0.0.1 >nul",
+            RestartPolicy::Never,
+            0,
+        );
+        let dir = own_folder(&s, &id, "migration-app");
+        s.update(&id, tasks(&[("migrate", "echo applied")]))
+            .unwrap();
+        s.check_migrations(&s.get(&id).unwrap());
+        assert!(s.view(&id).unwrap().migration.is_none());
+
+        // The output says the schema is behind.
+        s.start(&id).unwrap();
+        let mut m = None;
+        for _ in 0..50 {
+            m = s.view(&id).unwrap().migration;
+            if m.is_some() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        let m = m.expect("no migration notice from the output");
+        assert_eq!(
+            m.error.as_deref(),
+            Some("error: relation \"users\" does not exist")
+        );
+        assert_eq!(m.task.as_deref(), Some("migrate"));
+
+        // A new migration file shows too, and a successful migrate run clears both.
+        std::fs::create_dir_all(dir.join("migrations")).unwrap();
+        std::fs::write(dir.join("migrations/0002_users.sql"), "").unwrap();
+        s.check_migrations(&s.get(&id).unwrap());
+        assert_eq!(
+            s.view(&id).unwrap().migration.unwrap().new_files,
+            ["migrations/0002_users.sql"]
+        );
+        s.run_task(
+            &id,
+            RunTask {
+                name: Some("migrate".into()),
+                command: None,
+                restart: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(wait_task(&s, &id, 10).await.exit_code, Some(0));
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert!(s.view(&id).unwrap().migration.is_none());
+
+        // Dismissing accepts new files without running anything.
+        std::fs::write(dir.join("migrations/0003_orders.sql"), "").unwrap();
+        s.check_migrations(&s.get(&id).unwrap());
+        assert!(s.view(&id).unwrap().migration.is_some());
+        assert!(s.dismiss_migration(&id).unwrap().migration.is_none());
+        s.stop(&id).await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn task_with_restart_restarts_the_app() {
+        let s = sup("taskrestart");
+        let id = app(
+            &s,
+            "restarter",
+            "ping -n 60 127.0.0.1 >nul",
+            RestartPolicy::Never,
+            0,
+        );
+        s.start(&id).unwrap();
+        wait_for(&s, &id, AppState::Running, 10).await;
+        let first = s.view(&id).unwrap().pid;
+        s.run_task(
+            &id,
+            RunTask {
+                name: Some("hello".into()),
+                command: None,
+                restart: true,
+            },
+        )
+        .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            let v = s.view(&id).unwrap();
+            if v.state == AppState::Running && v.pid.is_some() && v.pid != first {
+                break;
+            }
+            assert!(Instant::now() < deadline, "not restarted: {:?}", v.state);
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        s.stop(&id).await.unwrap();
     }
 }

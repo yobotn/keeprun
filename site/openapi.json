@@ -224,6 +224,19 @@
         }
       }
     },
+    "/apps/{id}/migration": {
+      "parameters": [{ "$ref": "#/components/parameters/AppId" }],
+      "delete": {
+        "operationId": "dismissAppMigration",
+        "tags": ["Tasks"],
+        "summary": "Mark the database as up to date: forget the new migration files and the error that asked for a migration. Runs nothing.",
+        "responses": {
+          "200": { "description": "The app, without a migration notice.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AppView" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
     "/apps/{id}/events": {
       "parameters": [{ "$ref": "#/components/parameters/AppId" }],
       "get": {
@@ -332,13 +345,28 @@
           "watch_errors": { "type": "boolean", "description": "Watch the output for errors while the app runs, and report them as issue." },
           "env_file": { "type": "string", "description": "Env file read on every start. An empty string unlinks it. Restart a running app to apply." },
           "health_check": { "type": "string", "description": "HTTP check while the app runs: a path on its port such as /health, or a local http:// URL. An empty string removes it.", "examples": ["/health"] },
-          "health_restart": { "type": "boolean", "description": "Restart the app when the health check fails 3 times in a row." }
+          "health_restart": { "type": "boolean", "description": "Restart the app when the health check fails 3 times in a row." },
+          "before_start": { "type": "string", "description": "Saved task to run before every start, restart and agent start, e.g. migrate. The app starts only when it succeeds. Not run on restarts after a crash. An empty string turns it off." }
         }
       },
       "RunTask": {
         "type": "object",
         "description": "Send name for a saved task, or command for a one-off command line.",
-        "properties": { "name": { "type": "string" }, "command": { "type": "string" } }
+        "properties": {
+          "name": { "type": "string" },
+          "command": { "type": "string" },
+          "restart": { "type": "boolean", "default": false, "description": "When the task succeeds, restart the app, or start it if it ended or failed." }
+        }
+      },
+      "MigrationStatus": {
+        "type": "object",
+        "required": ["error", "new_files", "task"],
+        "description": "Why Keeprun thinks the app's database needs migrating.",
+        "properties": {
+          "error": { "type": ["string", "null"], "description": "An output line of the current run that says the schema is behind, e.g. relation \"users\" does not exist." },
+          "new_files": { "type": "array", "items": { "type": "string" }, "description": "Migration files added since the last successful migrate run, relative to the app folder." },
+          "task": { "type": ["string", "null"], "description": "Saved task that applies migrations. Run it with POST /apps/{id}/tasks/run and restart: true. Null when the app has none." }
+        }
       },
       "Stats": {
         "type": "object",
@@ -381,6 +409,7 @@
           "env_file": { "type": "string", "description": "Linked env file. Absent when there is none." },
           "health_check": { "type": "string", "description": "Health check path or local URL. Absent when there is none." },
           "health_restart": { "type": "boolean" },
+          "before_start": { "type": "string", "description": "Saved task run before every start. Absent when there is none." },
           "restart": { "$ref": "#/components/schemas/RestartPolicy" },
           "max_restarts": { "type": "integer" },
           "tasks": { "type": "array", "items": { "$ref": "#/components/schemas/Task" } },
@@ -395,7 +424,8 @@
           "issue": { "oneOf": [{ "$ref": "#/components/schemas/AppIssue" }, { "type": "null" }], "description": "Errors in the output of the current run. Null when there are none, when the app is stopped, or when watch_errors is off." },
           "env_file_status": { "oneOf": [{ "$ref": "#/components/schemas/EnvFileStatus" }, { "type": "null" }], "description": "The linked env file as the agent sees it now. Null when the app has no env file." },
           "health": { "oneOf": [{ "$ref": "#/components/schemas/HealthStatus" }, { "type": "null" }], "description": "Last health check of the current run. Null without a check, before the first one, or when the app does not run." },
-          "outside": { "type": "array", "items": { "$ref": "#/components/schemas/OutsideCopy" }, "description": "Copies of the app running outside Keeprun, e.g. npm run dev started by a coding agent. Checked every 10 seconds." }
+          "outside": { "type": "array", "items": { "$ref": "#/components/schemas/OutsideCopy" }, "description": "Copies of the app running outside Keeprun, e.g. npm run dev started by a coding agent. Checked every 10 seconds." },
+          "migration": { "oneOf": [{ "$ref": "#/components/schemas/MigrationStatus" }, { "type": "null" }], "description": "The database seems to need migrating. Null when nothing says so." }
         }
       },
       "HealthStatus": {

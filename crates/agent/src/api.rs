@@ -6,7 +6,7 @@ use axum::extract::{Path, Query, Request, State};
 use axum::http::{header, HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use keeprun_core::model::{
     ApiError, AppView, Event, Health, IssueReport, NewApp, RunTask, UpdateApp,
@@ -42,6 +42,7 @@ pub fn router(state: AppState) -> Router {
         .route("/apps/{id}/logs", get(logs_ws))
         .route("/apps/{id}/logs/recent", get(recent_logs))
         .route("/apps/{id}/issue", get(app_issue).delete(clear_issue))
+        .route("/apps/{id}/migration", delete(dismiss_migration))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth));
 
     Router::new()
@@ -192,6 +193,14 @@ async fn run_task(
     Json(body): Json<RunTask>,
 ) -> ApiResult<AppView> {
     st.sup.run_task(&id, body).map(Json)
+}
+
+/// The database is up to date: forget the migration files and errors seen so far.
+async fn dismiss_migration(
+    State(st): State<AppState>,
+    Path(id): Path<String>,
+) -> ApiResult<AppView> {
+    st.sup.dismiss_migration(&id).map(Json)
 }
 
 async fn stop_task(State(st): State<AppState>, Path(id): Path<String>) -> ApiResult<AppView> {

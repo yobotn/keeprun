@@ -1,6 +1,6 @@
 <script lang="ts">
   import { openPath, openUrl } from "@tauri-apps/plugin-opener";
-  import { Bot, Copy, ExternalLink, FolderOpen, LoaderCircle, TriangleAlert } from "@lucide/svelte";
+  import { Bot, Copy, Database, ExternalLink, FolderOpen, LoaderCircle, TriangleAlert } from "@lucide/svelte";
   import { api, appPort, desktop, formatBytes, formatDuration, formatTime, isActive, type AppView } from "./api";
   import { t } from "./i18n/index.svelte";
   import EventsList from "./EventsList.svelte";
@@ -128,6 +128,38 @@
     }
   }
 
+  // The database needs migrating: run the migrate task, and the agent restarts the app when
+  // it succeeds, or starts it when it failed on the missing migration.
+  let migrateFor = $state({ id: "", since: 0 });
+  let migrationError = $state("");
+  const migrateRun = $derived(
+    migrateFor.id === app.id && app.task && app.task.started_at >= migrateFor.since ? app.task : null,
+  );
+  const migrating = $derived(!!migrateRun?.running);
+  const migrateFailed = $derived(!!migrateRun && !migrateRun.running && migrateRun.exit_code !== 0);
+  async function migrate(task: string) {
+    migrationError = "";
+    migrateFor = { id: app.id, since: Date.now() - 1000 };
+    try {
+      await api.runTask(app.id, { name: task, restart: true });
+    } catch (e) {
+      migrateFor = { id: "", since: 0 };
+      migrationError = (e as Error).message;
+    }
+  }
+  async function dismissMigration() {
+    migrationError = "";
+    try {
+      await api.dismissMigration(app.id);
+    } catch (e) {
+      migrationError = (e as Error).message;
+    }
+  }
+  // Starting, and the task set to run before start is still running.
+  const prestart = $derived(
+    app.state === "starting" && !app.pid && app.before_start && app.task?.running ? app.before_start : null,
+  );
+
   const policy = $derived({
     never: t("overview.policyNever"),
     "on-failure": t("overview.policyOnFailure"),
@@ -150,6 +182,43 @@
     <p class="alert mb-4" role="alert">
       {t("overview.failed", { max: app.max_restarts })}
     </p>
+  {:else if prestart}
+    <p class="mb-4 flex items-center gap-2 text-xs text-fg-muted" role="status">
+      <LoaderCircle size={13} class="shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+      {t("overview.prestart", { task: prestart })}
+    </p>
+  {/if}
+
+  {#if app.migration}
+    {@const m = app.migration}
+    <div class="alert alert-warn mb-4 flex items-start gap-3" role="status">
+      <Database size={15} class="mt-0.5 shrink-0" aria-hidden="true" />
+      <div class="min-w-0 flex-1">
+        <p class="font-medium">{t("overview.migration")}</p>
+        {#if m.error}
+          <p class="selectable mt-1 truncate font-mono text-[12px]" dir="ltr" title={m.error}>{m.error}</p>
+        {/if}
+        {#if m.new_files.length}
+          <p class="mt-1 text-xs opacity-80">{t("overview.migrationFiles")}</p>
+          <p class="selectable mt-0.5 truncate font-mono text-[12px]" dir="ltr" title={m.new_files.join("\n")}>{m.new_files.join(", ")}</p>
+        {/if}
+        {#if !m.task}<p class="mt-1 text-xs opacity-80">{t("overview.migrationNoTask")}</p>{/if}
+        {#if migrateFailed && migrateRun}
+          <p class="mt-2 text-xs text-danger" role="alert">{t("overview.migrateFailed", { task: migrateRun.name ?? migrateRun.command })}</p>
+        {/if}
+        {#if migrationError}<p class="selectable mt-2 text-xs text-danger" role="alert">{migrationError}</p>{/if}
+      </div>
+      <div class="flex shrink-0 flex-col items-end gap-1.5">
+        {#if m.task}
+          {@const task = m.task}
+          <button class="btn btn-primary" onclick={() => migrate(task)} disabled={migrating} title={t("overview.migrateHint", { task })}>
+            {#if migrating}<LoaderCircle size={13} class="animate-spin motion-reduce:animate-none" aria-hidden="true" />{/if}
+            {t(migrating ? "overview.migrating" : "overview.migrate")}
+          </button>
+        {/if}
+        <button class="text-xs hover:underline" onclick={dismissMigration} disabled={migrating} title={t("overview.migrationDismissHint")}>{t("overview.dismiss")}</button>
+      </div>
+    </div>
   {/if}
 
   {#if app.env_file && envFile?.error}

@@ -123,7 +123,7 @@ or [keeprun.app](https://keeprun.app), then run it as Administrator. It installs
 
 - **Keeprun Agent**, a Windows service that starts with the server
 - **Keeprun**, the desktop app
-- **`keeprun`**, the CLI, added to PATH
+- **`keeprun`**, the CLI, added to PATH, with the short name **`kr`**
 
 Then open Keeprun, press **Add app** (`Ctrl+N`), pick the app folder and choose **Save and start**.
 
@@ -135,6 +135,17 @@ keeprun list                                              # status, CPU, memory,
 keeprun logs hr-portal -f                                 # follow the logs
 keeprun run hr-portal db:migrate                          # run a saved task
 ```
+
+### With coding agents
+
+```powershell
+kr agent-setup     # in the app folder: tells Claude Code, Codex and others to use Keeprun
+kr restart         # what agents run: restart, wait, print the URL or the new errors
+kr migrate         # run the migrate task, then restart
+```
+
+When the database needs migrating, the app shows it and offers **Migrate and restart**.
+Agents see it in `kr status` and the [MCP server](docs/mcp.md).
 
 ### On a fleet
 

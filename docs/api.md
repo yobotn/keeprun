@@ -22,7 +22,8 @@ The full API is described in the [OpenAPI 3.1 specification](https://keeprun.app
 | POST | `/apps/{id}/stop` | | `AppView` |
 | POST | `/apps/{id}/restart` | | `AppView` |
 | POST | `/apps/{id}/outside/end` | | `AppView`. Ends the copies listed in `outside`. Starting the app ends them too. |
-| POST | `/apps/{id}/tasks/run` | `{name}` (saved task) or `{command}` | `AppView` with `task`. Returns once started. 409 if a task is running. |
+| POST | `/apps/{id}/tasks/run` | `{name}` (saved task) or `{command}`, and `restart: true` to restart the app when it succeeds | `AppView` with `task`. Returns once started. 409 if a task is running. |
+| DELETE | `/apps/{id}/migration` | | `AppView`. The database is up to date: clears `migration` without running anything. |
 | POST | `/apps/{id}/tasks/stop` | | `AppView`. Ends the task's process tree. |
 | GET | `/apps/{id}/logs/recent` | `?tail=200` | `LogLine[]` |
 | WS | `/apps/{id}/logs` | `?token=` | Buffered lines, then live `LogLine` JSON messages |
@@ -57,7 +58,12 @@ AppView = NewApp & {
   health_restart: boolean;                           // restart after 3 failed checks in a row
   health: HealthStatus | null;                       // last check of the current run
   outside: OutsideCopy[];                            // copies running outside Keeprun
+  before_start?: string;                             // saved task run before every start; PATCH "" turns it off
+  migration: MigrationStatus | null;                 // the database seems to need migrating
 }
+// error: an output line of this run that says the schema is behind (strong). new_files:
+// migrations added since the last successful migrate run (soft). task: the migrate task.
+MigrationStatus = { error: string | null; new_files: string[]; task: string | null }
 // A copy of the app started outside Keeprun, e.g. `npm run dev` by a coding agent: a process
 // that listens on a port and runs a file from the app folder. Checked every 10 seconds.
 OutsideCopy = { pid: number; name: string; ports: number[] }

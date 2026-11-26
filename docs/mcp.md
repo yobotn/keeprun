@@ -34,26 +34,33 @@ without naming it.
 | Tool | What it does |
 |---|---|
 | `list_apps` | Every app with state, URL, folder, command and current errors |
-| `app_status` | State, URL, ports, CPU, memory, restarts, errors, health check, env variable names, tasks, and copies running outside Keeprun |
+| `app_status` | State, URL, ports, CPU, memory, restarts, errors, health check, env variable names, tasks, copies running outside Keeprun, and `migration_needed` when the database needs migrating |
 | `read_logs` | Recent output, with `tail`, `errors_only` and `search` |
 | `get_errors` | Errors the app printed while running, as a ready fix prompt |
 | `list_events` | Started, stopped, crashed, restarted, config changed |
 | `start_app` | Start, end copies running outside Keeprun, and wait until it runs |
 | `stop_app` | Stop the app and its process tree |
 | `restart_app` | Restart and wait until it runs. Returns the first output of the new run |
+| `migrate_app` | Run the app's migrate task, then restart it. Returns the task output and the new run |
 | `run_task` | Run a saved task and return its output. Only with `--allow-tasks` |
 
 ## Options
 
 ```text
-keeprun mcp                  Read tools plus start, stop and restart
+keeprun mcp                  Read tools plus start, stop, restart and migrate
 keeprun mcp --read-only      Only status, logs, errors and events
 keeprun mcp --allow-tasks    Also run saved tasks (build, migrate, test)
 keeprun mcp --env dev        Use the dev agent
 ```
 
-Adding or removing apps, changing variables and running arbitrary commands are not available
-through MCP. Use the desktop app or the CLI for those.
+`migrate_app` runs only the app's saved migrate task, and never one that creates, resets or rolls
+back migrations. See [Migrations](cli.md#migrations). Adding or removing apps, changing
+variables and running arbitrary commands are not available through MCP. Use the desktop app or
+the CLI for those.
+
+`keeprun agent-setup` in an app folder adds this server to Claude Code and writes a note to the
+app's `CLAUDE.md` or `AGENTS.md`. Agents that only have a shell use `kr restart` and
+`kr migrate` from that note.
 
 ## Why use it
 

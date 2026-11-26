@@ -37,6 +37,8 @@ pub struct Pulled {
     pub commits: u32,
     /// A file that lists dependencies changed, so they need installing.
     pub dependencies: bool,
+    /// A migration was added or changed, so the database may need migrating.
+    pub migrations: bool,
     pub status: GitStatus,
 }
 
@@ -207,8 +209,8 @@ pub fn pull(cwd: &Path, interactive: bool) -> Result<Pulled, String> {
     )?;
     let after = git(cwd, &["rev-parse", "HEAD"], false, QUICK)?;
     let (before, after) = (before.trim(), after.trim());
-    let (commits, dependencies) = if before == after {
-        (0, false)
+    let (commits, dependencies, migrations) = if before == after {
+        (0, false, false)
     } else {
         let range = format!("{before}..{after}");
         let commits = git(cwd, &["rev-list", "--count", &range], false, QUICK)?
@@ -217,11 +219,16 @@ pub fn pull(cwd: &Path, interactive: bool) -> Result<Pulled, String> {
             .unwrap_or(0);
         // Paths relative to the app folder's repository root.
         let files = git(cwd, &["diff", "--name-only", before, after], false, QUICK)?;
-        (commits, files.lines().any(lists_dependencies))
+        (
+            commits,
+            files.lines().any(lists_dependencies),
+            files.lines().any(crate::migrate::is_migration_path),
+        )
     };
     Ok(Pulled {
         commits,
         dependencies,
+        migrations,
         status: status(cwd)?,
     })
 }
@@ -284,6 +291,8 @@ mod tests {
         assert_eq!(s.commit.as_ref().unwrap().subject, "First");
 
         std::fs::write(origin.join("package-lock.json"), "{}").unwrap();
+        std::fs::create_dir_all(origin.join("prisma/migrations/2_add")).unwrap();
+        std::fs::write(origin.join("prisma/migrations/2_add/migration.sql"), "").unwrap();
         run(&origin, &["add", "."]);
         run(&origin, &["commit", "-q", "-m", "Lock"]);
         let fetched = fetch(&clone).unwrap();
@@ -291,6 +300,7 @@ mod tests {
 
         let p = pull(&clone, false).unwrap();
         assert_eq!((p.commits, p.dependencies, p.status.behind), (1, true, 0));
+        assert!(p.migrations);
         let again = pull(&clone, false).unwrap();
         assert_eq!((again.commits, again.dependencies), (0, false));
 

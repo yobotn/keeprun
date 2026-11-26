@@ -4,7 +4,7 @@
 
 Run `Keeprun_<version>_x64-setup.exe` or `Keeprun_<version>_x64_en-US.msi`. The installer:
 
-- installs the desktop app, the `keeprun-agent` service and the `keeprun` CLI,
+- installs the desktop app, the `keeprun-agent` service and the `keeprun` CLI, also as `kr`,
 - adds **Open with Keeprun** to the Explorer menu for folders,
 - registers the **Keeprun Agent** service (starts on boot, restarts itself if it crashes),
 - gives the installing user access to the agent, and adds the CLI to PATH.
@@ -68,7 +68,11 @@ work when the service runs as LocalSystem, which does not see per-user tools on 
 - When the app folder is in a Git repository, the Overview tab shows the branch, commits to pull
   or push, uncommitted changes and the last commit. **Pull and restart** fast-forwards the
   branch (it never merges), runs the app's `install` task when a lockfile or other dependency
-  list changed, then restarts the app. Git runs as you, with your credentials.
+  list changed and its migrate task when a migration changed, then restarts the app. Git runs
+  as you, with your credentials.
+- When the database needs migrating, because the app prints an error such as
+  `relation "users" does not exist` or a new migration file arrived, the Overview tab says so
+  and offers **Migrate and restart**. See [Migrations](cli.md#migrations).
 - When something else runs a copy of the app, such as `npm run dev` started by a coding agent,
   the Overview tab says so and offers **End it**. **Tell coding agents** adds a note to the
   app's `CLAUDE.md` or `AGENTS.md` so they use Keeprun instead, or connect them with the

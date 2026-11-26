@@ -89,6 +89,10 @@ pub struct AppSpec {
     /// Restart the app when the health check fails 3 times in a row.
     #[serde(default)]
     pub health_restart: bool,
+    /// Saved task run before the app starts, e.g. "migrate". The app starts only when it
+    /// succeeds. Runs on start, restart and agent start, never on a restart after a crash.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub before_start: Option<String>,
 }
 
 /// A saved one-off command for an app. Runs in the app folder with the app environment.
@@ -103,6 +107,9 @@ pub struct TaskSpec {
 pub struct RunTask {
     pub name: Option<String>,
     pub command: Option<String>,
+    /// When the task succeeds, restart the app, or start it if it ended or failed.
+    #[serde(default)]
+    pub restart: bool,
 }
 
 /// The running or most recent task of an app.
@@ -164,6 +171,8 @@ pub struct UpdateApp {
     /// Health check path or local URL. An empty string removes it.
     pub health_check: Option<String>,
     pub health_restart: Option<bool>,
+    /// Saved task to run before every start. An empty string turns it off.
+    pub before_start: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -249,6 +258,23 @@ pub struct AppView {
     /// when the app does not run.
     #[serde(default)]
     pub health: Option<HealthStatus>,
+    /// The database seems to need migrating. None when nothing says so.
+    #[serde(default)]
+    pub migration: Option<MigrationStatus>,
+}
+
+/// Why Keeprun thinks an app's database needs migrating.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MigrationStatus {
+    /// An output line of the current run that says so, e.g. "relation \"users\" does not
+    /// exist". The strong signal.
+    pub error: Option<String>,
+    /// Migration files added since the last successful migrate run, relative to the app
+    /// folder. The soft signal: a migration applied from a terminal also shows here.
+    #[serde(default)]
+    pub new_files: Vec<String>,
+    /// Saved task that applies migrations. None when the app has none.
+    pub task: Option<String>,
 }
 
 /// Result of the health check.

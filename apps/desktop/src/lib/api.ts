@@ -49,6 +49,18 @@ export interface AppSpec {
   health_check?: string | null;
   /** Restart when the health check fails 3 times in a row. */
   health_restart?: boolean;
+  /** Saved task run before every start, e.g. "migrate". The app starts only when it succeeds. */
+  before_start?: string | null;
+}
+
+/** Why Keeprun thinks the app's database needs migrating. */
+export interface MigrationStatus {
+  /** An output line of the current run that says so. The strong signal. */
+  error: string | null;
+  /** Migration files added since the last successful migrate run. */
+  new_files: string[];
+  /** Saved task that applies migrations. Null when the app has none. */
+  task: string | null;
 }
 
 /** Last health check of the current run. */
@@ -117,6 +129,7 @@ export interface AppView extends AppSpec {
   /** Copies of the app running outside Keeprun, e.g. `npm run dev` by a coding agent. */
   outside: OutsideCopy[];
   health: HealthStatus | null;
+  migration: MigrationStatus | null;
 }
 
 /** Git state of an app folder, read as the signed-in user. */
@@ -135,6 +148,8 @@ export interface GitPulled {
   commits: number;
   /** A lockfile or other dependency list changed. */
   dependencies: boolean;
+  /** A migration was added or changed. */
+  migrations: boolean;
   status: GitStatus;
 }
 
@@ -145,7 +160,7 @@ export interface OutsideCopy {
 }
 
 export type NewApp = Omit<AppSpec, "id" | "disabled" | "watch_errors"> & { watch_errors?: boolean };
-/** `env_file: ""` unlinks the env file. */
+/** `env_file: ""` unlinks the env file, `before_start: ""` turns it off. */
 export type UpdateApp = Partial<NewApp> & { disabled?: boolean };
 
 /** PORT the app gets: set in Keeprun, else from its env file. */
@@ -262,11 +277,14 @@ export const api = {
   start: (id: string) => call<AppView>("POST", `/apps/${enc(id)}/start`),
   stop: (id: string) => call<AppView>("POST", `/apps/${enc(id)}/stop`),
   restart: (id: string) => call<AppView>("POST", `/apps/${enc(id)}/restart`),
-  runTask: (id: string, task: { name?: string; command?: string }) =>
+  /** With `restart`, the agent restarts the app once the task succeeds, or starts it if it ended or failed. */
+  runTask: (id: string, task: { name?: string; command?: string; restart?: boolean }) =>
     call<AppView>("POST", `/apps/${enc(id)}/tasks/run`, task),
   stopTask: (id: string) => call<AppView>("POST", `/apps/${enc(id)}/tasks/stop`),
   issue: (id: string) => call<IssueReport>("GET", `/apps/${enc(id)}/issue`),
   clearIssue: (id: string) => call<AppView>("DELETE", `/apps/${enc(id)}/issue`),
+  /** The database is up to date: forget the new migration files and errors seen so far. */
+  dismissMigration: (id: string) => call<AppView>("DELETE", `/apps/${enc(id)}/migration`),
   endOutside: (id: string) => call<AppView>("POST", `/apps/${enc(id)}/outside/end`),
   events: (id: string, limit = 100) => call<AppEvent[]>("GET", `/apps/${enc(id)}/events?limit=${limit}`),
   async logSocket(id: string): Promise<WebSocket> {
@@ -299,6 +317,8 @@ export const desktop = {
   gitFetch: (cwd: string) => invoke<GitStatus>("git_fetch", { cwd }),
   /** Fast-forward only. Rejects with Git's message when it cannot. */
   gitPull: (cwd: string) => invoke<GitPulled>("git_pull", { cwd }),
+  /** The saved task that applies database migrations, as `kr migrate` picks it. */
+  migrateTask: (tasks: TaskSpec[]) => invoke<string | null>("migrate_task", { tasks }),
   /** Folder Keeprun was started with from the Explorer menu, once. */
   takeLaunchFolder: () => invoke<string | null>("take_launch_folder"),
 };

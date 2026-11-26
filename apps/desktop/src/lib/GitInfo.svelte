@@ -1,6 +1,7 @@
 <script lang="ts">
   // Git state of the app folder, and a pull that brings the app up to date: fast-forward,
-  // install dependencies when a lockfile changed, restart when it runs. Rendered as one row of
+  // install dependencies when a lockfile changed, migrate when a migration changed, restart
+  // when it runs. Rendered as one row of
   // the Overview details list. Nothing shows when the folder is not in a Git repository.
   import { ArrowDown, ArrowUp, Download, FilePen, GitBranch, LoaderCircle } from "@lucide/svelte";
   import { api, desktop, formatTime, isActive, type AppView, type GitStatus } from "./api";
@@ -71,6 +72,20 @@
         parts.push(t("git.installed"));
       } else if (r.dependencies) {
         parts.push(t("git.noInstallTask"));
+      }
+      if (r.migrations) {
+        const task = await desktop.migrateTask(app.tasks);
+        if (task) {
+          const since = Date.now() - 1000;
+          await api.runTask(id, { name: task });
+          if (!(await taskSucceeded(id, since))) {
+            error = [...parts, t("git.migrateFailed", { task })].join(" ");
+            return;
+          }
+          parts.push(t("git.migrated"));
+        } else {
+          parts.push(t("git.noMigrateTask"));
+        }
       }
       if (restart) {
         await api.restart(id);

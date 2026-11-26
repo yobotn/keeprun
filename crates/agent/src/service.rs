@@ -217,6 +217,7 @@ pub fn install(
                 Ok(false) => {}
                 Err(e) => eprintln!("Warning: {e:#}"),
             }
+            add_short_name(dir);
         }
     }
 
@@ -301,6 +302,40 @@ fn add_to_users_group(user: &str) {
     net(&["localgroup", USERS_GROUP, user, "/add"]);
 }
 
+/// `kr`, the short name of the CLI that coding agents are told to use.
+const SHORT_NAME: &str = "kr.exe";
+
+/// Put `kr.exe`, a copy of the CLI, next to `keeprun.exe`. Every install and upgrade copies it
+/// again, so it always matches. Skipped when another `kr` is on PATH: it would win or lose
+/// depending on PATH order, and run the wrong tool either way.
+fn add_short_name(dir: &std::path::Path) {
+    let other = std::env::var_os("PATH").and_then(|path| {
+        std::env::split_paths(&path)
+            .filter(|d| !d.as_os_str().is_empty() && !same_dir(d, dir))
+            .flat_map(|d| ["kr.exe", "kr.cmd", "kr.bat"].map(|f| d.join(f)))
+            .find(|p| p.is_file())
+    });
+    if let Some(p) = other {
+        eprintln!(
+            "Warning: {} is another `kr` on PATH, so Keeprun did not add its own. Use `keeprun` instead.",
+            p.display()
+        );
+        return;
+    }
+    if let Err(e) = std::fs::copy(dir.join("keeprun.exe"), dir.join(SHORT_NAME)) {
+        eprintln!("Warning: could not add kr.exe, the short name of keeprun.exe: {e}");
+    }
+}
+
+fn same_dir(a: &std::path::Path, b: &std::path::Path) -> bool {
+    let key = |p: &std::path::Path| {
+        p.to_string_lossy()
+            .trim_end_matches(['\\', '/'])
+            .to_lowercase()
+    };
+    key(a) == key(b)
+}
+
 pub fn uninstall(settings: &Settings) -> Result<()> {
     let manager = ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)
         .context(
@@ -331,6 +366,7 @@ pub fn uninstall(settings: &Settings) -> Result<()> {
     if settings.env == Env::Prod {
         if let Some(dir) = std::env::current_exe()?.parent() {
             let _ = crate::syspath::remove(dir);
+            let _ = std::fs::remove_file(dir.join(SHORT_NAME));
         }
     }
     println!(

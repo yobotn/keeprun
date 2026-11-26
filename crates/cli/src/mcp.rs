@@ -6,12 +6,12 @@
 //! Tools that take an app default to the app whose folder holds the current folder: an agent
 //! started in a project folder names nothing.
 
-use crate::Client;
+use crate::{enc, owner, Client};
 use anyhow::{anyhow, bail, Context, Result};
 use keeprun_core::model::{AppState, AppView, Event, IssueReport, LogLine, RunTask, Stream};
 use reqwest::Method;
 use serde_json::{json, Value};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
@@ -110,7 +110,9 @@ impl Server {
                 Do not start an app Keeprun runs yourself (npm run dev and similar): a second \
                 copy fights over the port and its errors never reach Keeprun. Read its logs \
                 and errors here, and restart it here after changing config or dependencies. \
-                Tools default to the app in the current folder."
+                When app_status shows migration_needed, call migrate_app: it runs the app's \
+                migrate task and restarts the app. Tools default to the app in the current \
+                folder. In a shell, `kr` is short for `keeprun` (kr restart, kr migrate)."
         })
     }
 
@@ -131,7 +133,7 @@ impl Server {
             json!({
                 "name": "app_status",
                 "title": "App status",
-                "description": "State, URL, ports, CPU, memory, uptime, restarts and current errors of one app, plus copies running outside Keeprun.",
+                "description": "State, URL, ports, CPU, memory, uptime, restarts and current errors of one app, whether its database needs migrating, plus copies running outside Keeprun.",
                 "inputSchema": { "type": "object", "properties": { "app": app } },
                 "annotations": read_only,
             }),
@@ -185,6 +187,19 @@ impl Server {
                     "annotations": { "destructiveHint": name == "stop_app", "idempotentHint": name != "restart_app", "openWorldHint": false },
                 }));
             }
+            tools.push(json!({
+                "name": "migrate_app",
+                "title": "Migrate and restart",
+                "description": "Apply pending database migrations: run the app's saved migrate task (never one that creates, resets or rolls back migrations), then restart the app, or start it if it failed. Returns the task output and the state of the new run. Use it when app_status shows migration_needed, or after adding or pulling a migration.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "app": app,
+                        "restart": { "type": "boolean", "default": true, "description": "Restart the app after a successful migration." }
+                    }
+                },
+                "annotations": { "destructiveHint": true, "openWorldHint": false },
+            }));
         }
         if self.access.tasks {
             tools.push(json!({
@@ -217,7 +232,10 @@ impl Server {
     }
 
     async fn run(&self, name: &str, args: &Value) -> Result<String> {
-        let control = matches!(name, "start_app" | "stop_app" | "restart_app");
+        let control = matches!(
+            name,
+            "start_app" | "stop_app" | "restart_app" | "migrate_app"
+        );
         if control && !self.access.control {
             bail!("This Keeprun MCP server is read-only. Start it without --read-only to allow {name}.");
         }
@@ -347,31 +365,48 @@ impl Server {
                 } else {
                     "restart"
                 };
-                let since = crate::now_ms();
-                let _: AppView = self
-                    .client
-                    .send(
-                        Method::POST,
-                        &format!("/apps/{}/{verb}", enc(&a.spec.id)),
-                        &json!({}),
-                    )
-                    .await?;
-                let a = self.settle(&a.spec.id).await?;
-                let lines: Vec<LogLine> = self
-                    .client
-                    .get(&format!("/apps/{}/logs/recent?tail=40", enc(&a.spec.id)))
-                    .await?;
-                // From the new run's start line on: a restart first logs the old run stopping.
-                let recent: Vec<&LogLine> = lines.iter().filter(|l| l.ts >= since).collect();
-                let from = recent
-                    .iter()
-                    .rposition(|l| l.stream == Stream::System && l.text.starts_with("Started:"))
-                    .unwrap_or(0);
-                let new: Vec<String> = recent[from..].iter().map(|l| log_line(l)).collect();
-                let mut text = to_text(&detail(&a));
-                if !new.is_empty() {
-                    text.push_str("\n\nOutput of the new run:\n");
-                    text.push_str(&new.join("\n"));
+                self.start(&a.spec.id, verb).await
+            }
+            "migrate_app" => {
+                let a = self.app(args).await?;
+                let restart = args.get("restart").and_then(Value::as_bool).unwrap_or(true);
+                let Some(task) = keeprun_core::migrate::task(&a.spec.tasks) else {
+                    bail!(
+                        "{} has no migrate task. Ask the user to add one, e.g. `keeprun tasks {} --add migrate -- npx prisma migrate deploy`.",
+                        a.spec.id,
+                        a.spec.id
+                    );
+                };
+                let (code, output) = self.run_saved(&a.spec.id, &task.name).await?;
+                let head = match code {
+                    Some(0) => format!("Migrate task \"{}\" succeeded.", task.name),
+                    Some(c) => format!(
+                        "Migrate task \"{}\" failed with exit code {c}. The app was not restarted.",
+                        task.name
+                    ),
+                    None => format!(
+                        "Migrate task \"{}\" did not finish in 10 minutes. Read its output later with read_logs.",
+                        task.name
+                    ),
+                };
+                let mut text = format!("{head}\n\n{output}");
+                if code == Some(0) && restart {
+                    let now: AppView = self
+                        .client
+                        .get(&format!("/apps/{}", enc(&a.spec.id)))
+                        .await?;
+                    let verb = match now.state {
+                        s if s.is_active() => Some("restart"),
+                        AppState::Failed | AppState::Exited => Some("start"),
+                        _ => None,
+                    };
+                    match verb {
+                        Some(v) => {
+                            text.push_str("\n\n");
+                            text.push_str(&self.start(&a.spec.id, v).await?);
+                        }
+                        None => text.push_str("\n\nThe app is stopped and was left stopped."),
+                    }
                 }
                 Ok(text)
             }
@@ -405,53 +440,13 @@ impl Server {
                         }
                     );
                 }
-                let since = crate::now_ms();
-                let body = RunTask {
-                    name: Some(task.into()),
-                    command: None,
+                let (code, output) = self.run_saved(&a.spec.id, task).await?;
+                let head = match code {
+                    Some(0) => format!("Task \"{task}\" succeeded."),
+                    Some(c) => format!("Task \"{task}\" failed with exit code {c}."),
+                    None => format!("Task \"{task}\" is still running after 10 minutes, or ended without an exit code. Read its output with read_logs."),
                 };
-                let _: AppView = self
-                    .client
-                    .send(
-                        Method::POST,
-                        &format!("/apps/{}/tasks/run", enc(&a.spec.id)),
-                        &body,
-                    )
-                    .await?;
-                // Wait for the task to end, up to 10 minutes.
-                let mut run = None;
-                for _ in 0..1200 {
-                    tokio::time::sleep(Duration::from_millis(500)).await;
-                    let v: AppView = self
-                        .client
-                        .get(&format!("/apps/{}", enc(&a.spec.id)))
-                        .await?;
-                    if let Some(t) = v.task.filter(|t| t.started_at >= since && !t.running) {
-                        run = Some(t);
-                        break;
-                    }
-                }
-                let lines: Vec<LogLine> = self
-                    .client
-                    .get(&format!(
-                        "/apps/{}/logs/recent?tail={MAX_LOG_LINES}",
-                        enc(&a.spec.id)
-                    ))
-                    .await?;
-                let output: Vec<String> = lines
-                    .iter()
-                    .filter(|l| l.task && l.ts >= since)
-                    .map(log_line)
-                    .collect();
-                let head = match &run {
-                    Some(t) => match t.exit_code {
-                        Some(0) => format!("Task \"{task}\" succeeded."),
-                        Some(c) => format!("Task \"{task}\" failed with exit code {c}."),
-                        None => format!("Task \"{task}\" ended."),
-                    },
-                    None => format!("Task \"{task}\" is still running after 10 minutes. Read its output later with read_logs."),
-                };
-                Ok(format!("{head}\n\n{}", output.join("\n")))
+                Ok(format!("{head}\n\n{output}"))
             }
             _ => bail!("Unknown tool \"{name}\"."),
         }
@@ -481,49 +476,73 @@ impl Server {
         })
     }
 
-    /// Wait up to 20 seconds for a start to settle: running with a port, or not active.
-    async fn settle(&self, id: &str) -> Result<AppView> {
-        let mut last = None;
-        for i in 0..40 {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-            let a: AppView = self.client.get(&format!("/apps/{}", enc(id))).await?;
-            let listening = a.stats.as_ref().is_some_and(|s| !s.ports.is_empty());
-            let done = match a.state {
-                AppState::Running => listening || a.issue.is_some() || i >= 20,
-                AppState::Starting | AppState::Stopping => false,
-                _ => true,
-            };
-            if done {
-                return Ok(a);
-            }
-            last = Some(a);
+    /// Start or restart, wait for it to settle, and describe the new run.
+    async fn start(&self, id: &str, verb: &str) -> Result<String> {
+        let since = crate::now_ms();
+        let _: AppView = self
+            .client
+            .send(
+                Method::POST,
+                &format!("/apps/{}/{verb}", enc(id)),
+                &json!({}),
+            )
+            .await?;
+        let a = self.client.settle(id).await?;
+        let lines: Vec<LogLine> = self
+            .client
+            .get(&format!("/apps/{}/logs/recent?tail=60", enc(id)))
+            .await?;
+        // From the new run's start line on: a restart first logs the old run stopping.
+        let recent: Vec<&LogLine> = lines.iter().filter(|l| l.ts >= since).collect();
+        let from = recent
+            .iter()
+            .rposition(|l| l.stream == Stream::System && l.text.starts_with("Started:"))
+            .unwrap_or(0);
+        let new: Vec<String> = recent[from..].iter().map(|l| log_line(l)).collect();
+        let mut text = to_text(&detail(&a));
+        if !new.is_empty() {
+            text.push_str("\n\nOutput of the new run:\n");
+            text.push_str(&new.join("\n"));
         }
-        last.context("The app did not answer.")
+        Ok(text)
     }
-}
 
-/// The app whose folder is the current folder or holds it. The deepest wins.
-fn owner<'a>(apps: &'a [AppView], cwd: &Path) -> Option<&'a AppView> {
-    let key = |p: &Path| {
-        let mut s = p.to_string_lossy().replace('/', "\\").to_lowercase();
-        if !s.ends_with('\\') {
-            s.push('\\');
+    /// Run a saved task and wait for it, up to 10 minutes. Returns its exit code (None when
+    /// it did not end or gave none) and its output.
+    async fn run_saved(&self, id: &str, task: &str) -> Result<(Option<i32>, String)> {
+        let since = crate::now_ms();
+        let body = RunTask {
+            name: Some(task.into()),
+            command: None,
+            restart: false,
+        };
+        let _: AppView = self
+            .client
+            .send(Method::POST, &format!("/apps/{}/tasks/run", enc(id)), &body)
+            .await?;
+        let mut code = None;
+        for _ in 0..1200 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            let v: AppView = self.client.get(&format!("/apps/{}", enc(id))).await?;
+            if let Some(t) = v.task.filter(|t| t.started_at >= since && !t.running) {
+                code = t.exit_code;
+                break;
+            }
         }
-        s
-    };
-    let here = key(cwd);
-    apps.iter()
-        .filter(|a| here.starts_with(&key(&a.spec.cwd)))
-        .max_by_key(|a| a.spec.cwd.as_os_str().len())
-}
-
-fn enc(id: &str) -> String {
-    id.bytes()
-        .map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' => (b as char).to_string(),
-            _ => format!("%{b:02X}"),
-        })
-        .collect()
+        let lines: Vec<LogLine> = self
+            .client
+            .get(&format!(
+                "/apps/{}/logs/recent?tail={MAX_LOG_LINES}",
+                enc(id)
+            ))
+            .await?;
+        let output: Vec<String> = lines
+            .iter()
+            .filter(|l| l.task && l.ts >= since)
+            .map(log_line)
+            .collect();
+        Ok((code, output.join("\n")))
+    }
 }
 
 fn time(ts: u64) -> String {
@@ -581,6 +600,23 @@ fn summary(a: &AppView) -> Value {
     if !a.outside.is_empty() {
         v["outside_copies"] = json!(a.outside);
     }
+    if let Some(m) = &a.migration {
+        let mut why = json!({});
+        if let Some(e) = &m.error {
+            why["error"] = json!(e);
+        }
+        if !m.new_files.is_empty() {
+            why["new_migration_files"] = json!(m.new_files);
+        }
+        why["fix"] = json!(match &m.task {
+            Some(t) => format!("Call migrate_app. It runs the \"{t}\" task and restarts the app."),
+            None => format!(
+                "The app has no migrate task. Ask the user to add one: keeprun tasks {} --add migrate -- <command>",
+                a.spec.id
+            ),
+        });
+        v["migration_needed"] = why;
+    }
     v
 }
 
@@ -611,6 +647,9 @@ fn detail(a: &AppView) -> Value {
     if let Some(f) = &a.spec.env_file {
         v["env_file"] = json!(f);
     }
+    if let Some(t) = &a.spec.before_start {
+        v["task_before_start"] = json!(t);
+    }
     if !a.spec.tasks.is_empty() {
         v["tasks"] = json!(a
             .spec
@@ -625,6 +664,7 @@ fn detail(a: &AppView) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
 
     fn app(id: &str, cwd: &str) -> AppView {
         serde_json::from_value(json!({

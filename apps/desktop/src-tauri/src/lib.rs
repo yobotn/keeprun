@@ -200,6 +200,7 @@ pub fn run() {
             git::git_status,
             git::git_fetch,
             git::git_pull,
+            git::migrate_task,
             tray::set_tray_enabled,
             tray::agent_waiting,
             tray::set_tray_text,

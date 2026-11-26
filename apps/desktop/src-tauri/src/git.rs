@@ -1,6 +1,7 @@
 //! Git commands for the UI. The work is in `keeprun_core::git` and runs as the signed-in user.
 
 use keeprun_core::git::{GitStatus, Pulled};
+use keeprun_core::model::TaskSpec;
 use std::path::Path;
 
 /// None when the folder is not in a Git repository or Git is not installed.
@@ -19,4 +20,11 @@ pub fn git_fetch(cwd: String) -> Result<GitStatus, String> {
 #[tauri::command(async)]
 pub fn git_pull(cwd: String) -> Result<Pulled, String> {
     keeprun_core::git::pull(Path::new(&cwd), true)
+}
+
+/// The saved task that applies database migrations, as `keeprun migrate` picks it. Pull runs
+/// it when migrations changed.
+#[tauri::command]
+pub fn migrate_task(tasks: Vec<TaskSpec>) -> Option<String> {
+    keeprun_core::migrate::task(&tasks).map(|t| t.name.clone())
 }
