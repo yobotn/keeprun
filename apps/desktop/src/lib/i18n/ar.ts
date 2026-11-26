@@ -269,7 +269,7 @@ const ar: Catalog = {
     other: "{count} سطر",
   },
   "logs.errors": "الأخطاء",
-  "logs.errorsHint": "إظهار stderr فقط (E)",
+  "logs.errorsHint": "إظهار الأخطاء وتتبعات المكدس فقط (E)",
   "logs.resume": "استئناف (P)",
   "logs.pause": "إيقاف مؤقت (P)",
   "logs.copy": "نسخ الأسطر الظاهرة",

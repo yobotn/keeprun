@@ -241,7 +241,7 @@ const catalog: Catalog = {
   "logs.searchTask": "Aufgabenausgabe durchsuchen",
   "logs.lines": { one: "{count} Zeile", other: "{count} Zeilen" },
   "logs.errors": "Fehler",
-  "logs.errorsHint": "Nur stderr anzeigen (E)",
+  "logs.errorsHint": "Nur Fehler und ihre Stacktraces anzeigen (E)",
   "logs.resume": "Fortsetzen (P)",
   "logs.pause": "Anhalten (P)",
   "logs.copy": "Sichtbare Zeilen kopieren",

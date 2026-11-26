@@ -258,7 +258,7 @@ const catalog: Catalog = {
     other: "{count} рядка",
   },
   "logs.errors": "Помилки",
-  "logs.errorsHint": "Показувати лише stderr (E)",
+  "logs.errorsHint": "Показувати лише помилки та їхні трасування (E)",
   "logs.resume": "Продовжити (P)",
   "logs.pause": "Призупинити (P)",
   "logs.copy": "Копіювати видимі рядки",

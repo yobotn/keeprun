@@ -487,7 +487,8 @@
           "ts": { "type": "integer", "description": "Unix time in milliseconds." },
           "stream": { "type": "string", "enum": ["stdout", "stderr", "system"] },
           "text": { "type": "string" },
-          "task": { "type": "boolean", "description": "Present and true for task output." }
+          "task": { "type": "boolean", "description": "Present and true for task output." },
+          "level": { "type": ["string", "null"], "enum": ["error", "warn", null], "description": "Judged by the text, not the stream: an error line or a line of the stack trace or code frame under one, a warning, or null. Tools also print notices and progress to stderr." }
         }
       },
       "Event": {

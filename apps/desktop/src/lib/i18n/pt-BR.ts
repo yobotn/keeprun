@@ -253,7 +253,7 @@ const catalog: Catalog = {
     other: "{count} linhas",
   },
   "logs.errors": "Erros",
-  "logs.errorsHint": "Mostrar só stderr (E)",
+  "logs.errorsHint": "Mostrar só erros e seus stack traces (E)",
   "logs.resume": "Retomar (P)",
   "logs.pause": "Pausar (P)",
   "logs.copy": "Copiar linhas visíveis",

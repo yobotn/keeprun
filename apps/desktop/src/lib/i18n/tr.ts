@@ -241,7 +241,7 @@ const tr: Catalog = {
   "logs.searchTask": "Görev çıktısında ara",
   "logs.lines": { one: "{count} satır", other: "{count} satır" },
   "logs.errors": "Hatalar",
-  "logs.errorsHint": "Yalnızca stderr göster (E)",
+  "logs.errorsHint": "Yalnızca hataları ve yığın izlerini göster (E)",
   "logs.resume": "Sürdür (P)",
   "logs.pause": "Duraklat (P)",
   "logs.copy": "Görünen satırları kopyala",

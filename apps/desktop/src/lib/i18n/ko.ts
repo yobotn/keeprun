@@ -239,7 +239,7 @@ const catalog: Catalog = {
   "logs.searchTask": "작업 출력 검색",
   "logs.lines": { other: "{count}줄" },
   "logs.errors": "오류",
-  "logs.errorsHint": "stderr만 표시 (E)",
+  "logs.errorsHint": "오류와 스택 추적만 표시 (E)",
   "logs.resume": "계속 (P)",
   "logs.pause": "일시 중지 (P)",
   "logs.copy": "표시된 줄 복사",

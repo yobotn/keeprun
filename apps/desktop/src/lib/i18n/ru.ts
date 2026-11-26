@@ -258,7 +258,7 @@ const catalog: Catalog = {
     other: "{count} строки",
   },
   "logs.errors": "Ошибки",
-  "logs.errorsHint": "Показывать только stderr (E)",
+  "logs.errorsHint": "Показывать только ошибки и их трассировки (E)",
   "logs.resume": "Продолжить (P)",
   "logs.pause": "Приостановить (P)",
   "logs.copy": "Копировать видимые строки",

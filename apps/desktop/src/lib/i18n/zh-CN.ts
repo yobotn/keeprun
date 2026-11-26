@@ -240,7 +240,7 @@ const catalog: Catalog = {
   "logs.searchTask": "搜索任务输出",
   "logs.lines": { other: "{count} 行" },
   "logs.errors": "错误",
-  "logs.errorsHint": "仅显示 stderr (E)",
+  "logs.errorsHint": "仅显示错误及其堆栈跟踪 (E)",
   "logs.resume": "继续 (P)",
   "logs.pause": "暂停 (P)",
   "logs.copy": "复制可见行",

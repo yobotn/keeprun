@@ -241,7 +241,7 @@ const catalog: Catalog = {
   "logs.searchTask": "Taakuitvoer doorzoeken",
   "logs.lines": { one: "{count} regel", other: "{count} regels" },
   "logs.errors": "Fouten",
-  "logs.errorsHint": "Alleen stderr weergeven (E)",
+  "logs.errorsHint": "Alleen fouten en hun stacktraces weergeven (E)",
   "logs.resume": "Hervatten (P)",
   "logs.pause": "Onderbreken (P)",
   "logs.copy": "Zichtbare regels kopiëren",

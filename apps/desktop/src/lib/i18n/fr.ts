@@ -258,7 +258,7 @@ const catalog: Catalog = {
   "logs.searchTask": "Rechercher dans la sortie de la tâche",
   "logs.lines": { one: "{count} ligne", many: "{count} lignes", other: "{count} lignes" },
   "logs.errors": "Erreurs",
-  "logs.errorsHint": "Afficher uniquement stderr (E)",
+  "logs.errorsHint": "Afficher uniquement les erreurs et leurs traces (E)",
   "logs.resume": "Reprendre (P)",
   "logs.pause": "Suspendre (P)",
   "logs.copy": "Copier les lignes visibles",

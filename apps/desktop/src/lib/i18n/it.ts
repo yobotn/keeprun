@@ -254,7 +254,7 @@ const catalog: Catalog = {
   "logs.searchTask": "Cerca nell'output dell'attività",
   "logs.lines": { one: "{count} riga", many: "{count} righe", other: "{count} righe" },
   "logs.errors": "Errori",
-  "logs.errorsHint": "Mostra solo stderr (E)",
+  "logs.errorsHint": "Mostra solo gli errori e i loro stack trace (E)",
   "logs.resume": "Riprendi (P)",
   "logs.pause": "Sospendi (P)",
   "logs.copy": "Copia righe visibili",

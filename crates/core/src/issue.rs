@@ -6,7 +6,7 @@
 //! a browser retrying a broken page 60 times still gives one short excerpt. A successful
 //! request or build after the errors stop clears it, and so does a new run.
 
-use crate::model::{format_utc, AppIssue, AppState, AppView, Event};
+use crate::model::{format_utc, AppIssue, AppState, AppView, Event, LogLevel};
 use std::collections::VecDeque;
 
 /// Lines kept before the error line, e.g. the file name Next.js prints above it.
@@ -156,6 +156,97 @@ pub fn classify(line: &str) -> Signal {
         Signal::Ok
     } else {
         Signal::Other
+    }
+}
+
+/// A warning sign line (U+26A0) as Next.js prints it, `npm warn`, `(node:42) DeprecationWarning`, `UserWarning: ...`.
+fn is_warning(s: &str) -> bool {
+    let lower = s.to_ascii_lowercase();
+    let first = s.split_whitespace().next().unwrap_or("");
+    s.starts_with('\u{26a0}')
+        || s.starts_with('▲') && lower.contains("warn")
+        || ["warn", "warning", "[warn", "npm warn", "deprecated"]
+            .iter()
+            .any(|p| lower.starts_with(p))
+        || (lower.starts_with("(node:") && lower.contains("warning"))
+        || first
+            .strip_suffix(':')
+            .is_some_and(|w| w.ends_with("Warning"))
+}
+
+/// npm's own chatter, such as `npm notice New minor version of npm available`.
+fn is_notice(s: &str) -> bool {
+    let lower = s.to_ascii_lowercase();
+    [
+        "npm notice",
+        "npm info",
+        "npm http",
+        "npm timing",
+        "npm verb",
+    ]
+    .iter()
+    .any(|p| lower.starts_with(p))
+}
+
+/// A line that belongs to the error above it: an indented stack frame (`    at start
+/// (server.mjs:141:11)`), a code frame (`> 141 |`, `  139 |`, `      |    ^`) or a cause.
+fn continues_error(raw: &str) -> bool {
+    let s = strip_ansi(raw);
+    let t = s.trim_start();
+    if t.is_empty() {
+        return false;
+    }
+    s.starts_with([' ', '\t'])
+        || t.starts_with('|')
+        || (t.starts_with('>')
+            && t[1..]
+                .trim_start()
+                .starts_with(|c: char| c.is_ascii_digit()))
+        || t.starts_with("Caused by")
+        || t.starts_with("cause:")
+        || t.starts_with("[cause]")
+}
+
+/// Longest stack trace or code frame kept under an error.
+const BLOCK_MAX: u32 = 60;
+
+/// Gives each line of output its level. An error marks the stack trace and code frame below
+/// it as error lines too. Feed lines in order, one tracker per stream of lines (app or task).
+#[derive(Debug, Default)]
+pub struct Levels {
+    /// Lines of the current error block so far. 0 outside one.
+    block: u32,
+}
+
+impl Levels {
+    pub fn next(&mut self, line: &str) -> Option<LogLevel> {
+        let s = clean(line);
+        if s.is_empty() {
+            // Blank lines inside a trace do not end it.
+            return None;
+        }
+        if is_notice(&s) {
+            self.block = 0;
+            return None;
+        }
+        if is_warning(&s) {
+            self.block = 0;
+            return Some(LogLevel::Warn);
+        }
+        match classify(line) {
+            Signal::Error => {
+                self.block = 1;
+                Some(LogLevel::Error)
+            }
+            _ if self.block > 0 && self.block < BLOCK_MAX && continues_error(line) => {
+                self.block += 1;
+                Some(LogLevel::Error)
+            }
+            _ => {
+                self.block = 0;
+                None
+            }
+        }
     }
 }
 
@@ -481,6 +572,41 @@ mod tests {
             signature("⨯ Error at 12:01:02 pid 4411"),
             signature("Error at 9:59:59 pid 7")
         );
+    }
+
+    #[test]
+    fn levels_follow_the_text_not_the_stream() {
+        use LogLevel::*;
+        let mut l = Levels::default();
+        let lines = [
+            ("> invoice-extractor@0.1.0 predev", None),
+            ("pdf.js assets copied to public/pdfjs", None),
+            ("\u{25b2} Next.js 16.4.4 (Turbopack)", None),
+            ("\u{2713} Ready in 3.0s", None),
+            ("\u{26a0} Warning: Next.js ignored package-lock.json in C:\\Users\\YB", Some(Warn)),
+            (" To use this directory, set `turbopack.root` in your Next.js config.", None),
+            ("Error: An error occurred while loading instrumentation hook: Postgres did not start", Some(Error)),
+            ("    at start (lib\\db\\server.mjs:141:11)", Some(Error)),
+            ("    at async dbReady (lib\\db\\client.ts:107:17)", Some(Error)),
+            ("  139 |     const connection = pgConnection(dataDir);", Some(Error)),
+            ("> 141 |     throw new Error(`Postgres did not start`);", Some(Error)),
+            ("      |           ^", Some(Error)),
+            ("SYNCHRONOUS TERMINATION NOTICE: When explicitly exiting the process", None),
+            ("npm notice New minor version of npm available! 11.6.2 -> 11.21.3", None),
+            ("npm warn deprecated inflight@1.0.6", Some(Warn)),
+            ("(node:4120) DeprecationWarning: The punycode module is deprecated.", Some(Warn)),
+            ("/app/views.py:3: UserWarning: x", None),
+            ("UserWarning: x", Some(Warn)),
+            ("   indented after a plain line", None),
+            ("TypeError: x is undefined", Some(Error)),
+            ("", None),
+            ("    at f (a.js:1:1)", Some(Error)),
+            ("GET / 200 in 5ms", None),
+            ("    at g (a.js:2:2)", None),
+        ];
+        for (line, want) in lines {
+            assert_eq!(l.next(line), want, "{line}");
+        }
     }
 
     #[test]

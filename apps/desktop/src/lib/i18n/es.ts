@@ -254,7 +254,7 @@ const catalog: Catalog = {
   "logs.searchTask": "Buscar en la salida de la tarea",
   "logs.lines": { one: "{count} línea", many: "{count} líneas", other: "{count} líneas" },
   "logs.errors": "Errores",
-  "logs.errorsHint": "Mostrar solo stderr (E)",
+  "logs.errorsHint": "Mostrar solo errores y sus trazas (E)",
   "logs.resume": "Reanudar (P)",
   "logs.pause": "Pausar (P)",
   "logs.copy": "Copiar líneas visibles",

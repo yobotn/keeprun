@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ArrowDown, Copy, Eraser, Pause, Play, Search } from "@lucide/svelte";
-  import { api, config, formatTime, type LogLine } from "./api";
+  import { api, config, formatTime, isErrorLine, type LogLine } from "./api";
   import { locale, t } from "./i18n/index.svelte";
   import SourceText from "./SourceText.svelte";
 
@@ -63,7 +63,7 @@
     return lines.filter(
       (l) =>
         (taskSince === undefined || (l.task && l.ts >= taskSince)) &&
-        (!errorsOnly || l.stream === "stderr") &&
+        (!errorsOnly || isErrorLine(l)) &&
         (!q || l.text.toLowerCase().includes(q)),
     );
   });
@@ -259,11 +259,13 @@
             <span class="shrink-0 select-none text-accent" title={t("logs.taskBadgeHint")}>{t("logs.taskBadge")}</span>
           {/if}
           <span
-            class="min-w-0 whitespace-pre-wrap break-all {l.stream === 'stderr'
+            class="min-w-0 whitespace-pre-wrap break-all {isErrorLine(l)
               ? 'text-danger'
-              : l.stream === 'system'
-                ? 'text-fg-muted'
-                : ''}"><SourceText text={l.text} {cwd} onerror={showFileError} /></span
+              : l.level === 'warn'
+                ? 'text-warn'
+                : l.stream === 'system'
+                  ? 'text-fg-muted'
+                  : ''}"><SourceText text={l.text} {cwd} onerror={showFileError} /></span
           >
         </div>
       {/each}

@@ -8,7 +8,9 @@
 
 use crate::{enc, owner, Client};
 use anyhow::{anyhow, bail, Context, Result};
-use keeprun_core::model::{AppState, AppView, Event, IssueReport, LogLine, RunTask, Stream};
+use keeprun_core::model::{
+    AppState, AppView, Event, IssueReport, LogLevel, LogLine, RunTask, Stream,
+};
 use reqwest::Method;
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -140,13 +142,13 @@ impl Server {
             json!({
                 "name": "read_logs",
                 "title": "Read logs",
-                "description": "Recent output of an app, oldest first. stderr lines are marked ERR, Keeprun's own lines SYS.",
+                "description": "Recent output of an app, oldest first. Errors and the stack traces under them are marked ERR, warnings WRN, Keeprun's own lines SYS.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "app": app,
                         "tail": { "type": "integer", "minimum": 1, "maximum": MAX_LOG_LINES, "default": 200, "description": "Number of recent lines." },
-                        "errors_only": { "type": "boolean", "default": false, "description": "Only stderr lines." },
+                        "errors_only": { "type": "boolean", "default": false, "description": "Only error lines, with the stack traces and code frames under them. Notices and warnings that tools print to stderr are left out." },
                         "search": { "type": "string", "description": "Only lines that contain this text, ignoring case." }
                     }
                 },
@@ -295,7 +297,7 @@ impl Server {
                     .await?;
                 let picked: Vec<&LogLine> = lines
                     .iter()
-                    .filter(|l| !errors_only || l.stream == Stream::Stderr)
+                    .filter(|l| !errors_only || l.level == Some(LogLevel::Error))
                     .filter(|l| {
                         search
                             .as_ref()
@@ -550,10 +552,11 @@ fn time(ts: u64) -> String {
 }
 
 fn log_line(l: &LogLine) -> String {
-    let tag = match l.stream {
-        Stream::Stdout => "   ",
-        Stream::Stderr => "ERR",
-        Stream::System => "SYS",
+    let tag = match (l.stream, l.level) {
+        (Stream::System, _) => "SYS",
+        (_, Some(LogLevel::Error)) => "ERR",
+        (_, Some(LogLevel::Warn)) => "WRN",
+        _ => "   ",
     };
     let task = if l.task { " task" } else { "" };
     format!("{} {tag}{task} {}", time(l.ts), l.text)

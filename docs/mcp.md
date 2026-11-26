@@ -35,7 +35,7 @@ without naming it.
 |---|---|
 | `list_apps` | Every app with state, URL, folder, command and current errors |
 | `app_status` | State, URL, ports, CPU, memory, restarts, errors, health check, env variable names, tasks, copies running outside Keeprun, and `migration_needed` when the database needs migrating |
-| `read_logs` | Recent output, with `tail`, `errors_only` and `search` |
+| `read_logs` | Recent output, with `tail`, `errors_only` (errors and their stack traces, not every stderr line) and `search` |
 | `get_errors` | Errors the app printed while running, as a ready fix prompt |
 | `list_events` | Started, stopped, crashed, restarted, config changed |
 | `start_app` | Start, end copies running outside Keeprun, and wait until it runs |

@@ -408,6 +408,16 @@ pub enum Stream {
     System,
 }
 
+/// What a line of output reports, judged by its text. stderr alone says nothing: npm, Next.js
+/// and many other tools print notices, warnings and progress there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    /// An error, or a line of the stack trace or code frame under one.
+    Error,
+    Warn,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogLine {
     /// Unix time in milliseconds.
@@ -417,6 +427,10 @@ pub struct LogLine {
     /// Output of a task rather than the app itself.
     #[serde(default, skip_serializing_if = "is_false")]
     pub task: bool,
+    /// Error or warning, by the text of the line. Null for other lines. Always sent, so a
+    /// client can tell it from an older agent that did not set it.
+    #[serde(default)]
+    pub level: Option<LogLevel>,
 }
 
 fn is_false(b: &bool) -> bool {

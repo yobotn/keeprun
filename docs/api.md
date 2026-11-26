@@ -75,7 +75,9 @@ EnvFileStatus = { keys: string[]; port: number | null; changed: string[]; error:
 // First error and its output once, repeats only raise count. Cleared by a new run, a
 // successful request or build after the errors stop, or 15 minutes without a new error.
 AppIssue = { first_at: number; last_at: number; count: number; summary: string; excerpt: string[] }
-LogLine = { ts: number; stream: "stdout" | "stderr" | "system"; text: string }
+// level is judged by the text, not the stream: "error" for an error and the stack trace or
+// code frame under it, "warn" for a warning, null otherwise. Tools print notices to stderr too.
+LogLine = { ts: number; stream: "stdout" | "stderr" | "system"; text: string; level: "error" | "warn" | null }
 Event = { id: number; app_id: string; ts: number; kind: string; message: string }
 ```
 

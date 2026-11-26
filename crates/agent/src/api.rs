@@ -257,6 +257,7 @@ async fn stream_logs(
                         stream: keeprun_core::model::Stream::System,
                         text: format!("{n} lines skipped because the client was too slow."),
                         task: false,
+                        level: None,
                     };
                     if send(&mut socket, &note).await.is_err() { return }
                 }

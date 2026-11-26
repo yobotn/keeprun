@@ -174,7 +174,12 @@ export interface LogLine {
   text: string;
   /** Output of a task rather than the app. */
   task?: boolean;
+  /** Error or warning by the text of the line; null for other lines. Absent from older agents. */
+  level?: "error" | "warn" | null;
 }
+
+/** An error line, or a line of the trace under one. Older agents only tell the stream. */
+export const isErrorLine = (l: LogLine) => (l.level === undefined ? l.stream === "stderr" : l.level === "error");
 
 export interface AppEvent {
   id: number;

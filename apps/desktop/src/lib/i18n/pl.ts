@@ -260,7 +260,7 @@ const catalog: Catalog = {
     other: "{count} wiersza",
   },
   "logs.errors": "Błędy",
-  "logs.errorsHint": "Pokaż tylko stderr (E)",
+  "logs.errorsHint": "Pokaż tylko błędy i ich ślady stosu (E)",
   "logs.resume": "Wznów (P)",
   "logs.pause": "Wstrzymaj (P)",
   "logs.copy": "Kopiuj widoczne wiersze",

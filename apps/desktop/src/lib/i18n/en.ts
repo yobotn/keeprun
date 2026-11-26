@@ -240,7 +240,7 @@ export const en = {
   "logs.searchTask": "Search task output",
   "logs.lines": { one: "{count} line", other: "{count} lines" },
   "logs.errors": "Errors",
-  "logs.errorsHint": "Show only stderr (E)",
+  "logs.errorsHint": "Show only errors and their stack traces (E)",
   "logs.resume": "Resume (P)",
   "logs.pause": "Pause (P)",
   "logs.copy": "Copy visible lines",

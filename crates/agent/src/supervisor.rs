@@ -9,7 +9,7 @@ use crate::db::Db;
 use crate::health;
 use crate::job::{self, Job};
 use anyhow::{anyhow, Context, Result};
-use keeprun_core::issue::{self, IssueTracker};
+use keeprun_core::issue::{self, IssueTracker, Levels};
 use keeprun_core::migrate;
 use keeprun_core::model::{
     changed_keys, read_env_file, slugify, AppSpec, AppState, AppView, EnvFileStatus, Event,
@@ -155,6 +155,8 @@ pub struct LogHub {
     issue: Mutex<IssueTracker>,
     /// The first line of the current run that says the database needs migrating.
     migration: Mutex<Option<String>>,
+    /// Error and warning levels of app output, and of task output, each in order.
+    levels: Mutex<(Levels, Levels)>,
 }
 
 impl LogHub {
@@ -175,6 +177,7 @@ impl LogHub {
             file: Mutex::new(file),
             issue: Mutex::default(),
             migration: Mutex::default(),
+            levels: Mutex::default(),
         }
     }
 
@@ -183,11 +186,26 @@ impl LogHub {
     }
 
     fn push_line(&self, stream: Stream, text: String, task: bool) {
+        // Terminal codes such as colors or `ESC[?25h` (show the cursor) mean nothing here.
+        let text = if text.contains('\u{1b}') {
+            issue::strip_ansi(&text)
+        } else {
+            text
+        };
+        let level = match stream {
+            Stream::System => None,
+            _ => {
+                let mut levels = self.levels.lock().unwrap();
+                let tracker = if task { &mut levels.1 } else { &mut levels.0 };
+                tracker.next(&text)
+            }
+        };
         let line = LogLine {
             ts: now_ms(),
             stream,
             text,
             task,
+            level,
         };
         {
             let mut buf = self.buffer.lock().unwrap();

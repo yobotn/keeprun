@@ -250,7 +250,7 @@ const he: Catalog = {
   "logs.searchTask": "חיפוש בפלט המשימה",
   "logs.lines": { one: "שורה אחת", two: "שתי שורות", other: "{count} שורות" },
   "logs.errors": "שגיאות",
-  "logs.errorsHint": "הצגת stderr בלבד (E)",
+  "logs.errorsHint": "הצגת שגיאות ועקבות המחסנית שלהן בלבד (E)",
   "logs.resume": "המשך (P)",
   "logs.pause": "השהיה (P)",
   "logs.copy": "העתקת השורות המוצגות",
