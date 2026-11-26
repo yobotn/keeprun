@@ -33,7 +33,34 @@ export const prefs = $state({
   collapsed: (read("keeprun.collapsed") ?? "").split(",").filter(Boolean),
   /** Where file paths in app output open: the first editor found, one editor, or the default app. */
   editor: readEditor(),
+  /** Minutes between background Git fetches of the open app. 0: only on refresh. */
+  gitFetchMinutes: readFetchMinutes(),
+  /** Windows notification when a background check finds commits to pull. On by default. */
+  gitNotify: read("keeprun.gitNotify") !== "off",
 });
+
+export const fetchIntervals = [0, 1, 5, 15, 30] as const;
+
+function readFetchMinutes(): number {
+  const v = Number(read("keeprun.gitFetchMinutes") ?? 5);
+  return (fetchIntervals as readonly number[]).includes(v) ? v : 5;
+}
+
+export function setFetchMinutes(minutes: number) {
+  prefs.gitFetchMinutes = minutes;
+  write("keeprun.gitFetchMinutes", String(minutes));
+}
+
+export function setGitNotify(on: boolean) {
+  prefs.gitNotify = on;
+  write("keeprun.gitNotify", on ? "on" : "off");
+}
+
+/** Send the background Git check settings and notification text to the shell. */
+export function syncGitWatch() {
+  const text = { title: t("notify.gitTitle", { name: "{name}" }), body: t("notify.gitBody", { count: "{count}", upstream: "{upstream}" }) };
+  desktop.setGitWatch(prefs.gitFetchMinutes, prefs.gitNotify, text).catch(() => {});
+}
 
 function readEditor(): Editor {
   const v = read("keeprun.editor");

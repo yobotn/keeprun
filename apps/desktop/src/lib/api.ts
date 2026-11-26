@@ -142,6 +142,31 @@ export interface GitStatus {
   /** Changed and untracked files. */
   changed: number;
   commit: { hash: string; subject: string; author: string; time: number } | null;
+  /** How the branch compares with its remote, as of the last fetch. */
+  sync: GitSync;
+  /** The remote's default branch, e.g. "origin/main". */
+  default_branch: string | null;
+}
+
+export type GitSync =
+  | "in_sync"
+  | "behind"
+  | "ahead"
+  | "diverged"
+  | "merged"
+  | "gone"
+  | "no_upstream"
+  | "no_remote"
+  | "detached";
+
+/** The last fetch of a folder. Sent as the `git-checked` event after each one. */
+export interface GitChecked {
+  cwd: string;
+  /** Unix ms of the last successful fetch. */
+  at: number | null;
+  /** Why the last fetch failed. Null when it worked. */
+  error: string | null;
+  status: GitStatus | null;
 }
 
 export interface GitPulled {
@@ -320,6 +345,13 @@ export const desktop = {
   gitStatus: (cwd: string) => invoke<GitStatus | null>("git_status", { cwd }),
   /** Fetch without asking for credentials, then the state. */
   gitFetch: (cwd: string) => invoke<GitStatus>("git_fetch", { cwd }),
+  /** The last fetch of a folder, by the UI or the background check. */
+  gitChecked: (cwd: string) => invoke<GitChecked | null>("git_checked", { cwd }),
+  /** Commits to pull per folder, as of the last fetch. */
+  gitBehind: () => invoke<Record<string, number>>("git_behind"),
+  /** Background checks: minutes between them (0: off), notifications, and their text. */
+  setGitWatch: (minutes: number, notify: boolean, text: { title: string; body: string }) =>
+    invoke<void>("set_git_watch", { minutes, notify, text }),
   /** Fast-forward only. Rejects with Git's message when it cannot. */
   gitPull: (cwd: string) => invoke<GitPulled>("git_pull", { cwd }),
   /** The saved task that applies database migrations, as `kr migrate` picks it. */
@@ -393,6 +425,23 @@ export function formatTime(ts: number, withDate = false): string {
   if (!withDate) return time;
   const today = new Date().toDateString() === d.toDateString();
   return today ? time : `${d.toLocaleDateString(loc, { month: "short", day: "numeric" })} ${time}`;
+}
+
+/** "2 minutes ago", "now", in the UI language. */
+export function timeAgo(ts: number, now = Date.now()): string {
+  const s = Math.round((ts - now) / 1000);
+  const rtf = new Intl.RelativeTimeFormat(intlLocale(), { numeric: "auto" });
+  if (Math.abs(s) < 45) return rtf.format(0, "second");
+  const m = Math.round(s / 60);
+  if (Math.abs(m) < 60) return rtf.format(m, "minute");
+  const h = Math.round(m / 60);
+  if (Math.abs(h) < 24) return rtf.format(h, "hour");
+  return rtf.format(Math.round(h / 24), "day");
+}
+
+/** "5 minutes", in the UI language. */
+export function formatMinutes(n: number): string {
+  return new Intl.NumberFormat(intlLocale(), { style: "unit", unit: "minute", unitDisplay: "long" }).format(n);
 }
 
 export function formatDate(ts: number | string): string {

@@ -1,21 +1,68 @@
 <script lang="ts">
   // Git state of the app folder, and a pull that brings the app up to date: fast-forward,
   // install dependencies when a lockfile changed, migrate when a migration changed, restart
-  // when it runs. Rendered as one row of
-  // the Overview details list. Nothing shows when the folder is not in a Git repository.
-  import { ArrowDown, ArrowUp, Download, FilePen, GitBranch, LoaderCircle } from "@lucide/svelte";
-  import { api, desktop, formatTime, isActive, type AppView, type GitStatus } from "./api";
-  import { t } from "./i18n/index.svelte";
+  // when it runs. Rendered as one row of the Overview details list. Nothing shows when the
+  // folder is not in a Git repository. Refreshing only fetches: nothing here changes the
+  // working tree except a pull the user clicks.
+  import {
+    CircleAlert,
+    CircleCheck,
+    Download,
+    FilePen,
+    GitBranch,
+    GitMerge,
+    LoaderCircle,
+    RefreshCw,
+  } from "@lucide/svelte";
+  import { listen } from "@tauri-apps/api/event";
+  import { api, desktop, formatTime, isActive, samePath, timeAgo, type AppView, type GitChecked, type GitStatus } from "./api";
+  import { intlLocale, t } from "./i18n/index.svelte";
 
   let { app }: { app: AppView } = $props();
 
   let git = $state<GitStatus | null>(null);
   let pulling = $state(false);
+  let fetching = $state(false);
+  let fetchedAt = $state<number | null>(null);
+  let fetchError = $state("");
+  let now = $state(Date.now());
   let result = $state("");
   let error = $state("");
 
   // Each status poll is a new app object: follow the folder only.
   const folder = $derived(app.cwd);
+
+  /** A fetch on open or focus is skipped when the last one is this recent. */
+  const FRESH = 60_000;
+
+  /** The shell's record of the last fetch: when it worked, or why it failed. On a failure
+   *  the last known state stays, marked as stale. */
+  function apply(c: GitChecked | null) {
+    if (!c || !samePath(c.cwd, folder)) return;
+    fetchedAt = c.at;
+    fetchError = c.error?.trim() ?? "";
+    if (c.status && !c.error) git = c.status;
+  }
+
+  /** Fetch, then the state. One at a time: a click while one runs does nothing. */
+  async function refresh() {
+    if (fetching) return;
+    const cwd = folder;
+    fetching = true;
+    try {
+      const s = await desktop.gitFetch(cwd);
+      if (samePath(cwd, folder)) git = s;
+    } catch {
+      // The shell recorded the error. It shows below.
+    } finally {
+      fetching = false;
+    }
+    apply(await desktop.gitChecked(cwd).catch(() => null));
+  }
+
+  function refreshIfOld() {
+    if (!fetchedAt || Date.now() - fetchedAt > FRESH) refresh();
+  }
 
   $effect(() => {
     const cwd = folder;
@@ -23,18 +70,62 @@
     git = null;
     result = "";
     error = "";
+    fetchedAt = null;
+    fetchError = "";
     const local = () => desktop.gitStatus(cwd).then((s) => live && (git = s), () => {});
-    // Fetch quietly, without asking for credentials, so "behind" is current.
-    const fetch = () => desktop.gitFetch(cwd).then((s) => live && (git = s), () => {});
-    local().then(fetch);
-    const quick = setInterval(local, 5000);
-    const slow = setInterval(fetch, 5 * 60 * 1000);
+    desktop
+      .gitChecked(cwd)
+      .then(apply, () => {})
+      .then(local)
+      .then(() => live && git && refreshIfOld());
+    const quick = setInterval(() => {
+      local();
+      now = Date.now();
+    }, 5000);
+    const onFocus = () => git && refreshIfOld();
+    window.addEventListener("focus", onFocus);
+    // Background checks run in the shell, as often as the preference says.
+    let unlisten: (() => void) | undefined;
+    listen<GitChecked>("git-checked", (e) => live && apply(e.payload)).then((un) => (live ? (unlisten = un) : un()));
     return () => {
       live = false;
       clearInterval(quick);
-      clearInterval(slow);
+      window.removeEventListener("focus", onFocus);
+      unlisten?.();
     };
   });
+
+  /** Remote of the upstream, or of the default branch. */
+  const remote = $derived((git?.upstream ?? git?.default_branch ?? "").split("/")[0] || "origin");
+  const mainBranch = $derived(git?.default_branch?.slice(remote.length + 1) ?? "main");
+
+  type Tone = "ok" | "warn" | "muted";
+  const label = $derived.by((): { text: string; hint: string; tone: Tone } | null => {
+    if (!git) return null;
+    const upstream = git.upstream ?? "";
+    switch (git.sync) {
+      case "in_sync":
+        return { text: t("git.inSync"), hint: t("git.inSyncHint", { upstream }), tone: "muted" };
+      case "behind":
+        return { text: t("git.needsPull", { count: git.behind }), hint: t("git.behindHint", { count: git.behind, upstream }), tone: "warn" };
+      case "ahead":
+        return { text: t("git.needsPush", { count: git.ahead }), hint: t("git.aheadHint", { count: git.ahead, upstream }), tone: "muted" };
+      case "diverged":
+        return { text: t("git.diverged", { ahead: git.ahead, behind: git.behind }), hint: t("git.divergedHint"), tone: "warn" };
+      case "merged":
+        return { text: t("git.merged", { branch: mainBranch }), hint: t("git.mergedHint", { branch: mainBranch }), tone: "ok" };
+      case "gone":
+        return { text: t("git.gone"), hint: t("git.goneHint", { upstream }), tone: "muted" };
+      case "no_upstream":
+        return { text: t("git.noUpstream"), hint: "", tone: "muted" };
+      case "no_remote":
+        return { text: t("git.noRemote"), hint: "", tone: "muted" };
+      default:
+        return null;
+    }
+  });
+  const toneClass: Record<Tone, string> = { ok: "text-accent", warn: "text-warn", muted: "text-fg-muted" };
+  const canFetch = $derived(git !== null && git.sync !== "no_remote");
 
   /** Wait for the task started at or after `since` to end. True when it succeeded. */
   async function taskSucceeded(id: string, since: number): Promise<boolean> {
@@ -57,6 +148,9 @@
     try {
       const r = await desktop.gitPull(cwd);
       git = r.status;
+      // A pull fetches too.
+      fetchedAt = Date.now();
+      fetchError = "";
       if (r.commits === 0) {
         result = t("git.upToDate");
         return;
@@ -108,18 +202,18 @@
         <GitBranch size={13} class="shrink-0 text-fg-muted" aria-hidden="true" />
         <span class="selectable truncate">{git.branch ?? t("git.detached")}</span>
       </span>
-      {#if git.upstream && (git.ahead || git.behind)}
-        <span class="inline-flex items-center gap-2 text-xs tabular-nums text-fg-muted" dir="ltr">
-          {#if git.behind}
-            <span class="inline-flex items-center gap-0.5 text-warn" title={t("git.behindHint", { count: git.behind, upstream: git.upstream })}>
-              <ArrowDown size={12} aria-hidden="true" />{git.behind}
-            </span>
+      {#if label}
+        <span
+          class="inline-flex items-center gap-1 text-xs tabular-nums {fetchError ? 'text-fg-muted' : toneClass[label.tone]}"
+          title={label.hint || undefined}
+          role="status"
+        >
+          {#if git.sync === "merged"}
+            <GitMerge size={12} aria-hidden="true" />
+          {:else if git.sync === "in_sync"}
+            <CircleCheck size={12} aria-hidden="true" />
           {/if}
-          {#if git.ahead}
-            <span class="inline-flex items-center gap-0.5" title={t("git.aheadHint", { count: git.ahead, upstream: git.upstream })}>
-              <ArrowUp size={12} aria-hidden="true" />{git.ahead}
-            </span>
-          {/if}
+          {label.text}
         </span>
       {/if}
       {#if git.changed}
@@ -127,22 +221,46 @@
           <FilePen size={12} aria-hidden="true" />{git.changed}
         </span>
       {/if}
-      {#if git.upstream}
-        <button
-          class="btn !h-7 !px-2 text-xs"
-          onclick={pull}
-          disabled={pulling}
-          title={t("git.pullHint", { upstream: git.upstream })}
-        >
-          {#if pulling}
-            <LoaderCircle size={13} class="animate-spin motion-reduce:animate-none" aria-hidden="true" />
-          {:else}
-            <Download size={13} aria-hidden="true" />
+      {#if canFetch}
+        <span class="inline-flex items-center gap-2">
+          <button
+            class="btn !h-7 !w-7 !px-0"
+            onclick={() => refresh()}
+            disabled={fetching || pulling}
+            title={t("git.refreshHint", { remote })}
+            aria-label={t("git.refresh")}
+          >
+            {#if fetching}
+              <LoaderCircle size={13} class="animate-spin motion-reduce:animate-none" aria-hidden="true" />
+            {:else}
+              <RefreshCw size={13} aria-hidden="true" />
+            {/if}
+          </button>
+          {#if git.sync === "behind"}
+            <button
+              class="btn !h-7 !px-2 text-xs"
+              onclick={pull}
+              disabled={pulling || fetching}
+              title={t("git.pullHint", { upstream: git.upstream ?? "" })}
+            >
+              {#if pulling}
+                <LoaderCircle size={13} class="animate-spin motion-reduce:animate-none" aria-hidden="true" />
+              {:else}
+                <Download size={13} aria-hidden="true" />
+              {/if}
+              {t(isActive(app.state) ? "git.pullRestart" : "git.pull")}
+            </button>
           {/if}
-          {t(isActive(app.state) ? "git.pullRestart" : "git.pull")}
-        </button>
-      {:else}
-        <span class="text-xs text-fg-muted">{t("git.noUpstream")}</span>
+          {#if fetchError}
+            <span class="inline-flex items-center gap-1 text-xs text-danger" title={t("git.fetchFailedHint", { error: fetchError })}>
+              <CircleAlert size={12} aria-hidden="true" />{t("git.fetchFailed")}
+            </span>
+          {:else if fetchedAt}
+            <span class="text-xs text-fg-muted" title={new Date(fetchedAt).toLocaleString(intlLocale())}>
+              {t("git.fetched", { time: timeAgo(fetchedAt, now) })}
+            </span>
+          {/if}
+        </span>
       {/if}
     </div>
     {#if git.commit}

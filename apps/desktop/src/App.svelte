@@ -5,6 +5,7 @@
     ArrowUpCircle,
     Ban,
     ChevronDown,
+    Download,
     CirclePower,
     Monitor,
     Moon,
@@ -21,7 +22,7 @@
   import { api, appUrl, config, connection, desktop, isActive, samePath, stateText, type AppView, type Connection } from "./lib/api";
   import { cycleTheme, applyTheme, theme } from "./lib/theme.svelte";
   import { languages, locale, setLocale, t, type Key } from "./lib/i18n/index.svelte";
-  import { prefs, rememberSelection, setTray, syncTrayText, toggleSection } from "./lib/prefs.svelte";
+  import { prefs, rememberSelection, setTray, syncGitWatch, syncTrayText, toggleSection } from "./lib/prefs.svelte";
   import StatusDot from "./lib/StatusDot.svelte";
   import Overview from "./lib/Overview.svelte";
   import LogPanel from "./lib/LogPanel.svelte";
@@ -45,6 +46,9 @@
   /** Apps printing errors while a coding agent still works in their folder. Their errors wait. */
   let waiting = $state<string[]>([]);
   const showsIssue = (a: AppView) => !!a.issue && !waiting.includes(a.id);
+  /** Commits to pull per app folder, from the last Git fetch. */
+  let behind = $state<Record<string, number>>({});
+  const behindOf = (a: AppView) => behind[a.cwd] ?? 0;
   let selectedId = $state<string | null>(null);
   let tab = $state<Tab>(tabs.includes(prefs.lastTab as Tab) ? (prefs.lastTab as Tab) : "overview");
   let agentError = $state("");
@@ -114,11 +118,16 @@
   }
 
   $effect(() => {
-    const pollWaiting = () =>
+    const pollWaiting = () => {
       desktop
         .agentWaiting()
         .then((ids) => (waiting = ids))
         .catch(() => {});
+      desktop
+        .gitBehind()
+        .then((b) => (behind = b))
+        .catch(() => {});
+    };
     refresh();
     pollWaiting();
     const poll = setInterval(() => {
@@ -173,6 +182,13 @@
   $effect(() => {
     locale.lang;
     syncTrayText(apps.length);
+  });
+  // Background Git checks run in the shell, also while the window is closed.
+  $effect(() => {
+    locale.lang;
+    prefs.gitFetchMinutes;
+    prefs.gitNotify;
+    syncGitWatch();
   });
 
   async function run(fn: () => Promise<unknown>) {
@@ -404,6 +420,14 @@
                     <StatusDot state={app.state} issue={showsIssue(app)} />
                   {/if}
                   <span class="flex-1 truncate">{app.name}</span>
+                  {#if behindOf(app)}
+                    <span
+                      class="inline-flex items-center gap-0.5 text-[11px] tabular-nums text-warn"
+                      title={t("sidebar.behind", { count: behindOf(app) })}
+                    >
+                      <Download size={11} aria-hidden="true" />{behindOf(app)}
+                    </span>
+                  {/if}
                   {#if app.state === "running" && app.stats?.ports[0]}
                     <span class="text-[11px] tabular-nums text-fg-muted" dir="ltr">:{app.stats.ports[0]}</span>
                   {/if}

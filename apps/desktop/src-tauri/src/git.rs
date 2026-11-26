@@ -10,16 +10,17 @@ pub fn git_status(cwd: String) -> Option<GitStatus> {
     keeprun_core::git::status(Path::new(&cwd)).ok()
 }
 
-/// Fetch without asking for credentials, then the state.
-#[tauri::command(async)]
-pub fn git_fetch(cwd: String) -> Result<GitStatus, String> {
-    keeprun_core::git::fetch(Path::new(&cwd))
-}
-
 /// Fast-forward only. The user clicked, so Git may ask for credentials.
 #[tauri::command(async)]
-pub fn git_pull(cwd: String) -> Result<Pulled, String> {
-    keeprun_core::git::pull(Path::new(&cwd), true)
+pub fn git_pull<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    cwd: String,
+) -> Result<Pulled, String> {
+    use tauri::Manager;
+    let pulled = keeprun_core::git::pull(Path::new(&cwd), true)?;
+    app.state::<crate::remotes::Remotes>()
+        .pulled(&cwd, &pulled.status);
+    Ok(pulled)
 }
 
 /// The saved task that applies database migrations, as `keeprun migrate` picks it. Pull runs

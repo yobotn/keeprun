@@ -2,7 +2,8 @@
   import { X } from "@lucide/svelte";
   import { languages, locale, setLocale, systemLang, t } from "./i18n/index.svelte";
   import { applyTheme, theme, type Theme } from "./theme.svelte";
-  import { prefs, setEditor, setTray, type Editor } from "./prefs.svelte";
+  import { fetchIntervals, prefs, setEditor, setFetchMinutes, setGitNotify, setTray, type Editor } from "./prefs.svelte";
+  import { formatMinutes } from "./api";
 
   let { onclose }: { onclose: () => void } = $props();
   let dialog: HTMLDialogElement;
@@ -61,6 +62,34 @@
       </select>
       <p class="hint mt-1">{t("prefs.editorHint")}</p>
     </div>
+
+    <div>
+      <label class="label" for="p-fetch">{t("prefs.gitFetch")}</label>
+      <select
+        id="p-fetch"
+        class="input"
+        value={prefs.gitFetchMinutes}
+        onchange={(e) => setFetchMinutes(Number(e.currentTarget.value))}
+      >
+        {#each fetchIntervals as m (m)}
+          <option value={m}>{m ? t("prefs.gitFetchEvery", { interval: formatMinutes(m) }) : t("prefs.gitFetchOff")}</option>
+        {/each}
+      </select>
+      <p class="hint mt-1">{t("prefs.gitFetchHint")}</p>
+    </div>
+
+    {#if prefs.gitFetchMinutes}
+      <label class="flex items-start gap-3">
+        <span class="switch mt-0.5">
+          <input type="checkbox" role="switch" checked={prefs.gitNotify} onchange={(e) => setGitNotify(e.currentTarget.checked)} />
+          <span aria-hidden="true"></span>
+        </span>
+        <span>
+          <span class="text-[13px] font-medium">{t("prefs.gitNotify")}</span>
+          <span class="hint block">{t("prefs.gitNotifyHint")}</span>
+        </span>
+      </label>
+    {/if}
 
     <label class="flex items-start gap-3">
       <span class="switch mt-0.5">

@@ -13,6 +13,7 @@ use tauri::{Emitter, Manager};
 mod agents;
 mod editor;
 mod git;
+mod remotes;
 mod tray;
 mod update;
 
@@ -166,11 +167,13 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(update::Pending::default())
         .manage(tray::Tray::default())
+        .manage(remotes::Remotes::default())
         .manage(LaunchFolder(Mutex::new(folder_arg(
             &std::env::args().collect::<Vec<_>>(),
         ))))
         .setup(|app| {
             tray::setup(app.handle())?;
+            remotes::setup(app.handle());
             if let (Ok(env), Some(w)) = (Env::detect(), app.get_webview_window("main")) {
                 if env == Env::Dev {
                     let _ = w.set_title("Keeprun (dev)");
@@ -198,7 +201,10 @@ pub fn run() {
             agents::agent_note_file,
             agents::add_agent_note,
             git::git_status,
-            git::git_fetch,
+            remotes::git_fetch,
+            remotes::git_checked,
+            remotes::git_behind,
+            remotes::set_git_watch,
             git::git_pull,
             git::migrate_task,
             tray::set_tray_enabled,

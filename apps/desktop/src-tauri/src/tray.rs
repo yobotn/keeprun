@@ -355,7 +355,7 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             .build()
             .unwrap_or_default();
         loop {
-            let apps = fetch(&http).await;
+            let apps = list_apps(&http).await;
             refresh(&handle, apps.as_deref());
             tokio::time::sleep(POLL).await;
         }
@@ -378,7 +378,8 @@ async fn get<T: serde::de::DeserializeOwned>(http: &reqwest::Client, path: &str)
     res.json().await.ok()
 }
 
-async fn fetch(http: &reqwest::Client) -> Option<Vec<AppView>> {
+/// All apps, or None when the agent cannot be reached.
+pub(crate) async fn list_apps(http: &reqwest::Client) -> Option<Vec<AppView>> {
     get(http, "/apps").await
 }
 
