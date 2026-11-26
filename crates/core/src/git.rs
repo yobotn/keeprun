@@ -391,12 +391,20 @@ mod tests {
                 clone,
             };
             r.run(&r.origin, &["init", "-q", "-b", "main"]);
+            r.identify(&r.origin);
             r.commit(&r.origin, "first");
             r.run(
                 &r.root,
                 &["clone", "-q", r.origin.to_str().unwrap(), "clone"],
             );
+            r.identify(&r.clone);
             r
+        }
+
+        /// Commits and merges need an identity; CI runners have no global one.
+        fn identify(&self, dir: &Path) {
+            self.run(dir, &["config", "user.email", "t@example.com"]);
+            self.run(dir, &["config", "user.name", "T"]);
         }
 
         fn run(&self, dir: &Path, args: &[&str]) -> String {
@@ -406,19 +414,7 @@ mod tests {
         fn commit(&self, dir: &Path, name: &str) {
             std::fs::write(dir.join(name), name).unwrap();
             self.run(dir, &["add", "."]);
-            self.run(
-                dir,
-                &[
-                    "-c",
-                    "user.email=t@example.com",
-                    "-c",
-                    "user.name=T",
-                    "commit",
-                    "-q",
-                    "-m",
-                    name,
-                ],
-            );
+            self.run(dir, &["commit", "-q", "-m", name]);
         }
 
         fn sync(&self) -> Sync {
