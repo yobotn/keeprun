@@ -348,11 +348,19 @@ impl Managed {
         let error = (state != AppState::Stopped)
             .then(|| self.logs.migration.lock().unwrap().clone())
             .flatten();
-        let new_files = self.migration_files.lock().unwrap().clone();
-        let migration = (error.is_some() || !new_files.is_empty()).then(|| MigrationStatus {
+        let task = migrate::task(&spec.tasks).map(|t| t.name.clone());
+        // New files alone are news only when there is a task to apply them. An app without
+        // one either migrates itself on start (Drizzle, Prisma) or prints a schema error once
+        // it needs them, and that error shows with or without a task.
+        let new_files = if task.is_some() {
+            self.migration_files.lock().unwrap().clone()
+        } else {
+            vec![]
+        };
+        let migration = (error.is_some() || !new_files.is_empty()).then_some(MigrationStatus {
             error,
             new_files,
-            task: migrate::task(&spec.tasks).map(|t| t.name.clone()),
+            task,
         });
         AppView {
             migration,
@@ -2675,19 +2683,23 @@ mod tests {
             rt.started_at = Some(started_at);
         };
 
-        // A young run says nothing yet.
+        let pending = || !m.migration_files.lock().unwrap().is_empty();
+
+        // Without a migrate task new files show no notice: there is nothing to run.
         s.check_migrations(&m);
-        assert!(s.view(&id).unwrap().migration.is_some());
+        assert!(pending());
+        assert!(s.view(&id).unwrap().migration.is_none());
 
         // A file newer than the run is not applied by it, however long it runs.
         age(61, now_ms() - 60_000);
         s.check_migrations(&m);
-        assert!(s.view(&id).unwrap().migration.is_some());
+        assert!(pending());
 
-        // A minute on the files with no schema error: the app applied them.
+        // A minute on the files with no schema error: the app applied them, so adding a
+        // migrate task later does not bring them back.
         age(61, now_ms() + 1_000);
         s.check_migrations(&m);
-        assert!(s.view(&id).unwrap().migration.is_none());
+        assert!(!pending());
 
         // With a migrate task the notice stays until the task runs.
         std::fs::write(dir.join("drizzle/0010_orders.sql"), "").unwrap();
