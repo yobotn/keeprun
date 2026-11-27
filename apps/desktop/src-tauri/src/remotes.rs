@@ -1,6 +1,6 @@
-//! Background Git checks. Every few minutes, also while the window is closed, fetch each app's
-//! repository and tell the user when a remote branch has commits to pull. Only fetches: the
-//! working tree never changes here.
+//! Background Git checks, off unless the user turns them on in Preferences. Every few minutes,
+//! also while the window is closed, fetch each app's repository and tell the user when a remote
+//! branch has commits to pull. Only fetches: the working tree never changes here.
 //!
 //! This runs in the desktop shell, as the signed-in user, never in the agent: the service
 //! account has none of the user's Git credentials.
@@ -67,7 +67,8 @@ pub struct Remotes {
 impl Default for Remotes {
     fn default() -> Self {
         Self {
-            minutes: AtomicU32::new(5),
+            // Off until the UI sends the user's choice: a fetch writes in the project's .git.
+            minutes: AtomicU32::new(0),
             notify: AtomicBool::new(true),
             text: Mutex::default(),
             busy: Mutex::default(),
@@ -242,7 +243,8 @@ async fn check_all<R: Runtime>(app: &AppHandle<R>, folders: Vec<(String, String)
     }
 }
 
-/// Fetch for the UI: the refresh button, or opening an app. Never asks for credentials.
+/// Fetch for the UI: the refresh button, or opening an app when background checks are on.
+/// Never asks for credentials.
 #[tauri::command(async)]
 pub fn git_fetch<R: Runtime>(app: AppHandle<R>, cwd: String) -> Result<GitStatus, String> {
     let state = app.state::<Remotes>();

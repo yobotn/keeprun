@@ -76,6 +76,8 @@ fn git(cwd: &Path, args: &[&str], interactive: bool, timeout: Duration) -> Resul
         .arg(cwd)
         .args(args)
         .env("LC_ALL", "C")
+        // Reading the state must not write in the repository: no index refresh by `status`.
+        .env("GIT_OPTIONAL_LOCKS", "0")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());

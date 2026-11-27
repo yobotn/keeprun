@@ -36,15 +36,16 @@ export const prefs = $state({
   collapsed: (read("keeprun.collapsed") ?? "").split(",").filter(Boolean),
   /** Where file paths in app output open: the first editor found, one editor, or the default app. */
   editor: readEditor(),
-  /** Minutes between background Git fetches of the open app. 0: only on refresh. */
+  /** Minutes between background Git fetches. 0, the default: only when the user clicks refresh.
+   *  A fetch writes in the project's .git, so Keeprun does it only when allowed. */
   gitFetchMinutes: readFetchMinutes(),
   /** Windows notification when a background check finds commits to pull. On by default. */
   gitNotify: read("keeprun.gitNotify") !== "off",
 });
 
 function readFetchMinutes(): number {
-  const v = Number(read("keeprun.gitFetchMinutes") ?? 5);
-  return (fetchIntervals as readonly number[]).includes(v) ? v : 5;
+  const v = Number(read("keeprun.gitFetchMinutes") ?? 0);
+  return (fetchIntervals as readonly number[]).includes(v) ? v : 0;
 }
 
 export function setFetchMinutes(minutes: number) {

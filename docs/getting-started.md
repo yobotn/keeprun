@@ -71,12 +71,16 @@ work when the service runs as LocalSystem, which does not see per-user tools on 
   list changed and its migrate task when a migration changed, then restarts the app. Git runs
   as you, with your credentials.
 - The status says In sync, Needs pull, Needs push, Diverged, Merged into main, or Remote branch
-  deleted (common after a pull request merges and GitHub deletes the branch). While the desktop
-  app runs, also in the notification area with the window closed, it fetches every app's
-  repository every 5 minutes (set it in Preferences, or turn it off) and sends a Windows
-  notification when there are new commits to pull. The sidebar shows how many. It only
-  fetches, with `--prune`; nothing changes your files until you click **Pull**. The refresh
-  button next to the status fetches right away.
+  deleted (common after a pull request merges and GitHub deletes the branch). Keeprun never
+  acts on your repository by itself: reading the status writes nothing, and it fetches only
+  when you click the refresh button next to the status. To check in the background, turn on
+  **Check Git remotes for new commits** in Preferences. Then, while the desktop app runs, also
+  in the notification area with the window closed, it fetches every app's repository at the
+  interval you pick and when you open an app, and sends a Windows notification when there are
+  new commits to pull. The sidebar shows how many. It only fetches, with `--prune`; nothing
+  changes your files until you click **Pull**. When a branch needs you (diverged, not pushed,
+  remote branch deleted), **Copy fix prompt** gives your coding agent the folder, the state and
+  the Git commands to check.
 - When the database needs migrating, because the app prints an error such as
   `relation "users" does not exist` or a new migration file arrived, the Overview tab says so
   and offers **Migrate and restart**. See [Migrations](cli.md#migrations).

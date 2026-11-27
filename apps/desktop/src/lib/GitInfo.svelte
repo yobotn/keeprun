@@ -2,11 +2,15 @@
   // Git state of the app folder, and a pull that brings the app up to date: fast-forward,
   // install dependencies when a lockfile changed, migrate when a migration changed, restart
   // when it runs. Rendered as one row of the Overview details list. Nothing shows when the
-  // folder is not in a Git repository. Refreshing only fetches: nothing here changes the
-  // working tree except a pull the user clicks.
+  // folder is not in a Git repository. Reading the state never writes in the repository.
+  // A fetch runs on the refresh click, or on open and focus only when background checks are on
+  // in Preferences. Nothing changes the working tree except a pull the user clicks. States that
+  // need the developer (diverged, not pushed, remote branch deleted) offer a fix prompt for a
+  // coding agent instead of acting.
   import {
     CircleAlert,
     CircleCheck,
+    Copy,
     Download,
     FilePen,
     GitBranch,
@@ -17,6 +21,7 @@
   import { listen } from "@tauri-apps/api/event";
   import { api, desktop, formatTime, isActive, samePath, timeAgo, type AppView, type GitChecked, type GitStatus } from "./api";
   import { intlLocale, t } from "./i18n/index.svelte";
+  import { prefs } from "./prefs.svelte";
 
   let { app }: { app: AppView } = $props();
 
@@ -60,7 +65,9 @@
     apply(await desktop.gitChecked(cwd).catch(() => null));
   }
 
+  /** On open and focus: only when the user allowed background checks. */
   function refreshIfOld() {
+    if (!prefs.gitFetchMinutes) return;
     if (!fetchedAt || Date.now() - fetchedAt > FRESH) refresh();
   }
 
@@ -126,6 +133,53 @@
   });
   const toneClass: Record<Tone, string> = { ok: "text-accent", warn: "text-warn", muted: "text-fg-muted" };
   const canFetch = $derived(git !== null && git.sync !== "no_remote");
+
+  /** A prompt for the user's coding agent when the branch needs the developer. Keeprun does not
+   *  merge, push or switch branches itself. English, like the issue prompt: it is for the agent. */
+  const fixPrompt = $derived.by((): string | null => {
+    if (!git) return null;
+    const upstream = git.upstream ?? "";
+    const branch = git.branch ?? "";
+    let state: string;
+    let ask: string;
+    switch (git.sync) {
+      case "diverged":
+        state = `${git.ahead} local commits are not on ${upstream}, and ${git.behind} commits on ${upstream} are not here.`;
+        ask = `bring ${branch} up to date with ${upstream} the way this project does it (merge or rebase), then push`;
+        break;
+      case "ahead":
+        state = `${git.ahead} commits are not pushed to ${upstream}.`;
+        ask = "push them if the work is ready";
+        break;
+      case "gone":
+        state = `${upstream} no longer exists on the remote, often because its pull request merged and the branch was deleted.`;
+        ask = `check whether the work is in ${mainBranch}. If it is, switch to ${mainBranch} and pull. If not, push ${branch} again`;
+        break;
+      case "merged":
+        state = `Every commit on ${branch} is already in ${mainBranch}.`;
+        ask = `switch to ${mainBranch} and pull, so the app runs the latest code`;
+        break;
+      default:
+        return null;
+    }
+    return [
+      `The Git branch of the app "${app.name}" needs attention. Keeprun runs this app and does not change its repository.`,
+      `Folder: ${app.cwd}`,
+      `Branch: ${branch}${upstream ? `, upstream: ${upstream}` : ""}`,
+      `State: ${state}`,
+      git.changed ? `Uncommitted changes: ${git.changed} files.` : "",
+      `Look at it with \`git status\` and \`git log --oneline --graph -20 --all\`, then ${ask}. Ask me before anything that rewrites history or could drop work.`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  });
+  let promptCopied = $state(false);
+  async function copyFixPrompt() {
+    if (!fixPrompt) return;
+    await navigator.clipboard.writeText(fixPrompt);
+    promptCopied = true;
+    setTimeout(() => (promptCopied = false), 2000);
+  }
 
   /** Wait for the task started at or after `since` to end. True when it succeeded. */
   async function taskSucceeded(id: string, since: number): Promise<boolean> {
@@ -249,6 +303,12 @@
                 <Download size={13} aria-hidden="true" />
               {/if}
               {t(isActive(app.state) ? "git.pullRestart" : "git.pull")}
+            </button>
+          {/if}
+          {#if fixPrompt}
+            <button class="btn !h-7 !px-2 text-xs" onclick={copyFixPrompt} title={t("overview.copyPromptHint")}>
+              <Copy size={13} aria-hidden="true" />
+              {promptCopied ? t("common.copied") : t("overview.copyPrompt")}
             </button>
           {/if}
           {#if fetchError}
