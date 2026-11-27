@@ -28,6 +28,9 @@ pub fn note(id: &str) -> String {
          \x20 `kr status` says when a migration is needed.\n\
          - Errors as a fix prompt: `kr issue`\n\
          - Logs: `kr logs` (add `-f` to follow)\n\
+         - Installed as a service, Keeprun runs the app as LocalSystem, not as you. Programs\n\
+         \x20 that refuse administrator rights (postgres.exe; pg_ctl works) and per-user installs\n\
+         \x20 or logins fail there even when they work in your terminal.\n\
          - The same as MCP tools: `claude mcp add --scope user keeprun -- keeprun mcp`\n\
          {END}\n"
     )

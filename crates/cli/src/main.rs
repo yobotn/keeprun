@@ -857,7 +857,7 @@ async fn run() -> Result<()> {
                 })
                 .collect();
             let (name, command) = match (name, command.is_empty()) {
-                (Some(name), false) => (name, command.join(" ")),
+                (Some(name), false) => (name, join_command(&command)),
                 (name, _) => {
                     let d = detect::detect(&cwd).map_err(anyhow::Error::msg)?;
                     for w in &d.warnings {
@@ -873,7 +873,7 @@ async fn run() -> Result<()> {
                         println!("Detected: {}", best.label);
                         best.command.clone()
                     } else {
-                        command.join(" ")
+                        join_command(&command)
                     };
                     (name.unwrap_or(d.name), command)
                 }
@@ -1147,7 +1147,7 @@ async fn run() -> Result<()> {
                 if command.is_empty() {
                     bail!("Give the task command after --, e.g. keeprun tasks {app} --add {name} -- npm run migrate");
                 }
-                let command = command.join(" ");
+                let command = join_command(&command);
                 match tasks.iter_mut().find(|t| t.name == name) {
                     Some(t) => t.command = command,
                     None => tasks.push(TaskSpec { name, command }),
@@ -1292,7 +1292,7 @@ async fn run() -> Result<()> {
                 },
                 (None, false) => RunTask {
                     name: None,
-                    command: Some(command.join(" ")),
+                    command: Some(join_command(&command)),
                     restart: false,
                 },
                 (Some(_), false) => bail!("Give a task name or a command after --, not both."),
@@ -1568,8 +1568,62 @@ async fn action(c: &Client, app: &str, verb: &str) -> Result<()> {
     Ok(())
 }
 
+/// The command after `--` as one command line for cmd.exe. The shell already split it into
+/// arguments and took off their quotes, so an argument with spaces or cmd.exe signs, such as
+/// `C:\Program Files\nodejs\node.exe` or `console.log(a, b)`, gets its quotes back. One
+/// argument is a whole command line (`-- "npm run migrate"`) unless it names a file.
+fn join_command(args: &[String]) -> String {
+    let needs_quotes = |a: &str| {
+        !a.contains('"')
+            && (a.is_empty() || a.contains([' ', '\t', '&', '|', '<', '>', '^', '(', ')']))
+    };
+    match args {
+        [one] if !(needs_quotes(one) && std::path::Path::new(one).is_file()) => one.clone(),
+        _ => args
+            .iter()
+            .map(|a| {
+                if needs_quotes(a) {
+                    format!("\"{a}\"")
+                } else {
+                    a.clone()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" "),
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    fn args(a: &[&str]) -> Vec<String> {
+        a.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn command_after_dashes_keeps_its_arguments() {
+        use super::join_command;
+        assert_eq!(
+            join_command(&args(&["npm", "run", "db:migrate"])),
+            "npm run db:migrate"
+        );
+        assert_eq!(
+            join_command(&args(&[
+                r"C:\Program Files\nodejs\node.exe",
+                "-e",
+                "console.log(1, 2)"
+            ])),
+            r#""C:\Program Files\nodejs\node.exe" -e "console.log(1, 2)""#
+        );
+        // already quoted by the user, e.g. '"C:\Program Files\x.exe"' in PowerShell
+        assert_eq!(
+            join_command(&args(&[r#""C:\Program Files\x.exe""#, "a"])),
+            r#""C:\Program Files\x.exe" a"#
+        );
+        assert_eq!(join_command(&args(&["echo", ""])), r#"echo """#);
+        // one argument is a whole command line
+        assert_eq!(join_command(&args(&["npm run migrate"])), "npm run migrate");
+    }
+
     #[test]
     fn dates() {
         assert_eq!(super::time(0), "1970-01-01 00:00:00Z");

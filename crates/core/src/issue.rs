@@ -126,7 +126,7 @@ fn is_error(raw: &str, s: &str) -> bool {
         "error[E",
         "error TS",
     ];
-    const CONTAINS: [&str; 7] = [
+    const CONTAINS: [&str; 8] = [
         "Module not found",
         "Cannot find module",
         ": error TS",
@@ -134,6 +134,8 @@ fn is_error(raw: &str, s: &str) -> bool {
         "panicked at",
         "EADDRINUSE",
         "] ERROR",
+        // Postgres started directly by an app that runs as LocalSystem
+        "by a user with administrative permissions is not permitted",
     ];
     starts_with_error_type(s)
         || STARTS.iter().any(|p| s.starts_with(p))
@@ -383,9 +385,19 @@ impl IssueTracker {
     }
 }
 
+/// What running as LocalSystem changes for an app, for a coding agent that only knows its own
+/// account. A run that works in a terminal can fail only under the service.
+pub const LOCAL_SYSTEM_NOTE: &str = "The Keeprun service runs the app as the LocalSystem \
+     account, not as your user. Programs that refuse administrator rights fail there, such as \
+     Postgres started with postgres.exe directly (pg_ctl and initdb drop the rights and work). \
+     Per-user installs, settings and logins (%USERPROFILE%, %APPDATA%, Git, npm and cloud \
+     credentials) are not available. A run that works in your terminal can still fail here, so \
+     check a fix with `keeprun restart`, not by starting the app yourself.";
+
 /// Text for a coding agent: what broke, where the app lives, and how to check a fix.
-/// `events` are newest first, as the API returns them.
-pub fn agent_prompt(app: &AppView, events: &[Event]) -> Option<String> {
+/// `events` are newest first, as the API returns them. `local_system` when the app runs as
+/// LocalSystem, as under the installed service.
+pub fn agent_prompt(app: &AppView, events: &[Event], local_system: bool) -> Option<String> {
     let issue = app.issue.as_ref()?;
     let spec = &app.spec;
     let id = &spec.id;
@@ -397,6 +409,9 @@ pub fn agent_prompt(app: &AppView, events: &[Event]) -> Option<String> {
     ));
     p.push_str(&format!("Folder: {}\n", spec.cwd.display()));
     p.push_str(&format!("Command: {}\n", spec.command));
+    if local_system {
+        p.push_str(&format!("Account: LocalSystem. {LOCAL_SYSTEM_NOTE}\n"));
+    }
     let mut state = app.state.to_string();
     if let Some(pid) = app.pid.filter(|_| app.state == AppState::Running) {
         state.push_str(&format!(" (PID {pid})"));
@@ -462,6 +477,7 @@ mod tests {
             "src/a.ts(3,1): error TS2304: Cannot find name 'x'.",
             "Program.cs(5,1): error CS0103: The name 'x' does not exist",
             "Error: listen EADDRINUSE: address already in use :::3000",
+            "Execution of PostgreSQL by a user with administrative permissions is not permitted.",
             " GET / 500 in 292ms (next.js: 270ms)",
             "INFO:     127.0.0.1:5000 - \"GET / HTTP/1.1\" 500 Internal Server Error",
         ] {
@@ -626,7 +642,7 @@ mod tests {
             "stats": {"cpu_percent": 1.0, "memory_bytes": 1, "processes": 1, "ports": [3000]}
         }))
         .unwrap();
-        assert!(agent_prompt(&app, &[]).is_none());
+        assert!(agent_prompt(&app, &[], false).is_none());
         app.issue = t.current(1_762_862_301_000);
         let events = vec![Event {
             id: 1,
@@ -635,7 +651,11 @@ mod tests {
             kind: crate::model::EventKind::Started,
             message: "Started (PID 5612)".into(),
         }];
-        let p = agent_prompt(&app, &events).unwrap();
+        let p = agent_prompt(&app, &events, false).unwrap();
+        assert!(!p.contains("LocalSystem"));
+        let service = agent_prompt(&app, &events, true).unwrap();
+        assert!(service.contains("Account: LocalSystem."));
+        assert!(service.contains("pg_ctl and initdb drop the rights"));
         assert!(p.contains("Folder: C:\\apps\\inv"));
         assert!(p.contains("State: Running (PID 5612), listening on port 3000"));
         assert!(p.contains("2 times between 2025-11-11 11:58:19Z and 2025-11-11 11:58:21Z"));

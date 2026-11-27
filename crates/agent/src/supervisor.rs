@@ -735,7 +735,7 @@ impl Supervisor {
             vec![]
         };
         Ok(IssueReport {
-            prompt: issue::agent_prompt(&view, &events),
+            prompt: issue::agent_prompt(&view, &events, job::runs_as_local_system()),
             issue: view.issue,
         })
     }
@@ -1420,19 +1420,64 @@ impl Supervisor {
         let known: Option<Vec<String>> = std::fs::read_to_string(&path)
             .ok()
             .and_then(|t| serde_json::from_str(&t).ok());
-        let added = match known {
+        let record = |files: &[String]| {
+            if let Ok(json) = serde_json::to_string(files) {
+                if let Some(dir) = path.parent() {
+                    let _ = std::fs::create_dir_all(dir);
+                }
+                let _ = std::fs::write(&path, json);
+            }
+        };
+        let mut added = match known {
             Some(k) => migrate::added(&k, &now),
             None => {
-                if let Ok(json) = serde_json::to_string(&now) {
-                    if let Some(dir) = path.parent() {
-                        let _ = std::fs::create_dir_all(dir);
-                    }
-                    let _ = std::fs::write(&path, json);
-                }
+                record(&now);
                 vec![]
             }
         };
+        if !added.is_empty() && Self::ran_on_migrations(m, &cwd, &added) {
+            record(&now);
+            m.logs.push(
+                Stream::System,
+                format!(
+                    "New migrations count as applied: the app has run on them for a minute with \
+                     no database error, so it applies them itself ({}).",
+                    added.join(", ")
+                ),
+            );
+            added.clear();
+        }
         *m.migration_files.lock().unwrap() = added;
+    }
+
+    /// An app without a migrate task that has run for a minute since the `added` files
+    /// appeared, with no output saying the schema is behind, applies its migrations itself,
+    /// like a Drizzle or Prisma app that migrates on start. Its files need no notice. An app
+    /// that does not would print a schema error once it uses the new tables, which shows again.
+    fn ran_on_migrations(m: &Managed, cwd: &std::path::Path, added: &[String]) -> bool {
+        if migrate::task(&m.spec.read().unwrap().tasks).is_some()
+            || m.logs.migration.lock().unwrap().is_some()
+        {
+            return false;
+        }
+        let started_at = {
+            let rt = m.rt.lock().unwrap();
+            let stable = rt
+                .started_instant
+                .is_some_and(|t| t.elapsed() >= STABLE_RUN);
+            match rt.started_at {
+                Some(at) if rt.state == Some(AppState::Running) && stable => at,
+                _ => return false,
+            }
+        };
+        // Files that came after the run started, e.g. a pull while it runs, are not applied yet.
+        added.iter().all(|f| {
+            std::fs::metadata(cwd.join(f))
+                .and_then(|md| md.modified())
+                .ok()
+                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                .is_some_and(|d| (d.as_millis() as u64) <= started_at)
+        })
     }
 
     /// The migrations in the folder now count as applied, and an error that asked for them
@@ -2600,6 +2645,57 @@ mod tests {
         s.check_migrations(&s.get(&id).unwrap());
         assert!(s.view(&id).unwrap().migration.is_some());
         assert!(s.dismiss_migration(&id).unwrap().migration.is_none());
+        s.stop(&id).await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn app_that_migrates_itself_clears_new_files() {
+        let s = sup("selfmigrate");
+        let id = app(
+            &s,
+            "selfmigrate",
+            "ping -n 60 127.0.0.1 >nul",
+            RestartPolicy::Never,
+            0,
+        );
+        let dir = own_folder(&s, &id, "selfmigrate-app");
+        s.check_migrations(&s.get(&id).unwrap());
+        std::fs::create_dir_all(dir.join("drizzle")).unwrap();
+        std::fs::write(dir.join("drizzle/0009_sessions.sql"), "").unwrap();
+        s.start(&id).unwrap();
+        assert_eq!(
+            wait_for(&s, &id, AppState::Running, 10).await,
+            AppState::Running
+        );
+        let m = s.get(&id).unwrap();
+        let age = |secs: u64, started_at: u64| {
+            let mut rt = m.rt.lock().unwrap();
+            rt.started_instant = Instant::now().checked_sub(Duration::from_secs(secs));
+            rt.started_at = Some(started_at);
+        };
+
+        // A young run says nothing yet.
+        s.check_migrations(&m);
+        assert!(s.view(&id).unwrap().migration.is_some());
+
+        // A file newer than the run is not applied by it, however long it runs.
+        age(61, now_ms() - 60_000);
+        s.check_migrations(&m);
+        assert!(s.view(&id).unwrap().migration.is_some());
+
+        // A minute on the files with no schema error: the app applied them.
+        age(61, now_ms() + 1_000);
+        s.check_migrations(&m);
+        assert!(s.view(&id).unwrap().migration.is_none());
+
+        // With a migrate task the notice stays until the task runs.
+        std::fs::write(dir.join("drizzle/0010_orders.sql"), "").unwrap();
+        s.update(&id, tasks(&[("migrate", "echo applied")]))
+            .unwrap();
+        age(61, now_ms() + 1_000);
+        s.check_migrations(&m);
+        assert!(s.view(&id).unwrap().migration.is_some());
         s.stop(&id).await.unwrap();
         let _ = std::fs::remove_dir_all(&dir);
     }

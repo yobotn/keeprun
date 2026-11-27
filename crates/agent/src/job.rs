@@ -529,6 +529,16 @@ fn path_with_tool_dir(command: &str, env: &BTreeMap<String, String>) -> Option<S
     Some(format!("{};{base}", dir.display()))
 }
 
+/// Whether the agent, and so its apps, runs as LocalSystem, as the installed service does.
+/// LocalSystem's profile is the system profile, which no other account has.
+pub fn runs_as_local_system() -> bool {
+    std::env::var("USERPROFILE").is_ok_and(|p| {
+        p.trim_end_matches('\\')
+            .to_ascii_lowercase()
+            .ends_with(r"\config\systemprofile")
+    })
+}
+
 /// Ask the process group to stop, like pressing Ctrl+Break in its console.
 pub fn send_ctrl_break(pid: u32) -> bool {
     unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid).is_ok() }
