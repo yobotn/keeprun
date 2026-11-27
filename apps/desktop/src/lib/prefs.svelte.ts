@@ -24,6 +24,9 @@ function write(key: string, value: string | null) {
 export const editors = ["auto", "vscode", "cursor", "windsurf", "default"] as const;
 export type Editor = (typeof editors)[number];
 
+/** Minutes between background Git fetches. Declared before `prefs`, which reads it. */
+export const fetchIntervals = [0, 1, 5, 15, 30] as const;
+
 export const prefs = $state({
   /** Keep Keeprun in the notification area when the window closes. On by default. */
   tray: read("keeprun.tray") !== "off",
@@ -38,8 +41,6 @@ export const prefs = $state({
   /** Windows notification when a background check finds commits to pull. On by default. */
   gitNotify: read("keeprun.gitNotify") !== "off",
 });
-
-export const fetchIntervals = [0, 1, 5, 15, 30] as const;
 
 function readFetchMinutes(): number {
   const v = Number(read("keeprun.gitFetchMinutes") ?? 5);
